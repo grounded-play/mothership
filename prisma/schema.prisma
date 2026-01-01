@@ -1,0 +1,203 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         String      @id @default(cuid())
+  email      String      @unique
+  password   String
+  role       String      @default("USER")
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  characters Character[]
+}
+
+model Character {
+  id            String          @id @default(cuid())
+  name          String
+  class         String
+  level         Int             @default(1)
+  portrait      String?
+  credits       Int             @default(1000)
+  voidTokens    Int             @default(0)
+  stats         String          @default("{}")
+  deathCount    Int             @default(0)
+  runsCompleted Int             @default(0)
+  deepestLevel  Int             @default(0)
+  userId        String
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  GameLobby     GameLobby[]
+  GamePlayer    GamePlayer[]
+  inventory     InventoryItem[]
+  lobbyMembers  LobbyMember[]
+  listings      MarketListing[]
+  marketTransactionsSold MarketTransaction[] @relation("Seller")
+  marketTransactionsBought MarketTransaction[] @relation("Buyer")
+
+  @@unique([userId, name])
+}
+
+model Item {
+  id             String          @id @default(cuid())
+  name           String          @unique
+  description    String
+  rarity         String
+  type           String
+  icon           String
+  minLevel       Int             @default(1)
+  inventoryItems InventoryItem[]
+  marketListings MarketListing[]
+  marketTransactions MarketTransaction[]
+}
+
+model InventoryItem {
+  id            String    @id @default(cuid())
+  characterId   String
+  itemId        String
+  quantity      Int       @default(1)
+  isEquipped    Boolean   @default(false)
+  isStashed     Boolean   @default(true)
+  instanceStats String?   @default("{}")
+  visualTraits  String?   @default("{}")
+  imageStatus   String    @default("READY")
+  customImage   String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @default(now())
+  item          Item      @relation(fields: [itemId], references: [id])
+  character     Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+}
+
+model MarketListing {
+  id            String    @id @default(cuid())
+  sellerId      String
+  itemId        String
+  quantity      Int
+  price         Int
+  currency      String    @default("CREDITS")
+  createdAt     DateTime  @default(now())
+  customImage   String?
+  instanceStats String?
+  visualTraits  String?
+  item          Item      @relation(fields: [itemId], references: [id])
+  seller        Character @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+}
+
+model GameLobby {
+  id         String        @id @default(cuid())
+  code       String        @unique
+  name       String
+  hostId     String
+  status     String        @default("WAITING")
+  isPublic   Boolean       @default(true)
+  difficulty String        @default("NORMAL")
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  Character  Character     @relation(fields: [hostId], references: [id])
+  GameState  GameState?
+  members    LobbyMember[]
+}
+
+model LobbyMember {
+  id          String    @id @default(cuid())
+  lobbyId     String
+  characterId String
+  isReady     Boolean   @default(false)
+  joinedAt    DateTime  @default(now())
+  character   Character @relation(fields: [characterId], references: [id])
+  lobby       GameLobby @relation(fields: [lobbyId], references: [id], onDelete: Cascade)
+
+  @@unique([lobbyId, characterId])
+}
+
+model GamePlayer {
+  id          String    @id
+  gameId      String
+  characterId String
+  nodeId      String?
+  hp          Int
+  maxHp       Int
+  stress      Int       @default(0)
+  ap          Int       @default(3)
+  maxAp       Int       @default(3)
+  hand        String    @default("[]")
+  deck        String    @default("[]")
+  discard     String    @default("[]")
+  inventory   String    @default("[]") // Session Inventory (Scrap, Food)
+  facing      String    @default("NORTH")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime
+  MapNode     MapNode?  @relation(fields: [nodeId], references: [id])
+  Character   Character @relation(fields: [characterId], references: [id])
+  GameState   GameState @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, characterId])
+}
+
+model GameState {
+  id                String       @id
+  lobbyId           String       @unique
+  currentTurn       Int          @default(1)
+  integrity         Int          @default(100)
+  phase             String       @default("PLANNING")
+  roundPhase        String       @default("DRAW")
+  sharedAp          Int          @default(3)
+  sharedApMax       Int          @default(3)
+  pendingActions    String       @default("[]")
+  actionDeadline    DateTime?
+  turnOrder         String       @default("[]")
+  objectives        String       @default("[]")
+  activePlayerIndex Int          @default(0)
+  currentPile       String       @default("[]")
+  pileOwnerId       String?
+  roomDeck          String       @default("[]")
+  deadline          DateTime?
+  objectiveNodeId   String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime
+  GamePlayer        GamePlayer[]
+  GameLobby         GameLobby    @relation(fields: [lobbyId], references: [id])
+  MapNode           MapNode[]
+}
+
+model MapNode {
+  id          String       @id
+  gameId      String
+  x           Int
+  y           Int
+  z           Int           @default(0)
+  type        String
+  roomSuit    String        @default("COMMAND")
+  roomPower   Int           @default(3)
+  security    Int           @default(0)
+  connections String       @default("[]")
+  enemies     String       @default("[]")
+  loot        String       @default("[]")
+  isExplored  Boolean      @default(false)
+  GamePlayer  GamePlayer[]
+  GameState   GameState    @relation(fields: [gameId], references: [id], onDelete: Cascade)
+}
+
+model MarketTransaction {
+  id          String    @id @default(cuid())
+  
+  sellerId    String
+  seller      Character @relation("Seller", fields: [sellerId], references: [id])
+  
+  buyerId     String
+  buyer       Character @relation("Buyer", fields: [buyerId], references: [id])
+  
+  itemId      String
+  item        Item      @relation(fields: [itemId], references: [id])
+  
+  price       Int
+  currency    String    @default("CREDITS")
+  
+  timestamp   DateTime  @default(now())
+}
