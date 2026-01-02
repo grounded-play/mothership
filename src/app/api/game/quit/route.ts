@@ -8,7 +8,7 @@ export async function POST(req: Request) {
     if (!session?.user?.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     try {
-        const { gameId } = await req.json();
+        const { gameId, reason } = await req.json();
 
         // 1. Get User Character
         const user = await prisma.user.findUnique({
@@ -26,6 +26,7 @@ export async function POST(req: Request) {
         if (!game) return NextResponse.json({ error: "Game not found" }, { status: 404 });
 
         const isHost = game.GameLobby.hostId === character.id;
+        const isVictory = reason === "VICTORY" || game.phase === "VICTORY";
 
         // 3. Score Calculation
         const now = new Date();
@@ -62,7 +63,7 @@ export async function POST(req: Request) {
             // End Game for Everyone
             await (prisma as any).gameState.update({
                 where: { id: gameId },
-                data: { phase: "ABORTED" }
+                data: { phase: isVictory ? "VICTORY" : "ABORTED" }
             });
             // Also close lobby
             await (prisma as any).gameLobby.update({
@@ -70,10 +71,10 @@ export async function POST(req: Request) {
                 data: { status: "ENDED" }
             });
         } else {
-            // Player leaving breaks the circle. Abort.
+            // Player leaving breaks the circle. Abort unless victory is already achieved.
             await (prisma as any).gameState.update({
                 where: { id: gameId },
-                data: { phase: "ABORTED" }
+                data: { phase: isVictory ? "VICTORY" : "ABORTED" }
             });
         }
 

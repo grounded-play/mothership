@@ -10,6 +10,23 @@ import RoomScanner from "@/components/game/RoomScanner";
 import MissionLog from "@/components/game/MissionLog";
 import { useToast } from "@/components/ui/Toast";
 
+type Facing = "NORTH" | "EAST" | "SOUTH" | "WEST";
+
+const parseJSON = (raw: any, fallback: any) => {
+    try { return JSON.parse(raw); } catch { return fallback; }
+};
+
+const relativeToAbsolute: Record<Facing, Record<string, string>> = {
+    NORTH: { FORWARD: "FORWARD", BACK: "BACK", LEFT: "LEFT", RIGHT: "RIGHT" },
+    EAST: { FORWARD: "RIGHT", BACK: "LEFT", LEFT: "FORWARD", RIGHT: "BACK" },
+    SOUTH: { FORWARD: "BACK", BACK: "FORWARD", LEFT: "RIGHT", RIGHT: "LEFT" },
+    WEST: { FORWARD: "LEFT", BACK: "RIGHT", LEFT: "BACK", RIGHT: "FORWARD" }
+};
+
+const toAbsoluteDirection = (relative: string, facing: Facing) => {
+    return relativeToAbsolute[facing]?.[relative] || relative;
+};
+
 export default function GameInterface() {
     const params = useParams();
     const router = useRouter();
@@ -18,16 +35,61 @@ export default function GameInterface() {
     const [selectedCardIndices, setSelectedCardIndices] = useState<number[]>([]);
     const [isActing, setIsActing] = useState(false);
     const [currentTurnId, setCurrentTurnId] = useState<string | null>(null);
-    const [timeLeft, setTimeLeft] = useState(0);
+    const [actionTimeLeft, setActionTimeLeft] = useState(0);
+    const [missionTimeLeft, setMissionTimeLeft] = useState(0);
     const [showInventory, setShowInventory] = useState(false);
-    const [actionIntent, setActionIntent] = useState<"MOVE" | "SEARCH" | "FIGHT" | "SECURE" | null>(null);
+    const [actionIntent, setActionIntent] = useState<"MOVE" | "SCAN" | "ATTACK" | "SECURE" | null>(null);
     const [moveDirection, setMoveDirection] = useState<string | null>(null);
+    const [exitIntent, setExitIntent] = useState<"ABORT" | "DEPART" | null>(null);
+    const [mapZ, setMapZ] = useState<number | null>(null);
+    const hasStartedRoundRef = useRef(false);
+    const prevPlayerZRef = useRef<number | null>(null);
     const { addToast } = useToast();
     const lastPileSizeRef = useRef(0);
     const { game, player } = gameState ?? { game: null, player: null };
     const inventory = useMemo(() => {
         try { return player?.inventory ? JSON.parse(player.inventory) : []; } catch { return []; }
     }, [player?.inventory]);
+    const roomInfo = useMemo(() => {
+        if (!player?.MapNode) return null;
+        let secret: any[] = [];
+        try { secret = player.MapNode.secretPaths ? JSON.parse(player.MapNode.secretPaths) : []; } catch { secret = []; }
+        return {
+            power: player.MapNode.roomPower,
+            suit: player.MapNode.roomSuit,
+            integrity: player.MapNode.integrity,
+            security: player.MapNode.security,
+            scanned: player.MapNode.scanned,
+            secretPaths: secret
+        };
+    }, [player?.MapNode]);
+    const connections = useMemo(() => parseJSON(player?.MapNode?.connections || "[]", []), [player?.MapNode?.connections]);
+    const roomEnemies = useMemo(() => parseJSON(player?.MapNode?.enemies || "[]", []), [player?.MapNode?.enemies]);
+    const hasEnemies = roomEnemies.length > 0;
+    const isAirlock = player?.MapNode?.type === "START";
+    const playerMarkers = useMemo(() => {
+        const markers: { id: string; x: number; y: number; z: number; isCurrent?: boolean }[] = [];
+        if (player?.MapNode) {
+            markers.push({
+                id: player.characterId,
+                x: player.MapNode.x,
+                y: player.MapNode.y,
+                z: player.MapNode.z,
+                isCurrent: true
+            });
+        }
+        (gameState?.otherPlayers || []).forEach((op: any) => {
+            if (!op?.node) return;
+            markers.push({
+                id: op.id,
+                x: op.node.x,
+                y: op.node.y,
+                z: op.node.z,
+                isCurrent: false
+            });
+        });
+        return markers;
+    }, [player?.MapNode, player?.characterId, gameState?.otherPlayers]);
 
     // Fetch Game State
     useEffect(() => {
@@ -88,22 +150,75 @@ export default function GameInterface() {
         return () => clearInterval(interval);
     }, [params.id, currentTurnId]);
 
-    // Timer Logic
+    // Auto-start round if we're stuck in DRAW
     useEffect(() => {
-        if (!gameState?.game?.deadline) {
-            setTimeLeft(0);
+        if (!game?.roundPhase) return;
+        if (game.roundPhase === "DRAW" && !hasStartedRoundRef.current) {
+            hasStartedRoundRef.current = true;
+            fetch('/api/game/action', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ gameId: params.id, action: "START" })
+            }).finally(() => {
+                setTimeout(() => { hasStartedRoundRef.current = false; }, 1000);
+            });
+        }
+    }, [game?.roundPhase, params.id]);
+
+    // Action Timer Logic
+    useEffect(() => {
+        const target = gameState?.game?.actionDeadline;
+        if (!target) {
+            setActionTimeLeft(0);
             return;
         }
         const updateTimer = () => {
             const now = Date.now();
-            const end = new Date(gameState.game.deadline).getTime();
+            const end = new Date(target).getTime();
             const diff = Math.max(0, Math.floor((end - now) / 1000));
-            setTimeLeft(diff);
+            setActionTimeLeft(diff);
+        };
+        updateTimer();
+        const interval = setInterval(updateTimer, 1000);
+        return () => clearInterval(interval);
+    }, [gameState?.game?.actionDeadline]);
+
+    // Mission Timer Logic
+    useEffect(() => {
+        const target = gameState?.game?.deadline;
+        if (!target) {
+            setMissionTimeLeft(0);
+            return;
+        }
+        const updateTimer = () => {
+            const now = Date.now();
+            const end = new Date(target).getTime();
+            const diff = Math.max(0, Math.floor((end - now) / 1000));
+            setMissionTimeLeft(diff);
         };
         updateTimer();
         const interval = setInterval(updateTimer, 1000);
         return () => clearInterval(interval);
     }, [gameState?.game?.deadline]);
+
+    // Airlock forces a forward move to begin
+    useEffect(() => {
+        if (!player?.MapNode) return;
+        if (isAirlock) {
+            setActionIntent("MOVE");
+            setMoveDirection("FORWARD");
+        }
+    }, [isAirlock, player?.MapNode]);
+
+    useEffect(() => {
+        const playerZ = player?.MapNode?.z;
+        if (playerZ === undefined || playerZ === null) return;
+        if (mapZ === null || mapZ === prevPlayerZRef.current) {
+            setMapZ(playerZ);
+        }
+        prevPlayerZRef.current = playerZ;
+    }, [player?.MapNode?.z, mapZ]);
+
 
     // AI Move Detector - REMOVED (Handled by Server Response)
     useEffect(() => {
@@ -112,18 +227,79 @@ export default function GameInterface() {
     }, [gameState?.game?.currentPile]);
 
     const toggleCardSelection = (idx: number) => {
-        if (selectedCardIndices.includes(idx)) {
-            setSelectedCardIndices(prev => prev.filter(i => i !== idx));
-        } else {
-            setSelectedCardIndices(prev => [...prev, idx]);
-        }
+        const hand = (player?.hand as any[]) || [];
+        const card = hand[idx];
+        if (!card) return;
+        setSelectedCardIndices(prev => {
+            if (prev.includes(idx)) {
+                return prev.filter(i => i !== idx);
+            }
+            if (prev.length === 0) {
+                return [...prev, idx];
+            }
+            const first = hand[prev[0]];
+            if (first && first.rank === card.rank) {
+                return [...prev, idx];
+            }
+            addToast("DOUBLES MUST MATCH RANK", "error");
+            return prev;
+        });
     };
 
     if (loading) return <div className="min-h-screen flex items-center justify-center text-neon-cyan">Loading Game Protocol...</div>;
     if (!gameState) return <div className="min-h-screen flex items-center justify-center text-red-500">Game Not Found</div>;
 
     const inActionPhase = game?.roundPhase === "ACTION";
+    const facing = (player?.facing || "NORTH") as Facing;
+    const isRoomScanned = !!player?.MapNode?.scanned;
+    const isBossRoom = player?.MapNode?.type === "BOSS";
+    const isVictory = game?.phase === "VICTORY" || game?.roundPhase === "VICTORY";
+    const activeDeck = mapZ ?? (player?.MapNode?.z ?? 0);
+    const hasActionTimer = !!game?.actionDeadline;
+    const canMoveDir = (dir: string) => {
+        if (!inActionPhase || !player?.MapNode) return false;
+        if (isAirlock) return dir === "FORWARD";
+        if (!isRoomScanned) return false;
+        const absDir = toAbsoluteDirection(dir, facing);
+        return connections.includes(absDir);
+    };
+    const canMoveForward = canMoveDir("FORWARD");
+    const canMoveBack = canMoveDir("BACK");
+    const canMoveLeft = canMoveDir("LEFT");
+    const canMoveRight = canMoveDir("RIGHT");
+    const canMoveUp = canMoveDir("UP");
+    const canMoveDown = canMoveDir("DOWN");
+    const canScan = inActionPhase && !isAirlock && !isRoomScanned;
+    const canSecure = inActionPhase && !isAirlock && isRoomScanned;
+    const canAttack = inActionPhase && !isAirlock && (hasEnemies || isBossRoom);
+    const canAutoMove = inActionPhase && isAirlock && actionIntent === "MOVE";
+    const canMoveSelected = moveDirection === "FORWARD" ? canMoveForward
+        : moveDirection === "BACK" ? canMoveBack
+            : moveDirection === "LEFT" ? canMoveLeft
+                : moveDirection === "RIGHT" ? canMoveRight
+                    : moveDirection === "UP" ? canMoveUp
+                        : moveDirection === "DOWN" ? canMoveDown
+                            : false;
+    const actionInvalid = (actionIntent === "SCAN" && !canScan)
+        || (actionIntent === "SECURE" && !canSecure)
+        || (actionIntent === "ATTACK" && !canAttack)
+        || (actionIntent === "MOVE" && (!moveDirection || !canMoveSelected));
+    const actionStatus = !inActionPhase
+        ? "DRAWING..."
+        : hasActionTimer
+            ? "ACTION WINDOW"
+            : isAirlock
+                ? "AIRLOCK READY"
+                : "WAITING FOR READY";
+    const actionTimerLabel = !inActionPhase ? "T--" : (hasActionTimer ? `T-${actionTimeLeft}s` : "READY");
     const pileOwnerIsMe = player && game?.pileOwnerId === player.characterId; // Use CharacterID for consistent ownership
+    const compassRotation = player?.facing === "EAST"
+        ? "rotate-[135deg]"
+        : player?.facing === "SOUTH"
+            ? "rotate-[225deg]"
+            : player?.facing === "WEST"
+                ? "rotate-[315deg]"
+                : "rotate-[45deg]";
 
     const handleUseItem = async (itemId: string) => {
         setIsActing(true);
@@ -144,6 +320,24 @@ export default function GameInterface() {
             }
         } catch (e) { console.error(e); }
         finally { setIsActing(false); }
+    };
+
+    const handleVictoryExit = async () => {
+        if (isActing) return;
+        setIsActing(true);
+        try {
+            await fetch('/api/game/quit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ gameId: params.id, reason: "VICTORY" })
+            });
+            router.push(`/game/${params.id}/summary`);
+        } catch (e) {
+            console.error(e);
+            addToast("EXIT FAILURE", "error");
+        } finally {
+            setIsActing(false);
+        }
     };
 
     const lockAction = async (intentOverride?: string, indexOverride?: number[], forceAutoLowest?: boolean) => {
@@ -192,18 +386,39 @@ export default function GameInterface() {
             setIsActing(false);
         }
     };
-    const handleExecute = () => lockAction();
+
+    const confirmExit = async () => {
+        if (!exitIntent) return;
+        setIsActing(true);
+        try {
+            const payload: any = { gameId: params.id };
+            if (exitIntent === "DEPART") payload.reason = "DEPART";
+            await fetch('/api/game/quit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            router.push(`/game/${params.id}/summary`);
+        } catch (e) {
+            console.error(e);
+            addToast("EXIT FAILURE", "error");
+        } finally {
+            setIsActing(false);
+            setExitIntent(null);
+        }
+    };
+    const handleExecute = () => lockAction(undefined, undefined, canAutoMove && selectedCardIndices.length === 0);
 
     // Legacy handleMove replacement (for minimal diff impact if stuck)
     const handleMove = async () => { };
 
 
-    // Format Timer
-    const minutes = Math.floor(timeLeft / 60);
-    const seconds = timeLeft % 60;
+    // Format Timers
+    const missionMinutes = Math.floor(missionTimeLeft / 60);
+    const missionSeconds = missionTimeLeft % 60;
 
     return (
-        <div className="min-h-screen bg-black text-white relative overflow-hidden font-mono flex flex-col">
+        <div className="h-screen bg-black text-white relative overflow-hidden font-mono flex flex-col">
             {/* Background Ambiance */}
             <div className="absolute inset-0 bg-[url('/bg-space.jpg')] bg-cover opacity-50 z-0" />
             <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-transparent to-black/90 z-0" />
@@ -215,7 +430,7 @@ export default function GameInterface() {
                     <div className="flex gap-4">
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 bg-gray-800 rounded-full overflow-hidden border-2 border-neon-cyan shadow-[0_0_10px_#0ff]">
-                                {player.character?.portrait && <img src={player.character.portrait} className="w-full h-full object-cover" />}
+                                {player.character?.portrait && <img src={player.character.portrait} alt={`${player.character.name} portrait`} title={`${player.character.name} portrait`} className="w-full h-full object-cover" />}
                             </div>
                             <div>
                                 <div className="text-sm lg:text-lg font-bold text-neon-cyan uppercase tracking-widest leading-none mb-1">{player.character.name}</div>
@@ -230,8 +445,8 @@ export default function GameInterface() {
                         {/* Mission Timer */}
                         <div className="hidden md:flex flex-col justify-center items-center px-4 border-l border-white/10">
                             <div className="text-[9px] text-gray-500 uppercase tracking-widest">T-MINUS</div>
-                            <div className={`text-xl font-bold font-mono ${timeLeft < 300 ? 'text-red-500 animate-pulse' : 'text-white'}`}>
-                                {minutes}:{seconds.toString().padStart(2, '0')}
+                            <div className={`text-xl font-bold font-mono ${game?.deadline && missionTimeLeft < 300 ? 'text-red-500 animate-pulse' : 'text-white'}`}>
+                                {game?.deadline ? `${missionMinutes}:${missionSeconds.toString().padStart(2, '0')}` : "--:--"}
                             </div>
                             <div className="mt-1 text-[10px] text-neon-cyan font-bold">AP POOL {game?.sharedAp ?? 0}/{game?.sharedApMax ?? 0}</div>
                         </div>
@@ -240,33 +455,98 @@ export default function GameInterface() {
 
                 {/* Abort/Depart Button */}
                 {player?.MapNode?.type === "START" ? (
-                    <Button variant="primary" className="bg-green-500/10 text-green-500 border border-green-500 hover:bg-green-500 hover:text-black h-8 text-xs px-4" onClick={() => {
-                        if (confirm("DEPART SECTOR? (Mission Complete)")) {
-                            // Treat as Quit but maybe different API param for Success?
-                            // For now using quit, assumes 'Extraction' if alive.
-                            fetch('/api/game/quit', { method: 'POST', body: JSON.stringify({ gameId: params.id, reason: "DEPART" }) })
-                                .then(() => router.push(`/game/${params.id}/summary`));
-                        }
-                    }}>
+                    <Button
+                        variant="primary"
+                        className="bg-green-500/10 text-green-500 border border-green-500 hover:bg-green-500 hover:text-black h-8 text-xs px-4"
+                        onClick={() => setExitIntent("DEPART")}
+                    >
                         DEPART
                     </Button>
                 ) : (
-                    <Button variant="outline" className="border-red-500/50 text-red-500 hover:bg-red-950/50 h-8 text-xs px-2" onClick={() => {
-                        if (confirm("ABORT MISSION?")) {
-                            fetch('/api/game/quit', { method: 'POST', body: JSON.stringify({ gameId: params.id }) })
-                                .then(() => router.push(`/game/${params.id}/summary`));
-                        }
-                    }}>
+                    <Button
+                        variant="outline"
+                        className="border-red-500/50 text-red-500 hover:bg-red-950/50 h-8 text-xs px-2"
+                        onClick={() => setExitIntent("ABORT")}
+                    >
                         ABORT
                     </Button>
                 )}
             </header>
 
+            <AnimatePresence>
+                {isVictory && !exitIntent && (
+                    <motion.div
+                        className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.96, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.96, opacity: 0 }}
+                            className="w-[360px] rounded-xl border border-white/10 bg-black/95 p-6 text-center shadow-2xl"
+                        >
+                            <div className="text-xs text-neon-cyan uppercase tracking-widest mb-2">Core Neutralized</div>
+                            <div className="text-sm text-white mb-4">Mission complete. Return to summary?</div>
+                            <div className="flex justify-center">
+                                <Button
+                                    className="h-8 text-xs bg-neon-cyan text-black"
+                                    onClick={handleVictoryExit}
+                                    disabled={isActing}
+                                >
+                                    RETURN TO SUMMARY
+                                </Button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+                {exitIntent && (
+                    <motion.div
+                        className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.96, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.96, opacity: 0 }}
+                            className="w-[320px] rounded-xl border border-white/10 bg-black/90 p-6 text-center shadow-2xl"
+                        >
+                            <div className="text-xs text-gray-500 uppercase tracking-widest mb-2">
+                                {exitIntent === "DEPART" ? "Extraction Protocol" : "Abort Protocol"}
+                            </div>
+                            <div className="text-sm text-white mb-4">
+                                {exitIntent === "DEPART" ? "Depart the sector and end the mission?" : "Abort mission and return to summary?"}
+                            </div>
+                            <div className="flex justify-center gap-3">
+                                <Button
+                                    variant="outline"
+                                    className="h-8 text-xs border-white/20 text-gray-300 hover:text-white"
+                                    onClick={() => setExitIntent(null)}
+                                    disabled={isActing}
+                                >
+                                    CANCEL
+                                </Button>
+                                <Button
+                                    className={`h-8 text-xs ${exitIntent === "DEPART" ? "bg-green-500 text-black" : "bg-red-500 text-black"}`}
+                                    onClick={confirmExit}
+                                    disabled={isActing}
+                                >
+                                    CONFIRM
+                                </Button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             {/* Main Grid Layout */}
-            <main className="flex-1 grid grid-cols-1 md:grid-cols-12 gap-4 p-4 z-20 relative overflow-hidden">
+            <main className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-12 gap-4 p-4 z-20 relative overflow-y-auto md:overflow-hidden max-w-7xl mx-auto w-full">
 
                 {/* LEFT PANEL: Map & Info (Col Span 3) - Mobile Order 3 */}
-                <div className="flex order-3 md:order-none col-span-1 md:col-span-3 flex-col gap-4 h-full relative">
+                <div className="flex order-3 md:order-none col-span-1 md:col-span-3 flex-col gap-4 h-full min-h-0 relative">
 
                     {/* Mission Log (Top - Fixed Height) */}
                     <div className="glass-panel p-3 border border-white/10 h-48 shrink-0 overflow-y-auto [&::-webkit-scrollbar]:hidden">
@@ -274,12 +554,66 @@ export default function GameInterface() {
                         <MissionLog objectives={game.objectives || []} />
                     </div>
 
+                    {/* Room Intel */}
+                    {roomInfo && (
+                        <div className="glass-panel p-3 border border-white/20 text-sm space-y-2">
+                            <div className="text-[9px] text-gray-500 uppercase tracking-widest border-b border-white/5 pb-1">ROOM INTEL</div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-gray-400 text-xs">Power</span>
+                                <span className="font-bold text-white">{roomInfo.scanned ? roomInfo.power : "?"}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-gray-400 text-xs">Suit</span>
+                                <span className="font-bold text-neon-cyan">{roomInfo.scanned ? roomInfo.suit : "UNKNOWN"}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-gray-400 text-xs">Integrity</span>
+                                <span className="font-bold text-white">{roomInfo.scanned ? `${roomInfo.integrity}%` : "?"}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-gray-400 text-xs">Security</span>
+                                <span className="font-bold text-white">{roomInfo.security ?? 0}</span>
+                            </div>
+                            {player?.MapNode?.type === "BOSS" && (
+                                <div className="flex items-center justify-between">
+                                    <span className="text-gray-400 text-xs">Core Integrity</span>
+                                    <span className="font-bold text-red-400">{game?.integrity ?? 0}%</span>
+                                </div>
+                            )}
+                            <div className="text-[10px] text-gray-500">{roomInfo.scanned ? "SCANNED" : "UNSCANNED"}</div>
+                            {roomInfo.secretPaths?.length > 0 && (
+                                <div className="text-[10px] text-neon-cyan">Secret path mapped.</div>
+                            )}
+                        </div>
+                    )}
+
                     {/* Map (Middle - Flex Grow / Main Focus) */}
                     {player?.MapNode && (
                         <div className="glass-panel p-3 border border-white/20 flex-1 flex flex-col animate-in slide-in-from-left duration-500 shadow-lg min-h-[300px]">
-                            <div className="text-[9px] text-gray-500 uppercase tracking-widest mb-2 text-right border-b border-white/5 pb-1">SECTOR MAP</div>
+                            <div className="flex items-center justify-between mb-2 border-b border-white/5 pb-1">
+                                <div className="text-[9px] text-gray-500 uppercase tracking-widest">SECTOR MAP</div>
+                                <div className="flex items-center gap-1">
+                                    {[0, 1, 2].map((z) => (
+                                        <button
+                                            key={z}
+                                            type="button"
+                                            onClick={() => setMapZ(z)}
+                                            className={`px-2 py-0.5 text-[8px] rounded border ${activeDeck === z ? "bg-neon-cyan text-black border-neon-cyan" : "bg-black/50 text-gray-400 border-white/10 hover:border-white/30"}`}
+                                        >
+                                            D{z}
+                                        </button>
+                                    ))}
+                                    <button
+                                        type="button"
+                                        onClick={() => setMapZ(player.MapNode.z)}
+                                        className="px-2 py-0.5 text-[8px] rounded border bg-black/50 text-neon-cyan border-white/10 hover:border-white/30"
+                                    >
+                                        FOLLOW
+                                    </button>
+                                </div>
+                            </div>
                             <div className="w-full flex-1 bg-black/50 border border-white/5 relative overflow-hidden rounded">
-                                <SectorGrid nodes={game.MapNode || []} currentPlayerNodeId={player.nodeId} />
+                                <SectorGrid nodes={game.MapNode || []} currentPlayerNodeId={player.nodeId} activeZ={activeDeck} playerMarkers={playerMarkers} />
                                 <div className="absolute bottom-1 right-1 text-[8px] font-mono text-gray-600">GRID v.0.9</div>
                             </div>
                             <div className="flex justify-between items-end mt-2">
@@ -314,46 +648,44 @@ export default function GameInterface() {
                             })}
                         </div>
                     </div>
+
+                    {/* Game Log */}
+                    <div className="glass-panel p-3 border border-white/10 bg-black/60 shrink-0 max-h-52 overflow-y-auto [&::-webkit-scrollbar]:hidden">
+                        <div className="text-[9px] text-gray-500 uppercase tracking-widest mb-2">EVENT LOG</div>
+                        <div className="space-y-1 text-[11px] text-gray-300">
+                            {(game?.gameLog || []).slice().reverse().slice(0, 10).map((log: any, idx: number) => (
+                                <div key={idx} className="border-b border-white/5 pb-1">
+                                    <span className="text-[9px] text-gray-500 mr-2">{new Date(log.ts || Date.now()).toLocaleTimeString()}</span>
+                                    <span className="text-neon-cyan font-bold mr-1">{log.type}</span>
+                                    <span>{log.message}</span>
+                                </div>
+                            ))}
+                            {(game?.gameLog || []).length === 0 && <div className="text-gray-600 text-xs">Awaiting signals...</div>}
+                        </div>
+                    </div>
                 </div>
 
                 {/* CENTER PANEL: HUD & Controls (Col Span 6) - Mobile Order 1 */}
                 <div className="order-1 md:order-none col-span-1 md:col-span-6 flex flex-col items-center justify-start pt-4 md:pt-10 h-full relative">
 
-                    {/* Pile / Combat Stack (Enhanced) */}
+                    {/* Room Result / Pile */}
                     <div className="min-h-[140px] mb-6 flex flex-col justify-center items-center w-full">
-                        {game.currentPile && game.currentPile.length > 0 ? (
-                            <div className="flex flex-col items-center animate-in zoom-in duration-300">
-                                <div className="mb-4 z-20 text-[9px] font-bold bg-black px-3 py-1 rounded-full border border-neon-cyan text-neon-cyan shadow-[0_0_10px_rgba(0,255,255,0.3)]">ACTIVE SIGNAL</div>
+                        {roomInfo?.scanned ? (
+                            <div className="flex flex-col items-center animate-in zoom-in duration-300 space-y-3">
+                                <div className="text-[9px] font-bold bg-black px-3 py-1 rounded-full border border-neon-cyan text-neon-cyan shadow-[0_0_10px_rgba(0,255,255,0.3)]">ROOM {roomInfo.suit}</div>
                                 <div className="relative w-[120px] h-[160px] flex items-center justify-center">
-                                    {game.currentPile.map((card: any, i: number) => {
-                                        const offset = (i * 4); // Minimal offset for stack
-                                        // "Stretching out" usually means clearly visible sequence.
-                                        // Making it a tight stack:
-                                        return (
-                                            <div key={i} className="absolute transition-transform hover:-translate-y-8 hover:z-30 shadow-xl"
-                                                style={{
-                                                    zIndex: i,
-                                                    top: `${-i * 2}px`,
-                                                    left: `${i * 2}px`,
-                                                    transform: `rotate(${i % 2 === 0 ? 1 : -1}deg)`
-                                                }}>
-                                                <NavCard card={card} selected={false} size="md" />
-                                            </div>
-                                        )
-                                    })}
+                                    <NavCard card={{ rank: roomInfo.power, suit: roomInfo.suit, power: roomInfo.power }} selected={true} size="md" />
                                 </div>
-                                <div className="text-[10px] mt-4 font-mono bg-black/50 px-3 py-1 rounded flex items-center gap-2 border border-white/10">
-                                    <span className="text-gray-500">SOURCE:</span>
-                                    <span className={pileOwnerIsMe ? "text-neon-cyan font-bold" : "text-white font-bold"}>
-                                        {pileOwnerIsMe ? "YOU" : "HOSTILE/ALLY"}
-                                    </span>
+                                <div className="text-[10px] font-mono bg-black/50 px-3 py-1 rounded flex items-center gap-2 border border-white/10">
+                                    <span className="text-gray-500">Integrity</span>
+                                    <span className={roomInfo.integrity < 50 ? "text-red-400 font-bold" : "text-white font-bold"}>{roomInfo.integrity}%</span>
                                 </div>
                             </div>
                         ) : (
                             <div className="text-xs text-gray-600 border border-dashed border-gray-800 p-8 rounded-xl flex items-center justify-center flex-col gap-2">
                                 <span className="w-2 h-2 rounded-full bg-gray-800 animate-pulse" />
-                                NO SIGNAL
-                                <span className="text-[9px] opacity-50">PLAY CARD TO CAPTURE SECTOR</span>
+                                ROOM UNSCANNED
+                                <span className="text-[9px] opacity-50">SCAN TO REVEAL POWER</span>
                             </div>
                         )}
                     </div>
@@ -362,16 +694,27 @@ export default function GameInterface() {
                     <div className="glass-panel p-4 md:p-6 border border-white/20 text-center animate-fade-in relative overflow-hidden w-full max-w-lg mb-4 bg-black/40 backdrop-blur-md shadow-2xl">
                         {/* Scanner */}
                         <div className="mb-4 flex justify-center">
-                            <div className="w-[180px] h-[120px] md:w-[240px] md:h-[160px] border border-gray-800 rounded bg-black relative shadow-inner">
+                            <div className="w-[180px] h-[120px] md:w-[240px] md:h-[160px] border border-gray-800 rounded bg-black relative shadow-inner overflow-hidden">
                                 <RoomScanner type={player.MapNode.type} isExplored={player.MapNode.isExplored} integrity={game.integrity} />
                             </div>
                         </div>
 
                         {/* Status Text */}
                         <div className="text-[10px] md:text-xs text-neon-cyan uppercase tracking-widest mb-4 flex justify-between border-b border-white/10 pb-2">
-                            <span>Sys: {inActionPhase ? "ONLINE" : "LOCKED"}</span>
-                            {game.roundPhase === "REACTION" && <span className="text-red-500 animate-pulse font-bold">HOSTILES ENGAGED</span>}
+                            <span>Sys: {actionStatus}</span>
+                            <span className="text-gray-400">{actionTimerLabel}</span>
                         </div>
+
+                        {/* Room card reveal */}
+                        {roomInfo && (
+                            <div className="mb-3 flex items-center justify-center">
+                                <div className="px-3 py-2 rounded-lg border border-white/10 bg-black/60 text-xs text-center">
+                                    <div className="text-gray-500">Room Card</div>
+                                    <div className="text-lg font-bold text-white">{roomInfo.scanned ? roomInfo.power : "??"}</div>
+                                    <div className="text-neon-cyan text-[11px] uppercase">{roomInfo.scanned ? roomInfo.suit : "Unknown"}</div>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Controls (Unified Command) */}
                         <div className="flex flex-col items-center gap-4 mt-2">
@@ -380,52 +723,78 @@ export default function GameInterface() {
                                 <div />
                                 <Button
                                     onClick={() => { setActionIntent("MOVE"); setMoveDirection("FORWARD"); }}
-                                    disabled={!inActionPhase}
-                                    className={`h-12 w-12 rounded-t-xl ${moveDirection === "FORWARD" && actionIntent === "MOVE" ? "bg-neon-cyan text-black shadow-[0_0_15px_rgba(0,255,255,0.5)]" : "bg-black border border-white/20 text-neon-cyan hover:bg-white/10"}`}
+                                    disabled={!canMoveForward}
+                                    className={`h-12 w-12 rounded-t-xl ${moveDirection === "FORWARD" && actionIntent === "MOVE" ? "bg-neon-cyan text-black shadow-[0_0_15px_rgba(0,255,255,0.5)]" : "bg-black border border-white/20 text-neon-cyan hover:bg-white/10"} ${!canMoveForward ? "opacity-30 cursor-not-allowed hover:bg-black" : ""}`}
                                 >▲</Button>
                                 <div />
 
                                 <Button
                                     onClick={() => { setActionIntent("MOVE"); setMoveDirection("LEFT"); }}
-                                    disabled={!inActionPhase}
-                                    className={`h-12 w-12 rounded-l-xl ${moveDirection === "LEFT" && actionIntent === "MOVE" ? "bg-neon-cyan text-black shadow-[0_0_15px_rgba(0,255,255,0.5)]" : "bg-black border border-white/20 text-neon-cyan hover:bg-white/10"}`}
+                                    disabled={!canMoveLeft}
+                                    className={`h-12 w-12 rounded-l-xl ${moveDirection === "LEFT" && actionIntent === "MOVE" ? "bg-neon-cyan text-black shadow-[0_0_15px_rgba(0,255,255,0.5)]" : "bg-black border border-white/20 text-neon-cyan hover:bg-white/10"} ${!canMoveLeft ? "opacity-30 cursor-not-allowed hover:bg-black" : ""}`}
                                 >◀</Button>
                                 <div className="h-12 w-12 flex items-center justify-center bg-black/80 rounded-full border border-white/5">
                                     <div className={`w-2 h-2 rounded-full ${actionIntent === "MOVE" ? "bg-neon-cyan animate-ping" : "bg-gray-800"}`} />
                                 </div>
                                 <Button
                                     onClick={() => { setActionIntent("MOVE"); setMoveDirection("RIGHT"); }}
-                                    disabled={!inActionPhase}
-                                    className={`h-12 w-12 rounded-r-xl ${moveDirection === "RIGHT" && actionIntent === "MOVE" ? "bg-neon-cyan text-black shadow-[0_0_15px_rgba(0,255,255,0.5)]" : "bg-black border border-white/20 text-neon-cyan hover:bg-white/10"}`}
+                                    disabled={!canMoveRight}
+                                    className={`h-12 w-12 rounded-r-xl ${moveDirection === "RIGHT" && actionIntent === "MOVE" ? "bg-neon-cyan text-black shadow-[0_0_15px_rgba(0,255,255,0.5)]" : "bg-black border border-white/20 text-neon-cyan hover:bg-white/10"} ${!canMoveRight ? "opacity-30 cursor-not-allowed hover:bg-black" : ""}`}
                                 >▶</Button>
 
                                 <div />
                                 <Button
                                     onClick={() => { setActionIntent("MOVE"); setMoveDirection("BACK"); }}
-                                    disabled={!inActionPhase}
-                                    className={`h-12 w-12 rounded-b-xl ${moveDirection === "BACK" && actionIntent === "MOVE" ? "bg-neon-cyan text-black shadow-[0_0_15px_rgba(0,255,255,0.5)]" : "bg-black border border-white/20 text-neon-cyan hover:bg-white/10"}`}
+                                    disabled={!canMoveBack}
+                                    className={`h-12 w-12 rounded-b-xl ${moveDirection === "BACK" && actionIntent === "MOVE" ? "bg-neon-cyan text-black shadow-[0_0_15px_rgba(0,255,255,0.5)]" : "bg-black border border-white/20 text-neon-cyan hover:bg-white/10"} ${!canMoveBack ? "opacity-30 cursor-not-allowed hover:bg-black" : ""}`}
                                 >▼</Button>
                                 <div />
+                            </div>
+                            <div className="flex gap-3">
+                                <Button
+                                    onClick={() => { setActionIntent("MOVE"); setMoveDirection("UP"); }}
+                                    disabled={!canMoveUp}
+                                    className={`h-8 w-16 text-[10px] font-bold tracking-widest border transition-all ${moveDirection === "UP" && actionIntent === "MOVE" ? "bg-neon-cyan text-black border-neon-cyan shadow-[0_0_10px_rgba(0,255,255,0.4)]" : "bg-black/50 text-neon-cyan border-white/20 hover:bg-white/10"} ${!canMoveUp ? "opacity-30 cursor-not-allowed hover:bg-black/50" : ""}`}
+                                >
+                                    UP
+                                </Button>
+                                <Button
+                                    onClick={() => { setActionIntent("MOVE"); setMoveDirection("DOWN"); }}
+                                    disabled={!canMoveDown}
+                                    className={`h-8 w-16 text-[10px] font-bold tracking-widest border transition-all ${moveDirection === "DOWN" && actionIntent === "MOVE" ? "bg-neon-cyan text-black border-neon-cyan shadow-[0_0_10px_rgba(0,255,255,0.4)]" : "bg-black/50 text-neon-cyan border-white/20 hover:bg-white/10"} ${!canMoveDown ? "opacity-30 cursor-not-allowed hover:bg-black/50" : ""}`}
+                                >
+                                    DOWN
+                                </Button>
                             </div>
 
                             {/* Extra Actions Selection */}
                             <div className="flex gap-4">
                                 <Button
-                                    onClick={() => { setActionIntent("SEARCH"); setMoveDirection(null); }}
-                                    disabled={!inActionPhase}
-                                    className={`w-28 h-10 text-xs font-bold tracking-widest border transition-all ${actionIntent === "SEARCH" ? "bg-green-500 text-black border-green-500 shadow-[0_0_15px_rgba(0,255,0,0.3)]" : "bg-black/50 text-green-500 border-green-900 hover:bg-green-900/30"}`}
+                                    onClick={() => { setActionIntent("SCAN"); setMoveDirection(null); }}
+                                    disabled={!canScan}
+                                    className={`w-28 h-10 text-xs font-bold tracking-widest border transition-all ${actionIntent === "SCAN" ? "bg-green-500 text-black border-green-500 shadow-[0_0_15px_rgba(0,255,0,0.3)]" : "bg-black/50 text-green-500 border-green-900 hover:bg-green-900/30"} ${!canScan ? "opacity-30 cursor-not-allowed hover:bg-black/50" : ""}`}
                                 >
                                     SCAN
                                 </Button>
                                 <Button
-                                    onClick={() => { setActionIntent("FIGHT"); setMoveDirection(null); }}
-                                    className={`w-28 h-10 text-xs font-bold tracking-widest border transition-all ${actionIntent === "FIGHT" ? "bg-red-500 text-black border-red-500 shadow-[0_0_15px_rgba(255,0,0,0.3)]" : "bg-black/50 text-red-500 border-red-900 hover:bg-red-900/30"}`}
+                                    onClick={() => { setActionIntent("ATTACK"); setMoveDirection(null); }}
+                                    disabled={!canAttack}
+                                    className={`w-28 h-10 text-xs font-bold tracking-widest border transition-all ${actionIntent === "ATTACK" ? "bg-red-500 text-black border-red-500 shadow-[0_0_15px_rgba(255,0,0,0.3)]" : "bg-black/50 text-red-500 border-red-900 hover:bg-red-900/30"} ${!canAttack ? "opacity-30 cursor-not-allowed hover:bg-black/50" : ""}`}
                                 >
                                     ENGAGE
                                 </Button>
                                 <Button
+                                    onClick={() => { setActionIntent("SECURE"); setMoveDirection(null); }}
+                                    disabled={!canSecure}
+                                    className={`w-28 h-10 text-xs font-bold tracking-widest border transition-all ${actionIntent === "SECURE" ? "bg-yellow-400 text-black border-yellow-400 shadow-[0_0_15px_rgba(255,255,0,0.3)]" : "bg-black/50 text-yellow-400 border-yellow-900 hover:bg-yellow-900/30"} ${!canSecure ? "opacity-30 cursor-not-allowed hover:bg-black/50" : ""}`}
+                                >
+                                    SECURE
+                                </Button>
+                            </div>
+                            <div className="mt-2">
+                                <Button
                                     onClick={() => setShowInventory(!showInventory)}
-                                    className={`w-28 h-10 text-xs font-bold tracking-widest border transition-all ${showInventory ? "bg-yellow-500 text-black border-yellow-500" : "bg-black/50 text-yellow-500 border-yellow-900 hover:bg-yellow-900/30"}`}
+                                    className={`w-28 h-8 text-[10px] font-bold tracking-widest border transition-all ${showInventory ? "bg-white text-black border-white" : "bg-black/40 text-gray-300 border-white/10 hover:bg-white/10"}`}
                                 >
                                     SUPPLIES
                                 </Button>
@@ -459,7 +828,12 @@ export default function GameInterface() {
 
                     {/* Skip Turn (Remains Bottom) */}
                     <div className="mt-2">
-                        <Button onClick={() => lockAction("SCAN", [], true)} variant="ghost" className="text-red-500/50 hover:text-red-500 hover:bg-red-950/20 text-xs border border-transparent hover:border-red-900">
+                        <Button
+                            onClick={() => lockAction("SCAN", [], true)}
+                            disabled={isAirlock || !inActionPhase}
+                            variant="ghost"
+                            className={`text-red-500/50 hover:text-red-500 hover:bg-red-950/20 text-xs border border-transparent hover:border-red-900 ${isAirlock || !inActionPhase ? "opacity-30 cursor-not-allowed hover:bg-transparent" : ""}`}
+                        >
                             EMERGENCY VENT (-1 HP / SKIP)
                         </Button>
                     </div>
@@ -468,17 +842,10 @@ export default function GameInterface() {
                     <div className="mt-4 flex flex-col items-center gap-2">
                         <div className="w-16 h-16 rounded-full border border-gray-800 bg-black/50 flex items-center justify-center relative shadow-[0_0_10px_rgba(0,0,0,0.5)]">
                             {/* Compass Arrow */}
-                            <div className="absolute inset-0 flex items-center justify-center transition-transform duration-500"
-                                style={{
-                                    transform: `rotate(${player?.facing === "EAST" ? 90 :
-                                        player?.facing === "SOUTH" ? 180 :
-                                            player?.facing === "WEST" ? 270 : 0
-                                        }deg)`
-                                }}>
+                            <div className={`absolute inset-0 flex items-center justify-center transition-transform duration-500 ${compassRotation}`}>
                                 <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[20px] border-b-neon-cyan drop-shadow-[0_0_5px_rgba(0,255,255,0.8)]" />
+                                <span className="absolute -top-1 text-[8px] text-gray-600 font-bold">N</span>
                             </div>
-                            {/* N Label */}
-                            <span className="absolute top-1 text-[8px] text-gray-600 font-bold">N</span>
                         </div>
                         <div className="text-[10px] font-mono text-gray-500">
                             ORT: <span className="text-neon-cyan font-bold">{player?.facing || "NORTH"}</span>
@@ -487,19 +854,19 @@ export default function GameInterface() {
                 </div>
 
                 {/* RIGHT PANEL: Hand & Protocol (Col Span 3) - Mobile Order 2 */}
-                <div className="flex order-2 md:order-none col-span-1 md:col-span-3 flex-col h-full relative pointer-events-none gap-4">
+                <div className="flex order-2 md:order-none col-span-1 md:col-span-3 flex-col h-full min-h-0 relative pointer-events-none gap-4">
 
                     {/* Hand Interface (TOP - Primary Space, Grows) */}
-                    <div className="pointer-events-auto flex-1 w-full max-w-[320px] flex flex-col pt-4 overflow-hidden">
+                    <div className="pointer-events-auto flex-1 min-h-0 w-full max-w-[320px] flex flex-col pt-4 overflow-hidden">
                         {/* Hand Cards - NO OVERLAP, JUST SPACING */}
-                        <div className="relative w-full flex-1 flex flex-col items-end gap-2 overflow-y-auto pr-2 pb-20 [&::-webkit-scrollbar]:hidden">
+                        <div className="relative w-full flex-1 min-h-0 flex flex-col items-end gap-2 overflow-y-auto pr-2 pb-20 [&::-webkit-scrollbar]:hidden">
                             <AnimatePresence>
-                                {gameState?.player?.hand?.length > 0 ? gameState.player.hand.map((card: any, index: number) => (
-                                    <motion.div
-                                        key={card.id || index}
-                                        layout
-                                        initial={{ x: 20, opacity: 0 }}
-                                        animate={{ opacity: 1, x: 0 }}
+                        {gameState?.player?.hand?.length > 0 ? gameState.player.hand.map((card: any, index: number) => (
+                            <motion.div
+                                key={card.id || index}
+                                layout
+                                initial={{ x: 20, opacity: 0 }}
+                                animate={{ opacity: 1, x: 0 }}
                                         exit={{ x: 20, opacity: 0 }}
                                         onClick={() => toggleCardSelection(index)}
                                         className={`
@@ -521,17 +888,18 @@ export default function GameInterface() {
                         <div className="mt-4 mb-2 flex flex-col gap-2 justify-end pr-4 shrink-0">
                             <Button
                                 onClick={handleExecute}
-                                    disabled={(!actionIntent || (actionIntent === "MOVE" && !moveDirection) || selectedCardIndices.length === 0) || isActing || !inActionPhase}
+                                    disabled={(!actionIntent || actionInvalid || (selectedCardIndices.length === 0 && !canAutoMove)) || isActing || !inActionPhase}
                                     className={`w-64 py-4 text-xs font-bold tracking-widest transition-all duration-300 rounded-xl border-2
-                                                {(actionIntent && selectedCardIndices.length > 0 && inActionPhase)
+                                                {(actionIntent && !actionInvalid && (selectedCardIndices.length > 0 || canAutoMove) && inActionPhase)
                                         ? 'bg-neon-cyan text-black border-neon-cyan shadow-[0_0_20px_#0ff] hover:bg-white hover:scale-105'
                                         : 'bg-black/50 text-gray-600 border-gray-800'}
                                             `}
                             >
                                 {!inActionPhase ? 'WAITING FOR DRAW' :
                                     !actionIntent ? 'SELECT PROTOCOL' :
-                                        selectedCardIndices.length === 0 ? 'SELECT CARD' :
-                                            `LOCK ${actionIntent}`}
+                                        (selectedCardIndices.length === 0 && !canAutoMove) ? 'SELECT CARD' :
+                                            (selectedCardIndices.length === 0 && canAutoMove) ? 'LOCK MOVE (AUTO)' :
+                                                `LOCK ${actionIntent}`}
                             </Button>
                         </div>
                     </div>
@@ -573,7 +941,7 @@ function NavCard({ card, selected, size = "md" }: { card: any, selected?: boolea
         <div className={`
             relative rounded-r-xl border-l-4 flex items-center justify-between overflow-hidden transition-all px-4
             ${theme.color} ${bgColor}
-            ${selected ? "shadow-[0_0_20px_currentColor] border-white translate-x-4" : "hover:border-white/60 hover:translate-x-2"}
+            ${selected ? "shadow-[0_0_20px_currentColor] border-white translate-x-4 animate-pulse" : "hover:border-white/60 hover:translate-x-2"}
             ${isSm ? "w-48 h-12 text-sm" : "w-64 h-16"}
         `}>
             {/* Holographic Scanline Overlay */}
