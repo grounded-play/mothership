@@ -72,6 +72,8 @@ model InventoryItem {
   updatedAt     DateTime  @default(now())
   item          Item      @relation(fields: [itemId], references: [id])
   character     Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@unique([characterId, itemId])
 }
 
 model MarketListing {
@@ -151,6 +153,7 @@ model GameState {
   sharedApMax       Int          @default(3)
   pendingActions    String       @default("[]")
   actionDeadline    DateTime?
+  gameLog           String       @default("[]")
   turnOrder         String       @default("[]")
   objectives        String       @default("[]")
   activePlayerIndex Int          @default(0)
@@ -176,6 +179,9 @@ model MapNode {
   roomSuit    String        @default("COMMAND")
   roomPower   Int           @default(3)
   security    Int           @default(0)
+  integrity   Int           @default(100)
+  scanned     Boolean       @default(false)
+  secretPaths String        @default("[]")
   connections String       @default("[]")
   enemies     String       @default("[]")
   loot        String       @default("[]")

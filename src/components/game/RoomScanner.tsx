@@ -82,7 +82,7 @@ export default function RoomScanner({ type, isExplored, integrity }: RoomScanner
             ref={canvasRef}
             width={300}
             height={200}
-            className="w-full h-40 border border-gray-800 rounded bg-black shadow-inner"
+            className="block w-full h-full border border-gray-800 rounded bg-black shadow-inner"
         />
     );
 }
