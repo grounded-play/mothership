@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { DeckGenerator, CardRules } from "./cards";
+import { getBackpackCapacity } from "./backpack";
 
 export class GameEngine {
     static async initializeGame(lobbyId: string) {
@@ -141,6 +142,18 @@ export class GameEngine {
         // (Handled by CardRules now)
 
         const players = [];
+        const getItemSlot = (item: any) => {
+            if (item?.equipSlot) return item.equipSlot.toUpperCase();
+            const type = (item?.type || "").toLowerCase();
+            if (type === "weapon") return "WEAPON";
+            if (type === "armor") return "ARMOR";
+            return null;
+        };
+        const resolveUses = (invItem: any) => {
+            const maxUses = invItem.usesMax ?? invItem.item?.maxUses ?? null;
+            const remaining = invItem.usesRemaining ?? maxUses;
+            return { maxUses, remaining };
+        };
         for (const member of lobby.members) {
             const isHost = member.characterId === lobby.hostId;
 
@@ -158,14 +171,35 @@ export class GameEngine {
 
             // Map Persistent Inventory
             const persistentInv = member.character.inventory || [];
-            const sessionInv = persistentInv.map((invItem: any) => ({
-                id: invItem.id,
-                itemId: invItem.itemId,
-                name: invItem.item.name,
-                type: invItem.item.type,
-                qty: invItem.quantity,
-                description: invItem.item.description
-            }));
+            const equippedWeapon = persistentInv.find((invItem: any) => invItem.isEquipped && getItemSlot(invItem.item) === "WEAPON");
+            const equippedArmor = persistentInv.find((invItem: any) => invItem.isEquipped && getItemSlot(invItem.item) === "ARMOR");
+            const backpackLevel = member.character.backpackLevel ?? 1;
+            const backpackCapacity = getBackpackCapacity(backpackLevel);
+            const sessionInv: any[] = [];
+
+            const consumeRunUse = async (invItem: any) => {
+                const { maxUses, remaining } = resolveUses(invItem);
+                if (!maxUses) return true;
+                if (!remaining || remaining <= 0) {
+                    await (prisma as any).inventoryItem.update({
+                        where: { id: invItem.id },
+                        data: { isEquipped: false }
+                    });
+                    return false;
+                }
+                const nextRemaining = Math.max(0, remaining - 1);
+                await (prisma as any).inventoryItem.update({
+                    where: { id: invItem.id },
+                    data: {
+                        usesRemaining: nextRemaining,
+                        usesMax: maxUses
+                    }
+                });
+                return true;
+            };
+
+            const weaponUsable = equippedWeapon ? await consumeRunUse(equippedWeapon) : false;
+            const armorUsable = equippedArmor ? await consumeRunUse(equippedArmor) : false;
 
             const p = await (prisma as any).gamePlayer.create({
                 data: {
@@ -178,6 +212,12 @@ export class GameEngine {
                     ap: 3,
                     hand: JSON.stringify(hand),
                     inventory: JSON.stringify(sessionInv),
+                    equippedWeaponId: weaponUsable ? equippedWeapon?.id || null : null,
+                    equippedWeaponSuit: weaponUsable ? equippedWeapon?.item?.suit || null : null,
+                    equippedArmorId: armorUsable ? equippedArmor?.id || null : null,
+                    equippedArmorSuit: armorUsable ? equippedArmor?.item?.suit || null : null,
+                    backpackLevel,
+                    backpackCapacity,
                     updatedAt: new Date()
                 },
                 include: { Character: true }

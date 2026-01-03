@@ -3,10 +3,11 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Box, Shield, Zap, Activity } from "lucide-react";
+import { ArrowLeft, Box, Shield, Activity } from "lucide-react";
 import CurrencyDisplay from "@/components/ui/CurrencyDisplay";
 
 import CharacterProfile from "@/components/character/CharacterProfile";
+import InventoryInspect from "@/components/character/InventoryInspect";
 
 export default async function CharacterViewPage() {
     const session = await getServerSession(authOptions);
@@ -31,6 +32,7 @@ export default async function CharacterViewPage() {
     }
 
     const character = user.characters[0];
+    const runsFailed = (character as any).runsFailed ?? 0;
 
     // Parse stats
     let stats = { str: 10, agi: 10, int: 10 };
@@ -85,6 +87,30 @@ export default async function CharacterViewPage() {
                                 </div>
                             </div>
                         </div>
+
+                        <div className="glass-panel p-6 rounded-xl border-t-2 border-neon-cyan">
+                            <h2 className="text-xl font-bold text-neon-cyan mb-4 flex items-center uppercase tracking-wider text-sm">
+                                <Shield className="mr-2 w-4 h-4" /> Service Record
+                            </h2>
+                            <div className="space-y-2 text-xs text-gray-300">
+                                <div className="flex justify-between">
+                                    <span className="text-gray-400">Runs Completed</span>
+                                    <span className="font-mono text-white">{character.runsCompleted}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-gray-400">Runs Failed</span>
+                                    <span className="font-mono text-white">{runsFailed}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-gray-400">Death Count</span>
+                                    <span className="font-mono text-white">{character.deathCount}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-gray-400">Deepest Level</span>
+                                    <span className="font-mono text-white">{character.deepestLevel}</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     {/* Right Column: Inventory & Loadout */}
@@ -93,42 +119,7 @@ export default async function CharacterViewPage() {
                             <h2 className="text-xl font-bold text-neon-cyan mb-6 flex items-center uppercase tracking-wider text-sm">
                                 <Box className="mr-2 w-4 h-4" /> Cargo Manifest
                             </h2>
-                            {character.inventory.length > 0 ? (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    {character.inventory.map((entry) => (
-                                        <div key={entry.id} className="flex items-center gap-3 p-3 bg-black/40 border border-white/5 rounded-lg hover:bg-white/5 transition-colors group">
-                                            {/* Item Icon */}
-                                            <div className="w-12 h-12 bg-black/60 rounded flex items-center justify-center shrink-0 border border-white/10 overflow-hidden relative">
-                                                {(entry.customImage || entry.item.icon)?.startsWith('/items/') ? (
-                                                    <img src={entry.customImage || entry.item.icon} className="w-full h-full object-cover" />
-                                                ) : (
-                                                    <span className="text-xl font-bold text-gray-600">{entry.item.name[0]}</span>
-                                                )}
-                                            </div>
-
-                                            <div className="flex-1 min-w-0">
-                                                <div className={`font-medium truncate ${entry.item.rarity === 'Legendary' ? 'text-neon-magenta' :
-                                                        entry.item.rarity === 'Epic' ? 'text-purple-400' :
-                                                            entry.item.rarity === 'Rare' ? 'text-neon-blue' : 'text-white'
-                                                    }`}>
-                                                    {entry.item.name}
-                                                </div>
-                                                <div className="text-[10px] text-gray-400 truncate uppercase mt-0.5">
-                                                    {entry.visualTraits || entry.item.type}
-                                                </div>
-                                            </div>
-                                            <div className="text-sm font-mono text-gray-500 bg-black/80 px-2 py-1 rounded border border-white/5">
-                                                x{entry.quantity}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-600 opacity-50">
-                                    <Box className="h-16 w-16 mb-2" />
-                                    <p>Cargo Hold Empty</p>
-                                </div>
-                            )}
+                            <InventoryInspect inventory={character.inventory} />
                         </div>
                     </div>
                 </div>

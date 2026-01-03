@@ -6,7 +6,14 @@ const prisma = new PrismaClient()
 async function main() {
     // 1. Create Base Items
     const items = [
-        { name: "Plasma Rifle", type: "Weapon", rarity: "Rare", icon: "Crosshair", description: "Standard issue energy weapon." },
+        { name: "Plasma Rifle", type: "Weapon", rarity: "Rare", icon: "Crosshair", description: "Standard issue energy weapon.", suit: "COMMAND", equipSlot: "WEAPON", slotSize: 2, maxUses: 3, classTag: "Marine" },
+        { name: "Exo Suit", type: "Armor", rarity: "Rare", icon: "Shield", description: "Reinforced exoskeleton armor.", suit: "COMMAND", equipSlot: "ARMOR", slotSize: 2, maxUses: 5, classTag: "Marine" },
+        { name: "Bio Injector", type: "Weapon", rarity: "Rare", icon: "Syringe", description: "Biotech injection weapon.", suit: "BIOTECH", equipSlot: "WEAPON", slotSize: 2, maxUses: 3, classTag: "Medic" },
+        { name: "Med Suit", type: "Armor", rarity: "Rare", icon: "Heart", description: "Bio-sealed medical armor.", suit: "BIOTECH", equipSlot: "ARMOR", slotSize: 2, maxUses: 5, classTag: "Medic" },
+        { name: "Arc Cutter", type: "Weapon", rarity: "Rare", icon: "Zap", description: "Industrial plasma cutting tool.", suit: "PLASMA", equipSlot: "WEAPON", slotSize: 2, maxUses: 3, classTag: "Engineer" },
+        { name: "Thermal Suit", type: "Armor", rarity: "Rare", icon: "Flame", description: "Thermal shielding armor.", suit: "PLASMA", equipSlot: "ARMOR", slotSize: 2, maxUses: 5, classTag: "Engineer" },
+        { name: "Void Blade", type: "Weapon", rarity: "Rare", icon: "Sword", description: "Void-tuned melee blade.", suit: "VOID", equipSlot: "WEAPON", slotSize: 2, maxUses: 3, classTag: "Scout" },
+        { name: "Phase Cloak", type: "Armor", rarity: "Rare", icon: "Eye", description: "Phase-shifted stealth cloak.", suit: "VOID", equipSlot: "ARMOR", slotSize: 2, maxUses: 5, classTag: "Scout" },
         { name: "Admin Key Card", type: "Key", rarity: "Artifact", icon: "Key", description: "Opens all doors." },
         { name: "Scrap Metal", type: "Material", rarity: "Common", icon: "Box", description: "Useful for repairs." },
         { name: "Void Crystal", type: "Material", rarity: "Legendary", icon: "Gem", description: "Glowing with dark energy." },
@@ -51,7 +58,7 @@ async function main() {
         },
         create: {
             name: 'Commander',
-            class: 'Pilot',
+            class: 'Marine',
             level: 100,
             credits: 99999,
             voidTokens: 500,
@@ -64,20 +71,34 @@ async function main() {
     const plasmaRifle = await prisma.item.findUnique({ where: { name: "Plasma Rifle" } })
     const keyCard = await prisma.item.findUnique({ where: { name: "Admin Key Card" } })
 
-    if (plasmaRifle) {
-        await prisma.inventoryItem.upsert({
-            where: { characterId_itemId: { characterId: adminChar.id, itemId: plasmaRifle.id } },
-            update: { quantity: 1 },
-            create: { characterId: adminChar.id, itemId: plasmaRifle.id, quantity: 1 }
+    const seedStackable = async (item: any) => {
+        const existing = await prisma.inventoryItem.findFirst({
+            where: { characterId: adminChar.id, itemId: item.id }
         })
+        if (existing) {
+            await prisma.inventoryItem.update({
+                where: { id: existing.id },
+                data: { quantity: 1 }
+            })
+        } else {
+            await (prisma as any).inventoryItem.create({
+                data: {
+                    characterId: adminChar.id,
+                    itemId: item.id,
+                    quantity: 1,
+                    usesRemaining: item.maxUses ?? null,
+                    usesMax: item.maxUses ?? null
+                }
+            })
+        }
+    }
+
+    if (plasmaRifle) {
+        await seedStackable(plasmaRifle)
     }
 
     if (keyCard) {
-        await prisma.inventoryItem.upsert({
-            where: { characterId_itemId: { characterId: adminChar.id, itemId: keyCard.id } },
-            update: { quantity: 1 },
-            create: { characterId: adminChar.id, itemId: keyCard.id, quantity: 1 }
-        })
+        await seedStackable(keyCard)
     }
 
     console.log("Seeding complete.")

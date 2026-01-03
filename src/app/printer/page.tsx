@@ -41,6 +41,7 @@ export default async function PrinterPage() {
             <PrinterInterface
                 credits={(character as any).credits}
                 inventory={(character as any).inventory}
+                backpackLevel={(character as any).backpackLevel ?? 1}
                 globalQueue={globalQueue}
             />
         </div>

@@ -23,6 +23,7 @@ model Character {
   class         String
   level         Int             @default(1)
   portrait      String?
+  backpackLevel Int             @default(1)
   credits       Int             @default(1000)
   voidTokens    Int             @default(0)
   stats         String          @default("{}")
@@ -51,6 +52,11 @@ model Item {
   rarity         String
   type           String
   icon           String
+  suit           String?
+  equipSlot      String?
+  slotSize       Int             @default(1)
+  maxUses        Int?
+  classTag       String?
   minLevel       Int             @default(1)
   inventoryItems InventoryItem[]
   marketListings MarketListing[]
@@ -66,6 +72,8 @@ model InventoryItem {
   isStashed     Boolean   @default(true)
   instanceStats String?   @default("{}")
   visualTraits  String?   @default("{}")
+  usesRemaining Int?
+  usesMax       Int?
   imageStatus   String    @default("READY")
   customImage   String?
   createdAt     DateTime  @default(now())
@@ -132,6 +140,12 @@ model GamePlayer {
   deck        String    @default("[]")
   discard     String    @default("[]")
   inventory   String    @default("[]") // Session Inventory (Scrap, Food)
+  equippedWeaponId   String?
+  equippedWeaponSuit String?
+  equippedArmorId    String?
+  equippedArmorSuit  String?
+  backpackLevel      Int       @default(1)
+  backpackCapacity   Int       @default(4)
   facing      String    @default("NORTH")
   createdAt   DateTime  @default(now())
   updatedAt   DateTime

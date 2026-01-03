@@ -29,7 +29,7 @@ export default function SectorGrid({ nodes, currentPlayerNodeId, activeZ, player
     const getMarkers = (x: number, y: number, z: number) => markersByKey.get(`${x}-${y}-${z}`) || [];
 
     return (
-        <div className="flex flex-col items-center justify-center gap-8 perspective-1000 pt-6 pb-6 w-full overflow-x-auto">
+        <div className="flex flex-col items-center justify-center gap-4 perspective-1000 w-full h-full overflow-hidden">
             {layers.map(z => (
                 <div key={z} className="relative group">
                     {/* Layer Label */}
@@ -66,7 +66,7 @@ export default function SectorGrid({ nodes, currentPlayerNodeId, activeZ, player
                                     <div
                                         key={`${x}-${y}-${z}`}
                                         className={`
-                                            w-8 h-8 flex items-center justify-center border transition-all duration-300
+                                            w-9 h-9 md:w-10 md:h-10 flex items-center justify-center border transition-all duration-300
                                             ${statusColor}
                                             ${isCurrent ? 'scale-125 translate-z-4' : ''}
                                         `}
@@ -102,7 +102,7 @@ export default function SectorGrid({ nodes, currentPlayerNodeId, activeZ, player
                                 <div
                                     className={`
                                         absolute -bottom-12 left-1/2 -translate-x-1/2 
-                                        w-8 h-8 flex items-center justify-center border 
+                                        w-9 h-9 md:w-10 md:h-10 flex items-center justify-center border 
                                         transition-all duration-300
                                         ${isCurrent ? "bg-neon-cyan border-neon-cyan shadow-[0_0_15px_#0ff] scale-125 z-50" : "bg-green-900/40 border-green-500/50"}
                                     `}

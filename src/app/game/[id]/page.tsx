@@ -230,20 +230,21 @@ export default function GameInterface() {
         const hand = (player?.hand as any[]) || [];
         const card = hand[idx];
         if (!card) return;
-        setSelectedCardIndices(prev => {
-            if (prev.includes(idx)) {
-                return prev.filter(i => i !== idx);
-            }
-            if (prev.length === 0) {
-                return [...prev, idx];
-            }
-            const first = hand[prev[0]];
-            if (first && first.rank === card.rank) {
-                return [...prev, idx];
-            }
-            addToast("DOUBLES MUST MATCH RANK", "error");
-            return prev;
-        });
+        const current = selectedCardIndices;
+        if (current.includes(idx)) {
+            setSelectedCardIndices(current.filter(i => i !== idx));
+            return;
+        }
+        if (current.length === 0) {
+            setSelectedCardIndices([...current, idx]);
+            return;
+        }
+        const first = hand[current[0]];
+        if (first && first.rank === card.rank) {
+            setSelectedCardIndices([...current, idx]);
+            return;
+        }
+        addToast("DOUBLES MUST MATCH RANK", "error");
     };
 
     if (loading) return <div className="min-h-screen flex items-center justify-center text-neon-cyan">Loading Game Protocol...</div>;
@@ -300,6 +301,13 @@ export default function GameInterface() {
             : player?.facing === "WEST"
                 ? "rotate-[315deg]"
                 : "rotate-[45deg]";
+    const compassLabelRotation = player?.facing === "EAST"
+        ? "rotate-[-135deg]"
+        : player?.facing === "SOUTH"
+            ? "rotate-[-225deg]"
+            : player?.facing === "WEST"
+                ? "rotate-[-315deg]"
+                : "rotate-[-45deg]";
 
     const handleUseItem = async (itemId: string) => {
         setIsActing(true);
@@ -418,7 +426,7 @@ export default function GameInterface() {
     const missionSeconds = missionTimeLeft % 60;
 
     return (
-        <div className="h-screen bg-black text-white relative overflow-hidden font-mono flex flex-col">
+        <div className="h-[100dvh] bg-black text-white relative overflow-hidden font-mono flex flex-col">
             {/* Background Ambiance */}
             <div className="absolute inset-0 bg-[url('/bg-space.jpg')] bg-cover opacity-50 z-0" />
             <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-transparent to-black/90 z-0" />
@@ -546,7 +554,7 @@ export default function GameInterface() {
             <main className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-12 gap-4 p-4 z-20 relative overflow-y-auto md:overflow-hidden max-w-7xl mx-auto w-full">
 
                 {/* LEFT PANEL: Map & Info (Col Span 3) - Mobile Order 3 */}
-                <div className="flex order-3 md:order-none col-span-1 md:col-span-3 flex-col gap-4 h-full min-h-0 relative">
+                <div className="flex order-3 md:order-none col-span-1 md:col-span-3 flex-col gap-4 md:h-full min-h-0 relative overflow-hidden">
 
                     {/* Mission Log (Top - Fixed Height) */}
                     <div className="glass-panel p-3 border border-white/10 h-48 shrink-0 overflow-y-auto [&::-webkit-scrollbar]:hidden">
@@ -589,7 +597,7 @@ export default function GameInterface() {
 
                     {/* Map (Middle - Flex Grow / Main Focus) */}
                     {player?.MapNode && (
-                        <div className="glass-panel p-3 border border-white/20 flex-1 flex flex-col animate-in slide-in-from-left duration-500 shadow-lg min-h-[300px]">
+                        <div className="glass-panel p-3 border border-white/20 flex-1 min-h-0 flex flex-col animate-in slide-in-from-left duration-500 shadow-lg">
                             <div className="flex items-center justify-between mb-2 border-b border-white/5 pb-1">
                                 <div className="text-[9px] text-gray-500 uppercase tracking-widest">SECTOR MAP</div>
                                 <div className="flex items-center gap-1">
@@ -612,7 +620,7 @@ export default function GameInterface() {
                                     </button>
                                 </div>
                             </div>
-                            <div className="w-full flex-1 bg-black/50 border border-white/5 relative overflow-hidden rounded">
+                            <div className="w-full flex-1 min-h-0 bg-black/50 border border-white/5 relative overflow-hidden rounded">
                                 <SectorGrid nodes={game.MapNode || []} currentPlayerNodeId={player.nodeId} activeZ={activeDeck} playerMarkers={playerMarkers} />
                                 <div className="absolute bottom-1 right-1 text-[8px] font-mono text-gray-600">GRID v.0.9</div>
                             </div>
@@ -666,7 +674,7 @@ export default function GameInterface() {
                 </div>
 
                 {/* CENTER PANEL: HUD & Controls (Col Span 6) - Mobile Order 1 */}
-                <div className="order-1 md:order-none col-span-1 md:col-span-6 flex flex-col items-center justify-start pt-4 md:pt-10 h-full relative">
+                <div className="order-1 md:order-none col-span-1 md:col-span-6 flex flex-col items-center justify-start pt-4 md:pt-10 md:h-full min-h-0 relative">
 
                     {/* Room Result / Pile */}
                     <div className="min-h-[140px] mb-6 flex flex-col justify-center items-center w-full">
@@ -844,7 +852,7 @@ export default function GameInterface() {
                             {/* Compass Arrow */}
                             <div className={`absolute inset-0 flex items-center justify-center transition-transform duration-500 ${compassRotation}`}>
                                 <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[20px] border-b-neon-cyan drop-shadow-[0_0_5px_rgba(0,255,255,0.8)]" />
-                                <span className="absolute -top-1 text-[8px] text-gray-600 font-bold">N</span>
+                                <span className={`absolute -top-1 text-[8px] text-gray-600 font-bold ${compassLabelRotation}`}>N</span>
                             </div>
                         </div>
                         <div className="text-[10px] font-mono text-gray-500">
@@ -854,7 +862,7 @@ export default function GameInterface() {
                 </div>
 
                 {/* RIGHT PANEL: Hand & Protocol (Col Span 3) - Mobile Order 2 */}
-                <div className="flex order-2 md:order-none col-span-1 md:col-span-3 flex-col h-full min-h-0 relative pointer-events-none gap-4">
+                <div className="flex order-2 md:order-none col-span-1 md:col-span-3 flex-col md:h-full min-h-0 relative pointer-events-none gap-4">
 
                     {/* Hand Interface (TOP - Primary Space, Grows) */}
                     <div className="pointer-events-auto flex-1 min-h-0 w-full max-w-[320px] flex flex-col pt-4 overflow-hidden">

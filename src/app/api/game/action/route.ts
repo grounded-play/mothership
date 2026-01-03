@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { CardRules } from "@/lib/game/cards";
+import { getClassSuit } from "@/lib/game/classSuit";
+import { getBackpackCapacity } from "@/lib/game/backpack";
 
 type PendingAction = {
     playerId: string;
@@ -18,6 +20,8 @@ const ACTION_WINDOW_MS = 15_000;
 const computeBasePool = (count: number) => 3 + Math.max(0, count - 1); // base 3, +1 per extra player
 const suitOpposites: Record<string, string> = { COMMAND: "VOID", VOID: "COMMAND", BIOTECH: "PLASMA", PLASMA: "BIOTECH" };
 
+const normalizeSuit = (suit?: string | null) => (suit || "").toUpperCase();
+
 function parseJSON(raw: any, fallback: any) {
     try { return JSON.parse(raw); } catch { return fallback; }
 }
@@ -32,17 +36,41 @@ function lowestCard(hand: any[]) {
     return sorted[0];
 }
 
-function cardStrength(cards: any[], roomSuit?: string, integrity?: number) {
+type SuitContext = { playerClass?: string | null; weaponSuit?: string | null; armorSuit?: string | null };
+
+const getPlayerSuitBonus = (cardSuit: string, ctx?: SuitContext) => {
+    if (!cardSuit) return 0;
+    let bonus = 0;
+    const classSuit = normalizeSuit(getClassSuit(ctx?.playerClass || undefined));
+    if (classSuit && cardSuit === classSuit) bonus += 1;
+    const weaponSuit = normalizeSuit(ctx?.weaponSuit);
+    if (weaponSuit && cardSuit === weaponSuit) bonus += 1;
+    const armorSuit = normalizeSuit(ctx?.armorSuit);
+    if (armorSuit && cardSuit === armorSuit) bonus += 1;
+    return bonus;
+};
+
+const getBackpackCapacityForPlayer = (player: any) => {
+    if (typeof player?.backpackCapacity === "number") return player.backpackCapacity;
+    return getBackpackCapacity(player?.backpackLevel ?? 1);
+};
+
+const getSlotsUsed = (inv: any[]) => inv.reduce((sum, item) => sum + (item?.slotSize || 1), 0);
+
+function cardStrength(cards: any[], roomSuit?: string, integrity?: number, ctx?: SuitContext) {
+    const normalizedRoomSuit = normalizeSuit(roomSuit);
     const modForSuit = (suit: string) => {
-        if (roomSuit && suit === roomSuit) return 1;
-        if (roomSuit && suitOpposites[suit] === roomSuit) return -1;
+        if (normalizedRoomSuit && suit === normalizedRoomSuit) return 1;
+        if (normalizedRoomSuit && suitOpposites[suit] === normalizedRoomSuit) return -1;
         return 0;
     };
     const integrityMod = integrity && integrity < 50 ? -1 : 0;
     return cards.reduce((sum, c) => {
-        const mod = modForSuit(c.suit || c.suitName || "");
+        const cardSuit = normalizeSuit(c.suit || c.suitName);
+        const mod = modForSuit(cardSuit);
+        const bonus = getPlayerSuitBonus(cardSuit, ctx);
         const base = c.power || c.rank || 0;
-        return sum + base + mod;
+        return sum + base + mod + bonus;
     }, integrityMod);
 }
 
@@ -212,7 +240,16 @@ async function resolveReaction(gameState: any, players: any[], pending: PendingA
         // Determine combined strength: if two+ scans with same top rank, sum; otherwise highest only.
         const ranked = scanActions.map(a => {
             const player = players.find(p => p.characterId === a.playerId)!;
-            return { action: a, strength: cardStrength(a.cards, node.roomSuit, node.integrity), rank: a.cards[0]?.rank || 0, player };
+            return {
+                action: a,
+                strength: cardStrength(a.cards, node.roomSuit, node.integrity, {
+                    playerClass: player?.Character?.class,
+                    weaponSuit: player?.equippedWeaponSuit,
+                    armorSuit: player?.equippedArmorSuit
+                }),
+                rank: a.cards[0]?.rank || 0,
+                player
+            };
         }).sort((a, b) => b.strength - a.strength);
 
         let bestStrength = ranked[0]?.strength || 0;
@@ -247,9 +284,15 @@ async function resolveReaction(gameState: any, players: any[], pending: PendingA
             if (winner) {
                 const player = players.find(p => p.characterId === winner.playerId)!;
                 const inv = parseJSON(player.inventory || "[]", []);
-                inv.push({ id: `loot-${now}`, name: "Recovered Tech", type: "LOOT", qty: 1, description: "Scan reward" });
-                updates.push((prisma as any).gamePlayer.update({ where: { id: player.id }, data: { inventory: JSON.stringify(inv) } }));
-                logs.push({ ts: now, type: "LOOT", message: `${winnerName} recovered tech from the scan.` });
+                const capacity = getBackpackCapacityForPlayer(player);
+                const slotSize = 1;
+                if (getSlotsUsed(inv) + slotSize <= capacity) {
+                    inv.push({ id: `loot-${now}`, name: "Recovered Tech", type: "LOOT", qty: 1, slotSize, description: "Scan reward" });
+                    updates.push((prisma as any).gamePlayer.update({ where: { id: player.id }, data: { inventory: JSON.stringify(inv) } }));
+                    logs.push({ ts: now, type: "LOOT", message: `${winnerName} recovered tech from the scan.` });
+                } else {
+                    logs.push({ ts: now, type: "LOOT", message: `${winnerName} found loot but the backpack is full.` });
+                }
             }
             logs.push({ ts: now, type: "SCAN", message: `${winnerName} scanned ${node.roomSuit} room (P${nodePower})${combined ? " with assist" : ""}: SUCCESS` });
             if (bestStrength >= nodePower + 4) {
@@ -266,7 +309,11 @@ async function resolveReaction(gameState: any, players: any[], pending: PendingA
         if (!player?.MapNode) continue;
         const node = player.MapNode;
         const nodePower = node.roomPower || 0;
-        const strength = cardStrength(action.cards, node.roomSuit, node.integrity);
+        const strength = cardStrength(action.cards, node.roomSuit, node.integrity, {
+            playerClass: player?.Character?.class,
+            weaponSuit: player?.equippedWeaponSuit,
+            armorSuit: player?.equippedArmorSuit
+        });
         const success = strength >= nodePower;
         const playerName = player.Character?.name || "Unknown";
 
@@ -416,30 +463,28 @@ export async function POST(req: Request) {
             if (idx === -1) return NextResponse.json({ error: "Item not found" }, { status: 400 });
 
             const item = inv[idx];
-            let sharedAp = gameState.sharedAp || 0;
-            let message = "Item used";
             const updates: Promise<any>[] = [];
 
             if (/paste/i.test(item.name || "")) {
-                sharedAp += 1;
-                message = "+1 AP from Nutrient Paste";
-            } else if (/scrap/i.test(item.name || "")) {
-                if (player.MapNode) {
-                    updates.push((prisma as any).mapNode.update({ where: { id: player.MapNode.id }, data: { security: (player.MapNode.security || 0) + 1 } }));
-                    message = "Scrap reinforces this room (+1 security)";
-                }
-            } else if (/rifle|gun|weapon/i.test(item.name || "")) {
-                sharedAp += 1;
-                message = "Weapon readied (+1 AP for squad pool)";
+                const heal = 2;
+                const maxHp = player.maxHp ?? 10;
+                const nextHp = Math.min(maxHp, (player.hp ?? 0) + heal);
+                updates.push((prisma as any).gamePlayer.update({ where: { id: player.id }, data: { hp: nextHp } }));
+
+                if (item.qty && item.qty > 1) inv[idx].qty -= 1; else inv.splice(idx, 1);
+                updates.push((prisma as any).gamePlayer.update({ where: { id: player.id }, data: { inventory: JSON.stringify(inv) } }));
+
+                await Promise.all(updates);
+                const message = `+${heal} HP from Nutrient Paste`;
+                await appendLog(gameId, gameState.gameLog, [{ ts: Date.now(), type: "ITEM", message }]);
+                return NextResponse.json({ success: true, message, hp: nextHp });
             }
 
-            // consume
-            if (item.qty && item.qty > 1) inv[idx].qty -= 1; else inv.splice(idx, 1);
-            updates.push((prisma as any).gamePlayer.update({ where: { id: player.id }, data: { inventory: JSON.stringify(inv) } }));
-            updates.push((prisma as any).gameState.update({ where: { id: gameId }, data: { sharedAp } }));
-            await Promise.all(updates);
-            await appendLog(gameId, gameState.gameLog, [{ ts: Date.now(), type: "ITEM", message }]);
-            return NextResponse.json({ success: true, message, sharedAp });
+            if (/scrap/i.test(item.name || "")) {
+                return NextResponse.json({ error: "Scrap is only usable at the 3D printer." }, { status: 400 });
+            }
+
+            return NextResponse.json({ error: "Item cannot be used in-mission." }, { status: 400 });
         }
 
         // Kick off draw -> action phase if we're waiting at draw

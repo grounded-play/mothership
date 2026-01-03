@@ -3,6 +3,9 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { generateItemArt } from "@/lib/comfy";
+import { ensurePrinterWorker } from "@/lib/printerWorker";
+
+ensurePrinterWorker();
 
 export async function POST(req: Request) {
     const session = await getServerSession(authOptions);
@@ -22,6 +25,12 @@ export async function POST(req: Request) {
         });
 
         if (!invItem) return NextResponse.json({ error: "Item not found" }, { status: 404 });
+        if (invItem.customImage) {
+            return NextResponse.json({ success: true, icon: invItem.customImage });
+        }
+        if (invItem.imageStatus?.startsWith("GENERATING")) {
+            return NextResponse.json({ success: true, status: invItem.imageStatus });
+        }
 
         targetId = invItem.id;
         isInstance = true;
@@ -52,12 +61,21 @@ export async function POST(req: Request) {
             };
 
             try {
-                // 1. Set Status to QUEUED
+                // 1. Lock Status to prevent double-processing
                 if (isInstance) {
-                    await prisma.inventoryItem.update({
-                        where: { id: targetId },
-                        data: { imageStatus: "QUEUED" }
+                    const locked = await prisma.inventoryItem.updateMany({
+                        where: {
+                            id: targetId,
+                            customImage: null,
+                            NOT: { imageStatus: { startsWith: "GENERATING" } }
+                        },
+                        data: { imageStatus: "GENERATING 0%" }
                     });
+                    if (locked.count === 0) {
+                        safeEnqueue(`data: ${JSON.stringify({ success: true, status: "ALREADY_RUNNING" })}\n\n`);
+                        controller.close();
+                        return;
+                    }
                 }
 
                 let lastProgress = 0;
