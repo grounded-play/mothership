@@ -352,6 +352,314 @@ async function autoProgress(gameState: any) {
     });
 }
 
+function parseJSON(raw: any, fallback: any) {
+    try { return JSON.parse(raw); } catch { return fallback; }
+}
+
+const suitOpposites: Record<string, string> = { COMMAND: "VOID", VOID: "COMMAND", BIOTECH: "PLASMA", PLASMA: "BIOTECH" };
+const computeBasePool = (count: number) => 3 + Math.max(0, count - 1);
+
+function cardStrength(cards: any[], roomSuit?: string, integrity?: number) {
+    const modForSuit = (suit: string) => {
+        if (roomSuit && suit === roomSuit) return 1;
+        if (roomSuit && suitOpposites[suit] === roomSuit) return -1;
+        return 0;
+    };
+    const integrityMod = integrity && integrity < 50 ? -1 : 0;
+    return cards.reduce((sum, c) => {
+        const mod = modForSuit(c.suit || c.suitName || "");
+        const base = c.power || c.rank || 0;
+        return sum + base + mod;
+    }, integrityMod);
+}
+
+type Facing = "NORTH" | "EAST" | "SOUTH" | "WEST";
+
+const forwardVectors: Record<Facing, { x: number; y: number }> = {
+    NORTH: { x: 0, y: 1 },
+    EAST: { x: 1, y: 0 },
+    SOUTH: { x: 0, y: -1 },
+    WEST: { x: -1, y: 0 }
+};
+
+const turnLeft = (facing: Facing): Facing => {
+    switch (facing) {
+        case "NORTH": return "WEST";
+        case "WEST": return "SOUTH";
+        case "SOUTH": return "EAST";
+        case "EAST": return "NORTH";
+        default: return "NORTH";
+    }
+};
+
+const turnRight = (facing: Facing): Facing => {
+    switch (facing) {
+        case "NORTH": return "EAST";
+        case "EAST": return "SOUTH";
+        case "SOUTH": return "WEST";
+        case "WEST": return "NORTH";
+        default: return "NORTH";
+    }
+};
+
+const resolveMove = (direction: string, facing: Facing) => {
+    let dx = 0;
+    let dy = 0;
+    let dz = 0;
+    let newFacing = facing;
+
+    if (direction === "LEFT") {
+        newFacing = turnLeft(facing);
+        const vec = forwardVectors[newFacing];
+        dx = vec.x;
+        dy = vec.y;
+    } else if (direction === "RIGHT") {
+        newFacing = turnRight(facing);
+        const vec = forwardVectors[newFacing];
+        dx = vec.x;
+        dy = vec.y;
+    } else if (direction === "BACK") {
+        const vec = forwardVectors[facing];
+        dx = -vec.x;
+        dy = -vec.y;
+    } else if (direction === "UP") {
+        dz = 1;
+    } else if (direction === "DOWN") {
+        dz = -1;
+    } else {
+        const vec = forwardVectors[facing];
+        dx = vec.x;
+        dy = vec.y;
+    }
+
+    return { dx, dy, dz, newFacing };
+};
+
+const vectorToDirection = (dx: number, dy: number, dz: number) => {
+    if (dz === 1) return "UP";
+    if (dz === -1) return "DOWN";
+    if (dx === 1) return "RIGHT";
+    if (dx === -1) return "LEFT";
+    if (dy === 1) return "FORWARD";
+    if (dy === -1) return "BACK";
+    return null;
+};
+
+async function autoProgress(gameState: any) {
+    // Only resolve when the action deadline has expired.
+    if (gameState.roundPhase !== "ACTION") return;
+    const pending = parseJSON(gameState.pendingActions || "[]", []);
+    const deadline = gameState.actionDeadline ? new Date(gameState.actionDeadline).getTime() : null;
+    if (!deadline || deadline > Date.now()) return; // Timer not started or still running
+    if (pending.length === 0) return; // Nothing to resolve
+
+    const players = await (prisma as any).gamePlayer.findMany({
+        where: { gameId: gameState.id },
+        include: { MapNode: true, Character: true }
+    });
+
+    let updatedPending = [...pending];
+    let sharedAp = gameState.sharedAp || 0;
+
+    // Auto-lock defaults for any missing players once the timer is up.
+    const lockedIds = new Set(updatedPending.map((p: any) => p.playerId));
+    for (const p of players) {
+        if (lockedIds.has(p.characterId)) continue;
+        const hand = parseJSON(p.hand || "[]", []);
+        if (!hand.length) continue;
+        const autoCard = [...hand].sort((a: any, b: any) => (a.power || a.rank || 0) - (b.power || b.rank || 0))[0];
+        const newHand = hand.filter((c: any) => c.id !== autoCard.id);
+        await (prisma as any).gamePlayer.update({ where: { id: p.id }, data: { hand: JSON.stringify(newHand) } });
+        updatedPending.push({ playerId: p.characterId, intent: "SCAN", cards: [autoCard], auto: true });
+        sharedAp = Math.max(0, sharedAp - 1);
+    }
+
+    const logs: any[] = [];
+    const updates: Promise<any>[] = [];
+    const nowTs = Date.now();
+    let lobbyDifficulty = gameState?.GameLobby?.difficulty as string | undefined;
+    if (!lobbyDifficulty && gameState?.lobbyId) {
+        const lobby = await (prisma as any).gameLobby.findUnique({ where: { id: gameState.lobbyId } });
+        lobbyDifficulty = lobby?.difficulty || "NORMAL";
+    }
+    let startedDeadline: Date | null = null;
+    let nextIntegrity = gameState.integrity ?? 100;
+    let phaseOverride: "VICTORY" | null = null;
+    const objectives = parseJSON(gameState.objectives || "[]", []);
+    const secureObjective = objectives.find((o: any) => o.id === "sub-1" || /secure/i.test(o.description || ""));
+    const mainObjective = objectives.find((o: any) => o.id === "main-1" || /core|station|boss/i.test(o.description || ""));
+    const securedNodeIds = new Set<string>(secureObjective?.securedNodeIds || []);
+
+    // Group by node for scans
+    const scansByNode = new Map<string, any[]>();
+    updatedPending.filter(p => p.intent === "SCAN").forEach(p => {
+        const pl = players.find((x: any) => x.characterId === p.playerId);
+        if (!pl?.MapNode) return;
+        const nid = pl.MapNode.id;
+        scansByNode.set(nid, [...(scansByNode.get(nid) || []), p]);
+    });
+
+    for (const [nodeId, scans] of scansByNode.entries()) {
+        const nodePlayers = scans.map((a: any) => players.find((p: any) => p.characterId === a.playerId)).filter(Boolean) as any[];
+        if (!nodePlayers.length) continue;
+        const node = nodePlayers[0].MapNode;
+        const nodePower = node.roomPower || 0;
+
+        const strengths = scans.map((a: any) => ({
+            action: a,
+            strength: cardStrength(a.cards, node.roomSuit, node.integrity),
+            rank: a.cards[0]?.rank || 0
+        })).sort((a, b) => b.strength - a.strength);
+
+        let best = strengths[0];
+        if (strengths.length >= 2 && strengths[0].rank === strengths[1].rank) {
+            best = { ...strengths[0], strength: strengths[0].strength + strengths[1].strength };
+        }
+
+        const integrityPenalty = node.integrity < 50 ? -2 : 0;
+        const effectiveStrength = (best?.strength || 0) + integrityPenalty;
+        const success = effectiveStrength >= nodePower;
+        const newIntegrity = success ? Math.min(100, (node.integrity || 100) + 5) : Math.max(0, (node.integrity || 100) - 5);
+
+        updates.push((prisma as any).mapNode.update({
+            where: { id: nodeId },
+            data: {
+                scanned: true,
+                isExplored: true,
+                integrity: newIntegrity,
+                roomPower: success ? nodePower : nodePower + 1,
+                security: success ? Math.max(node.security || 0, 1) : Math.max(0, (node.security || 0) - 1),
+                secretPaths: success && (best?.strength || 0) >= nodePower + 4 ? JSON.stringify([{ to: "BOSS" }]) : JSON.stringify(parseJSON(node.secretPaths || "[]", []))
+            }
+        }));
+        const winnerPlayer = players.find((p: any) => p.characterId === best?.action?.playerId);
+        const winnerName = winnerPlayer?.Character?.name || "Unknown";
+        if (success && winnerPlayer) {
+            const inv = parseJSON(winnerPlayer.inventory || "[]", []);
+            inv.push({ id: `loot-${nowTs}`, name: "Recovered Tech", type: "LOOT", qty: 1, description: "Scan reward" });
+            updates.push((prisma as any).gamePlayer.update({ where: { id: winnerPlayer.id }, data: { inventory: JSON.stringify(inv) } }));
+            logs.push({ ts: nowTs, type: "LOOT", message: `${winnerName} recovered tech from the scan.` });
+        }
+        logs.push({ ts: nowTs, type: "SCAN", message: `${winnerName} scanned ${node.roomSuit} room (P${nodePower}): ${success ? "SUCCESS" : "FAIL"}` });
+        if (success && (best?.strength || 0) >= nodePower + 4) {
+            logs.push({ ts: nowTs, type: "SCAN", message: `Secret tunnel mapped near ${node.roomSuit} sector.` });
+        }
+    }
+
+    for (const action of updatedPending.filter((a: any) => a.intent !== "SCAN")) {
+        const player = players.find((p: any) => p.characterId === action.playerId);
+        if (!player?.MapNode) continue;
+        const node = player.MapNode;
+        const nodePower = node.roomPower || 0;
+        const strength = cardStrength(action.cards, node.roomSuit, node.integrity);
+        const success = strength >= nodePower;
+        const playerName = player.Character?.name || "Unknown";
+
+        if (action.intent === "SECURE") {
+            const newIntegrity = Math.min(100, (node.integrity || 100) + (success ? 15 : 0));
+            updates.push((prisma as any).mapNode.update({
+                where: { id: node.id },
+                data: {
+                    security: success ? Math.max(node.security || 0, strength) : node.security,
+                    integrity: success ? newIntegrity : Math.max(0, (node.integrity || 100) - 5),
+                    scanned: true,
+                    isExplored: true
+                }
+            }));
+            logs.push({ ts: nowTs, type: "SECURE", message: `${playerName} secured ${node.roomSuit} room: ${success ? "STABLE" : "UNSTABLE"}` });
+            if (success && secureObjective && !securedNodeIds.has(node.id)) {
+                securedNodeIds.add(node.id);
+                const target = typeof secureObjective.target === "number" ? secureObjective.target : 5;
+                secureObjective.current = securedNodeIds.size;
+                secureObjective.target = target;
+                secureObjective.securedNodeIds = Array.from(securedNodeIds);
+                secureObjective.isComplete = secureObjective.current >= target;
+            }
+        } else if (action.intent === "ATTACK") {
+            if (success) {
+                if (node.type === "BOSS") {
+                    const isAnomaly = (action.cards || []).some((c: any) => (c.suit || c.suitName) === "ANOMALY" || c.rank === 99);
+                    const damage = isAnomaly ? 99 : 10;
+                    nextIntegrity = Math.max(0, nextIntegrity - damage);
+                    logs.push({ ts: nowTs, type: "ATTACK", message: `${playerName} struck the core: -${damage} integrity.` });
+                    if (mainObjective) {
+                        const target = typeof mainObjective.target === "number" ? mainObjective.target : 100;
+                        mainObjective.target = target;
+                        mainObjective.current = Math.max(0, target - nextIntegrity);
+                        mainObjective.isComplete = nextIntegrity <= 0;
+                        if (mainObjective.isComplete) {
+                            phaseOverride = "VICTORY";
+                            logs.push({ ts: nowTs, type: "MAIN", message: "Core neutralized. Mission complete." });
+                        }
+                    }
+                } else {
+                    logs.push({ ts: nowTs, type: "ATTACK", message: `${playerName} neutralized nearby hostiles.` });
+                }
+            } else {
+                logs.push({ ts: nowTs, type: "ATTACK", message: `${playerName} attack faltered: NO EFFECT` });
+            }
+        } else if (action.intent === "MOVE") {
+            const direction = action.direction || "FORWARD";
+            if (!node.scanned && node.type !== "START") {
+                logs.push({ ts: nowTs, type: "MOVE", message: `${playerName} attempted to move but the room is unscanned.` });
+                continue;
+            }
+
+            const facing = (player.facing || "NORTH") as Facing;
+            const { dx, dy, dz, newFacing } = resolveMove(direction, facing);
+            const absDir = vectorToDirection(dx, dy, dz);
+            const nodeConnections = parseJSON(node.connections || "[]", []);
+            if (absDir && !nodeConnections.includes(absDir)) {
+                logs.push({ ts: nowTs, type: "MOVE", message: `${playerName} found no hatch in that direction.` });
+                continue;
+            }
+
+            const target = await (prisma as any).mapNode.findFirst({
+                where: { gameId: gameState.id, x: node.x + dx, y: node.y + dy, z: node.z + dz }
+            });
+            if (!target) {
+                logs.push({ ts: nowTs, type: "MOVE", message: `${playerName} aborted move: hull breach detected.` });
+                continue;
+            }
+
+            updates.push((prisma as any).mapNode.update({
+                where: { id: target.id },
+                data: { isExplored: true }
+            }));
+            updates.push((prisma as any).gamePlayer.update({
+                where: { id: player.id },
+                data: { nodeId: target.id, facing: newFacing }
+            }));
+            logs.push({ ts: nowTs, type: "MOVE", message: `${playerName} moved ${direction}.` });
+
+            if (!gameState.deadline && !startedDeadline) {
+                const diff = lobbyDifficulty || "NORMAL";
+                const minutes = diff === "HARD" ? 10 : diff === "EASY" ? 20 : 15;
+                startedDeadline = new Date(Date.now() + minutes * 60000);
+            }
+        }
+    }
+
+    await Promise.all(updates);
+
+    const basePool = computeBasePool(players.length);
+    await (prisma as any).gameState.update({
+        where: { id: gameState.id },
+        data: {
+            roundPhase: phaseOverride ?? "DRAW",
+            phase: phaseOverride ?? "DRAW",
+            integrity: nextIntegrity,
+            objectives: JSON.stringify(objectives),
+            sharedAp: basePool,
+            sharedApMax: basePool,
+            pendingActions: "[]",
+            actionDeadline: null,
+            deadline: startedDeadline ?? gameState.deadline,
+            gameLog: JSON.stringify([...(parseJSON(gameState.gameLog || "[]", [])), ...logs].slice(-50))
+        }
+    });
+}
+
 export async function GET(req: Request) {
     const session = await getServerSession(authOptions);
     if (!session?.user?.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
