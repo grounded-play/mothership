@@ -179,14 +179,14 @@ export default function LobbyRoom() {
                                 <div className="text-white font-bold">{equippedWeapon?.item?.name || "None Equipped"}</div>
                                 {equippedWeapon && (
                                     <div className="text-[10px] text-gray-500 mt-1">
-                                        Uses: {formatUses(equippedWeapon) || "—"}
+                                        Uses: {formatUses(equippedWeapon) || "?"}
                                     </div>
                                 )}
                             </div>
                             <div className="space-y-2 max-h-40 overflow-y-auto">
                                 {weaponItems.map((inv: any) => {
                                     const uses = formatUses(inv);
-                                    const disabled = uses && uses.startsWith("0/");
+                                    const disabled = !!(uses && uses.startsWith("0/"));
                                     return (
                                         <button
                                             key={inv.id}
@@ -214,14 +214,14 @@ export default function LobbyRoom() {
                                 <div className="text-white font-bold">{equippedArmor?.item?.name || "None Equipped"}</div>
                                 {equippedArmor && (
                                     <div className="text-[10px] text-gray-500 mt-1">
-                                        Uses: {formatUses(equippedArmor) || "—"}
+                                        Uses: {formatUses(equippedArmor) || "?"}
                                     </div>
                                 )}
                             </div>
                             <div className="space-y-2 max-h-40 overflow-y-auto">
                                 {armorItems.map((inv: any) => {
                                     const uses = formatUses(inv);
-                                    const disabled = uses && uses.startsWith("0/");
+                                    const disabled = !!(uses && uses.startsWith("0/"));
                                     return (
                                         <button
                                             key={inv.id}
@@ -285,3 +285,4 @@ export default function LobbyRoom() {
         </div>
     );
 }
+

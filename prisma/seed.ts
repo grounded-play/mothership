@@ -81,7 +81,7 @@ async function main() {
                 data: { quantity: 1 }
             })
         } else {
-            await prisma.inventoryItem.create({
+            await (prisma as any).inventoryItem.create({
                 data: {
                     characterId: adminChar.id,
                     itemId: item.id,

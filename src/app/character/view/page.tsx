@@ -32,6 +32,7 @@ export default async function CharacterViewPage() {
     }
 
     const character = user.characters[0];
+    const runsFailed = (character as any).runsFailed ?? 0;
 
     // Parse stats
     let stats = { str: 10, agi: 10, int: 10 };
@@ -98,7 +99,7 @@ export default async function CharacterViewPage() {
                                 </div>
                                 <div className="flex justify-between">
                                     <span className="text-gray-400">Runs Failed</span>
-                                    <span className="font-mono text-white">{character.runsFailed}</span>
+                                    <span className="font-mono text-white">{runsFailed}</span>
                                 </div>
                                 <div className="flex justify-between">
                                     <span className="text-gray-400">Death Count</span>
