@@ -3,20 +3,33 @@ import React from 'react';
 interface SectorGridProps {
     nodes: any[];
     currentPlayerNodeId: string;
+    activeZ?: number;
+    playerMarkers?: {
+        id: string;
+        x: number;
+        y: number;
+        z: number;
+        isCurrent?: boolean;
+    }[];
 }
 
-export default function SectorGrid({ nodes, currentPlayerNodeId }: SectorGridProps) {
+export default function SectorGrid({ nodes, currentPlayerNodeId, activeZ, playerMarkers }: SectorGridProps) {
     const SIZE = 3;
-    const layers = [2, 1, 0]; // Render Top (2) to Bottom (0) for visual stacking? Or Bottom-up?
-    // Actually, distinct grids side-by-side or stacked?
-    // User asked for "layered grid of grids".
-    // Stacking them vertically with CSS transform looks cool.
+    const layers = typeof activeZ === "number" ? [activeZ] : [2, 1, 0];
 
     // Helper to find node at (x,y,z)
     const getNode = (x: number, y: number, z: number) => nodes.find(n => n.x === x && n.y === y && n.z === z);
+    const markersByKey = new Map<string, { id: string; x: number; y: number; z: number; isCurrent?: boolean; }[]>();
+    (playerMarkers || []).forEach(marker => {
+        const key = `${marker.x}-${marker.y}-${marker.z}`;
+        const existing = markersByKey.get(key) || [];
+        existing.push(marker);
+        markersByKey.set(key, existing);
+    });
+    const getMarkers = (x: number, y: number, z: number) => markersByKey.get(`${x}-${y}-${z}`) || [];
 
     return (
-        <div className="flex flex-col items-center justify-center gap-8 perspective-1000 pt-20 pb-10">
+        <div className="flex flex-col items-center justify-center gap-4 perspective-1000 w-full h-full overflow-hidden">
             {layers.map(z => (
                 <div key={z} className="relative group">
                     {/* Layer Label */}
@@ -40,6 +53,7 @@ export default function SectorGrid({ nodes, currentPlayerNodeId }: SectorGridPro
                             return Array.from({ length: SIZE }).map((_, col) => {
                                 const x = col;
                                 const node = getNode(x, y, z);
+                                const markers = getMarkers(x, y, z);
                                 const isCurrent = node?.id === currentPlayerNodeId;
                                 const isBoss = x === 1 && y === 2 && z === 2;
 
@@ -52,12 +66,26 @@ export default function SectorGrid({ nodes, currentPlayerNodeId }: SectorGridPro
                                     <div
                                         key={`${x}-${y}-${z}`}
                                         className={`
-                                            w-8 h-8 flex items-center justify-center border transition-all duration-300
+                                            w-9 h-9 md:w-10 md:h-10 flex items-center justify-center border transition-all duration-300
                                             ${statusColor}
                                             ${isCurrent ? 'scale-125 translate-z-4' : ''}
                                         `}
                                     >
-                                        {isCurrent && <div className="w-2 h-2 bg-white rounded-full animate-ping" />}
+                                        {markers.length > 0 && (
+                                            <div className="flex items-center gap-0.5">
+                                                {markers.slice(0, 3).map((marker, idx) => (
+                                                    <div key={`${marker.id}-${idx}`} className="relative">
+                                                        {marker.isCurrent && (
+                                                            <div className="absolute inset-0 rounded-full bg-neon-cyan/60 animate-ping" />
+                                                        )}
+                                                        <div className={`w-2 h-2 rounded-full ${marker.isCurrent ? "bg-neon-cyan shadow-[0_0_6px_rgba(0,255,255,0.8)]" : "bg-white/70"}`} />
+                                                    </div>
+                                                ))}
+                                                {markers.length > 3 && (
+                                                    <div className="text-[6px] text-gray-200">+{markers.length - 3}</div>
+                                                )}
+                                            </div>
+                                        )}
                                         {!isCurrent && isBoss && <div className="text-[6px] text-red-500">BOSS</div>}
                                     </div>
                                 );
@@ -67,18 +95,33 @@ export default function SectorGrid({ nodes, currentPlayerNodeId }: SectorGridPro
                         {/* Airlock Entry Node (Outside the Cube: 1, -1, 0) */}
                         {z === 0 && (() => {
                             const node = getNode(1, -1, 0);
+                            const entryMarkers = getMarkers(1, -1, 0);
                             const isCurrent = node?.id === currentPlayerNodeId;
 
                             return (
                                 <div
                                     className={`
                                         absolute -bottom-12 left-1/2 -translate-x-1/2 
-                                        w-8 h-8 flex items-center justify-center border 
+                                        w-9 h-9 md:w-10 md:h-10 flex items-center justify-center border 
                                         transition-all duration-300
                                         ${isCurrent ? "bg-neon-cyan border-neon-cyan shadow-[0_0_15px_#0ff] scale-125 z-50" : "bg-green-900/40 border-green-500/50"}
                                     `}
                                 >
-                                    {isCurrent && <div className="w-2 h-2 bg-white rounded-full animate-ping" />}
+                                    {entryMarkers.length > 0 && (
+                                        <div className="flex items-center gap-0.5">
+                                            {entryMarkers.slice(0, 3).map((marker, idx) => (
+                                                <div key={`${marker.id}-${idx}`} className="relative">
+                                                    {marker.isCurrent && (
+                                                        <div className="absolute inset-0 rounded-full bg-neon-cyan/60 animate-ping" />
+                                                    )}
+                                                    <div className={`w-2 h-2 rounded-full ${marker.isCurrent ? "bg-neon-cyan shadow-[0_0_6px_rgba(0,255,255,0.8)]" : "bg-white/70"}`} />
+                                                </div>
+                                            ))}
+                                            {entryMarkers.length > 3 && (
+                                                <div className="text-[6px] text-gray-200">+{entryMarkers.length - 3}</div>
+                                            )}
+                                        </div>
+                                    )}
                                     {!isCurrent && <div className="text-[6px] text-green-500">ENTRY</div>}
 
                                     {/* Connection Line */}

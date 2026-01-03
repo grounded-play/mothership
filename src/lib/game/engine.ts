@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { DeckGenerator, CardRules } from "./cards";
+import { getBackpackCapacity } from "./backpack";
 
 export class GameEngine {
     static async initializeGame(lobbyId: string) {
@@ -57,9 +58,10 @@ export class GameEngine {
             x: startCoord.x, y: startCoord.y, z: startCoord.z,
             type: "START",
             isExplored: true,
+            scanned: true,
             connections: JSON.stringify(["FORWARD"]), // Into the cube
             roomSuit: "COMMAND",
-            roomPower: 2,
+            roomPower: 1,
             security: 1,
             enemies: "[]",
             loot: "[]"
@@ -76,6 +78,7 @@ export class GameEngine {
 
                     let type = "EMPTY";
                     if (isBoss) type = "BOSS";
+                    else if (isEntry) type = "ENTRY";
                     else {
                         const rand = Math.random();
                         if (rand > 0.8) type = "LOOT";
@@ -96,8 +99,8 @@ export class GameEngine {
                     if (isEntry) conns.push("BACK");
 
                     const distance = Math.abs(x - startCoord.x) + Math.abs(y - startCoord.y) + Math.abs(z - startCoord.z);
-                    const roomPower = Math.min(15, 3 + distance * 2); // harder deeper in
-                    const suitIdx = Math.abs(x + y + z) % suits.length;
+                    const roomPower = isEntry ? 0 : Math.min(9, 2 + distance); // entry is 0, scale up slowly
+                    const suitIdx = isEntry ? 0 : Math.abs(x + y + z) % suits.length;
 
                     nodes.push({
                         id: crypto.randomUUID(),
@@ -128,8 +131,8 @@ export class GameEngine {
         // 4. Create Players & Deal Cards - NOW WITH NODE ID
         const roomDeck = DeckGenerator.generateDeck();
 
-        // HOST RIGGING: Find 3 of COMMAND (Clubs)
-        const card3CIndex = roomDeck.findIndex((c: any) => c.power === 3 && c.suit === "COMMAND");
+        // HOST RIGGING: Find 1 of COMMAND (lowest)
+        const card3CIndex = roomDeck.findIndex((c: any) => c.rank === 1 && c.suit === "COMMAND");
         let card3C: any = null;
         if (card3CIndex !== -1) {
             card3C = roomDeck.splice(card3CIndex, 1)[0];
@@ -139,6 +142,18 @@ export class GameEngine {
         // (Handled by CardRules now)
 
         const players = [];
+        const getItemSlot = (item: any) => {
+            if (item?.equipSlot) return item.equipSlot.toUpperCase();
+            const type = (item?.type || "").toLowerCase();
+            if (type === "weapon") return "WEAPON";
+            if (type === "armor") return "ARMOR";
+            return null;
+        };
+        const resolveUses = (invItem: any) => {
+            const maxUses = invItem.usesMax ?? invItem.item?.maxUses ?? null;
+            const remaining = invItem.usesRemaining ?? maxUses;
+            return { maxUses, remaining };
+        };
         for (const member of lobby.members) {
             const isHost = member.characterId === lobby.hostId;
 
@@ -156,14 +171,35 @@ export class GameEngine {
 
             // Map Persistent Inventory
             const persistentInv = member.character.inventory || [];
-            const sessionInv = persistentInv.map((invItem: any) => ({
-                id: invItem.id,
-                itemId: invItem.itemId,
-                name: invItem.item.name,
-                type: invItem.item.type,
-                qty: invItem.quantity,
-                description: invItem.item.description
-            }));
+            const equippedWeapon = persistentInv.find((invItem: any) => invItem.isEquipped && getItemSlot(invItem.item) === "WEAPON");
+            const equippedArmor = persistentInv.find((invItem: any) => invItem.isEquipped && getItemSlot(invItem.item) === "ARMOR");
+            const backpackLevel = member.character.backpackLevel ?? 1;
+            const backpackCapacity = getBackpackCapacity(backpackLevel);
+            const sessionInv: any[] = [];
+
+            const consumeRunUse = async (invItem: any) => {
+                const { maxUses, remaining } = resolveUses(invItem);
+                if (!maxUses) return true;
+                if (!remaining || remaining <= 0) {
+                    await (prisma as any).inventoryItem.update({
+                        where: { id: invItem.id },
+                        data: { isEquipped: false }
+                    });
+                    return false;
+                }
+                const nextRemaining = Math.max(0, remaining - 1);
+                await (prisma as any).inventoryItem.update({
+                    where: { id: invItem.id },
+                    data: {
+                        usesRemaining: nextRemaining,
+                        usesMax: maxUses
+                    }
+                });
+                return true;
+            };
+
+            const weaponUsable = equippedWeapon ? await consumeRunUse(equippedWeapon) : false;
+            const armorUsable = equippedArmor ? await consumeRunUse(equippedArmor) : false;
 
             const p = await (prisma as any).gamePlayer.create({
                 data: {
@@ -176,6 +212,12 @@ export class GameEngine {
                     ap: 3,
                     hand: JSON.stringify(hand),
                     inventory: JSON.stringify(sessionInv),
+                    equippedWeaponId: weaponUsable ? equippedWeapon?.id || null : null,
+                    equippedWeaponSuit: weaponUsable ? equippedWeapon?.item?.suit || null : null,
+                    equippedArmorId: armorUsable ? equippedArmor?.id || null : null,
+                    equippedArmorSuit: armorUsable ? equippedArmor?.item?.suit || null : null,
+                    backpackLevel,
+                    backpackCapacity,
                     updatedAt: new Date()
                 },
                 include: { Character: true }
@@ -215,8 +257,8 @@ export class GameEngine {
         try {
             // Generate Objectives
             const objectives = [
-                { id: "main-1", type: "MAIN", description: "Neutralize Station Core", target: "BOSS", isComplete: false },
-                { id: "sub-1", type: "SUB", description: "Secure 5 Sectors", target: 5, current: 1, isComplete: false }
+                { id: "main-1", type: "MAIN", description: "Neutralize Station Core", target: 100, current: 0, isComplete: false },
+                { id: "sub-1", type: "SUB", description: "Secure 5 Sectors", target: 5, current: 0, securedNodeIds: [], isComplete: false }
             ];
 
             await (prisma as any).gameState.update({
@@ -227,32 +269,6 @@ export class GameEngine {
                     objectiveNodeId: bossNode.id,
                     turnOrder: JSON.stringify(turnOrder), // Save the correct order with AI
                     objectives: JSON.stringify(objectives)
-                }
-            });
-
-            // Kick off first draw -> action window immediately
-            const livePlayers = await (prisma as any).gamePlayer.findMany({ where: { gameId } });
-            let deck = roomDeck;
-            for (const p of livePlayers) {
-                if (deck.length === 0) break;
-                const hand = JSON.parse(p.hand || "[]");
-                hand.push(deck.shift());
-                await (prisma as any).gamePlayer.update({
-                    where: { id: p.id },
-                    data: { hand: JSON.stringify(hand) }
-                });
-            }
-            const actionPool = baseApPool + livePlayers.length; // base + 1 per draw participant
-            await (prisma as any).gameState.update({
-                where: { id: gameId },
-                data: {
-                    roomDeck: JSON.stringify(deck),
-                    phase: "ACTION",
-                    roundPhase: "ACTION",
-                    sharedAp: actionPool,
-                    sharedApMax: actionPool,
-                    pendingActions: "[]",
-                    actionDeadline: new Date(Date.now() + 15_000)
                 }
             });
         } catch (e) {

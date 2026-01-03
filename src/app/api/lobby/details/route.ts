@@ -33,11 +33,18 @@ export async function GET(req: Request) {
         // Identify current user's member status
         const currentUserMember = lobby.members.find((m: any) => m.characterId === character?.id);
 
+        const inventory = character ? await prisma.inventoryItem.findMany({
+            where: { characterId: character.id },
+            include: { item: true }
+        }) : [];
+
         return NextResponse.json({
             lobby,
             currentUser: {
                 id: character?.id,
-                isReady: currentUserMember?.isReady || false
+                isReady: currentUserMember?.isReady || false,
+                backpackLevel: character?.backpackLevel ?? 1,
+                inventory
             }
         });
 

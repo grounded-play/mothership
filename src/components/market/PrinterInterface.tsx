@@ -1,17 +1,22 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/Button";
 import { motion, AnimatePresence, useAnimation } from "framer-motion";
-import { Loader2, Coins, Image as ImageIcon, Zap, ChevronUp } from "lucide-react";
+import { Loader2, Coins, Image as ImageIcon, Zap, ChevronUp, Wrench } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/Toast";
 
-export default function PrinterInterface({ credits, inventory, globalQueue }: { credits: number, inventory: any[], globalQueue: any[] }) {
+type PrinterProps = { credits: number; inventory: any[]; globalQueue: any[]; backpackLevel: number };
+
+export default function PrinterInterface({ credits, inventory, globalQueue, backpackLevel: initialBackpackLevel }: PrinterProps) {
     const [spinning, setSpinning] = useState(false);
     const [reward, setReward] = useState<{ name: string; rarity: string; icon?: string } | null>(null);
     const [pendingRarity, setPendingRarity] = useState<string | null>(null);
     const [creditsDisplay, setCreditsDisplay] = useState(credits);
+    const [backpackLevel, setBackpackLevel] = useState(initialBackpackLevel);
+    const [upgradePending, setUpgradePending] = useState(false);
+    const [repairingId, setRepairingId] = useState<string | null>(null);
 
     // Queue State
     const [generationQueue, setGenerationQueue] = useState<any[]>([]);
@@ -30,6 +35,25 @@ export default function PrinterInterface({ credits, inventory, globalQueue }: { 
 
     const router = useRouter();
     const { addToast } = useToast();
+
+    useEffect(() => {
+        setCreditsDisplay(credits);
+    }, [credits]);
+
+    useEffect(() => {
+        setBackpackLevel(initialBackpackLevel);
+    }, [initialBackpackLevel]);
+
+    const backpackCapacity = backpackLevel === 2 ? 6 : backpackLevel === 3 ? 8 : 4;
+    const upgradeCost = backpackLevel === 1 ? 2000 : backpackLevel === 2 ? 5000 : null;
+    const scrapStack = useMemo(() => inventory.find((inv) => inv.item?.name === "Scrap Metal"), [inventory]);
+    const scrapCount = scrapStack?.quantity ?? 0;
+    const repairableItems = useMemo(() => inventory.filter((inv) => {
+        const maxUses = inv.usesMax ?? inv.item?.maxUses ?? null;
+        if (!maxUses) return false;
+        const remaining = inv.usesRemaining ?? maxUses;
+        return remaining < maxUses;
+    }), [inventory]);
 
     // Sync Local Queue with Global State & Auto-Refresh
     useEffect(() => {
@@ -198,6 +222,52 @@ export default function PrinterInterface({ credits, inventory, globalQueue }: { 
         addToast("Added to Visualization Queue", "info");
     };
 
+    const handleUpgradeBackpack = async () => {
+        if (!upgradeCost || upgradePending) return;
+        setUpgradePending(true);
+        try {
+            const res = await fetch('/api/market/upgrade-backpack', { method: 'POST' });
+            const data = await res.json();
+            if (data.success) {
+                setBackpackLevel(data.backpackLevel);
+                setCreditsDisplay(data.credits);
+                addToast("Backpack upgraded", "success");
+                router.refresh();
+            } else {
+                addToast(data.error || "Upgrade failed", "error");
+            }
+        } catch (e) {
+            console.error(e);
+            addToast("Upgrade failed", "error");
+        } finally {
+            setUpgradePending(false);
+        }
+    };
+
+    const handleRepairItem = async (inventoryItemId: string) => {
+        if (repairingId) return;
+        setRepairingId(inventoryItemId);
+        try {
+            const res = await fetch('/api/market/repair', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ inventoryItemId })
+            });
+            const data = await res.json();
+            if (data.success) {
+                addToast("Item repaired", "success");
+                router.refresh();
+            } else {
+                addToast(data.error || "Repair failed", "error");
+            }
+        } catch (e) {
+            console.error(e);
+            addToast("Repair failed", "error");
+        } finally {
+            setRepairingId(null);
+        }
+    };
+
     return (
         <div className="w-full max-w-6xl mx-auto p-4 pt-24 space-y-12">
 
@@ -304,6 +374,59 @@ export default function PrinterInterface({ credits, inventory, globalQueue }: { 
 
                     <div className="mt-4 text-xs text-neon-cyan/50">
                         CREDITS REMAINING: {creditsDisplay}
+                    </div>
+                </div>
+            </div>
+
+            {/* REPAIR + UPGRADE */}
+            <div className="glass-panel p-8 border border-white/10">
+                <div className="flex flex-col gap-6">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                        <div>
+                            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                                <Wrench className="w-5 h-5 text-neon-cyan" /> REPAIR + UPGRADE
+                            </h2>
+                            <div className="text-xs text-neon-cyan/70 mt-1">Backpack LV {backpackLevel} - {backpackCapacity} slots</div>
+                            <div className="text-xs text-gray-400 mt-1">Scrap Metal: {scrapCount}</div>
+                        </div>
+                        <Button
+                            onClick={handleUpgradeBackpack}
+                            disabled={!upgradeCost || upgradePending || creditsDisplay < (upgradeCost || 0)}
+                            variant="primary"
+                            className="h-10 px-6 text-sm font-bold rounded-full disabled:opacity-50"
+                        >
+                            {upgradeCost ? `UPGRADE (${upgradeCost} CR)` : "MAX LEVEL"}
+                        </Button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {repairableItems.map((inv) => {
+                            const maxUses = inv.usesMax ?? inv.item?.maxUses ?? 0;
+                            const remaining = inv.usesRemaining ?? maxUses;
+                            const canRepair = scrapCount >= maxUses && !repairingId;
+                            return (
+                                <div key={inv.id} className="bg-black/40 p-4 rounded border border-white/5 flex items-center justify-between gap-4">
+                                    <div className="min-w-0">
+                                        <div className="text-white font-semibold truncate">{inv.item?.name || "Item"}</div>
+                                        <div className="text-xs text-gray-400">Uses: {remaining}/{maxUses}</div>
+                                        <div className="text-[10px] text-neon-cyan/70">Repair cost: {maxUses} Scrap</div>
+                                    </div>
+                                    <Button
+                                        onClick={() => handleRepairItem(inv.id)}
+                                        disabled={!canRepair || repairingId === inv.id}
+                                        variant="ghost"
+                                        className="h-8 px-4 text-xs border border-white/10 text-neon-cyan hover:bg-white/10 disabled:opacity-50"
+                                    >
+                                        {repairingId === inv.id ? "REPAIRING..." : "REPAIR"}
+                                    </Button>
+                                </div>
+                            );
+                        })}
+                        {repairableItems.length === 0 && (
+                            <div className="text-gray-500 text-sm col-span-full text-center py-6">
+                                No repairs needed.
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

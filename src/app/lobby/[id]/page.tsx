@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { motion, AnimatePresence } from "framer-motion";
-import { Users, Shield, Copy, Play, LogOut, Swords } from "lucide-react";
+import { Users, Shield, Play, LogOut } from "lucide-react";
+import { getBackpackCapacity } from "@/lib/game/backpack";
 
 export default function LobbyRoom() {
     const { id } = useParams();
@@ -77,6 +78,35 @@ export default function LobbyRoom() {
 
     const isHost = lobby.hostId === currentUser?.id;
     const allReady = lobby.members.every((m: any) => m.isReady);
+    const inventory = currentUser?.inventory || [];
+    const backpackLevel = currentUser?.backpackLevel ?? 1;
+    const backpackCapacity = getBackpackCapacity(backpackLevel);
+    const getItemSlot = (item: any) => {
+        if (item?.equipSlot) return item.equipSlot.toUpperCase();
+        const type = (item?.type || "").toLowerCase();
+        if (type === "weapon") return "WEAPON";
+        if (type === "armor") return "ARMOR";
+        return null;
+    };
+    const weaponItems = inventory.filter((inv: any) => getItemSlot(inv.item) === "WEAPON");
+    const armorItems = inventory.filter((inv: any) => getItemSlot(inv.item) === "ARMOR");
+    const equippedWeapon = weaponItems.find((inv: any) => inv.isEquipped);
+    const equippedArmor = armorItems.find((inv: any) => inv.isEquipped);
+    const formatUses = (inv: any) => {
+        const max = inv.usesMax ?? inv.item?.maxUses ?? null;
+        const remaining = inv.usesRemaining ?? max;
+        if (!max) return null;
+        return `${remaining ?? 0}/${max}`;
+    };
+
+    const handleEquip = async (slot: "WEAPON" | "ARMOR", inventoryItemId?: string | null) => {
+        await fetch("/api/lobby/loadout", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ lobbyId: id, slot, inventoryItemId: inventoryItemId || null })
+        });
+        fetchLobby();
+    };
 
     return (
         <div className="min-h-screen p-8 pt-24 max-w-4xl mx-auto space-y-8">
@@ -137,6 +167,93 @@ export default function LobbyRoom() {
                     </div>
                 ))}
             </div>
+
+            {/* Loadout */}
+            {currentUser && (
+                <div className="glass-panel p-6 rounded-xl border border-white/10">
+                    <div className="text-xs text-gray-400 uppercase tracking-widest mb-4">Loadout</div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="space-y-3">
+                            <div className="text-[10px] text-gray-500 uppercase tracking-widest">Weapon</div>
+                            <div className="bg-black/40 border border-white/10 rounded p-3 text-sm">
+                                <div className="text-white font-bold">{equippedWeapon?.item?.name || "None Equipped"}</div>
+                                {equippedWeapon && (
+                                    <div className="text-[10px] text-gray-500 mt-1">
+                                        Uses: {formatUses(equippedWeapon) || "—"}
+                                    </div>
+                                )}
+                            </div>
+                            <div className="space-y-2 max-h-40 overflow-y-auto">
+                                {weaponItems.map((inv: any) => {
+                                    const uses = formatUses(inv);
+                                    const disabled = uses && uses.startsWith("0/");
+                                    return (
+                                        <button
+                                            key={inv.id}
+                                            type="button"
+                                            onClick={() => handleEquip("WEAPON", inv.id)}
+                                            disabled={disabled}
+                                            className={`w-full text-left text-xs px-3 py-2 rounded border transition ${inv.isEquipped ? "border-neon-cyan text-neon-cyan" : "border-white/10 text-gray-300 hover:border-white/30"} ${disabled ? "opacity-40 cursor-not-allowed" : ""}`}
+                                        >
+                                            {inv.item.name}
+                                            {uses ? <span className="ml-2 text-[10px] text-gray-500">({uses})</span> : null}
+                                        </button>
+                                    );
+                                })}
+                                {weaponItems.length === 0 && <div className="text-[10px] text-gray-600">No weapons in inventory.</div>}
+                                {equippedWeapon && (
+                                    <button type="button" onClick={() => handleEquip("WEAPON", null)} className="w-full text-left text-[10px] text-red-400 border border-red-900/50 rounded px-3 py-1 hover:bg-red-950/30">
+                                        Unequip
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                        <div className="space-y-3">
+                            <div className="text-[10px] text-gray-500 uppercase tracking-widest">Armor</div>
+                            <div className="bg-black/40 border border-white/10 rounded p-3 text-sm">
+                                <div className="text-white font-bold">{equippedArmor?.item?.name || "None Equipped"}</div>
+                                {equippedArmor && (
+                                    <div className="text-[10px] text-gray-500 mt-1">
+                                        Uses: {formatUses(equippedArmor) || "—"}
+                                    </div>
+                                )}
+                            </div>
+                            <div className="space-y-2 max-h-40 overflow-y-auto">
+                                {armorItems.map((inv: any) => {
+                                    const uses = formatUses(inv);
+                                    const disabled = uses && uses.startsWith("0/");
+                                    return (
+                                        <button
+                                            key={inv.id}
+                                            type="button"
+                                            onClick={() => handleEquip("ARMOR", inv.id)}
+                                            disabled={disabled}
+                                            className={`w-full text-left text-xs px-3 py-2 rounded border transition ${inv.isEquipped ? "border-neon-cyan text-neon-cyan" : "border-white/10 text-gray-300 hover:border-white/30"} ${disabled ? "opacity-40 cursor-not-allowed" : ""}`}
+                                        >
+                                            {inv.item.name}
+                                            {uses ? <span className="ml-2 text-[10px] text-gray-500">({uses})</span> : null}
+                                        </button>
+                                    );
+                                })}
+                                {armorItems.length === 0 && <div className="text-[10px] text-gray-600">No armor in inventory.</div>}
+                                {equippedArmor && (
+                                    <button type="button" onClick={() => handleEquip("ARMOR", null)} className="w-full text-left text-[10px] text-red-400 border border-red-900/50 rounded px-3 py-1 hover:bg-red-950/30">
+                                        Unequip
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                        <div className="space-y-3">
+                            <div className="text-[10px] text-gray-500 uppercase tracking-widest">Backpack</div>
+                            <div className="bg-black/40 border border-white/10 rounded p-3 text-sm">
+                                <div className="text-white font-bold">Level {backpackLevel}</div>
+                                <div className="text-[10px] text-gray-500 mt-1">Capacity: {backpackCapacity} slots</div>
+                                <div className="text-[10px] text-gray-600 mt-2">Upgrade at the printer station.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Actions */}
             <div className="fixed bottom-0 left-0 w-full glass-panel border-t border-white/10 p-4 flex justify-between items-center backdrop-blur-md z-50">

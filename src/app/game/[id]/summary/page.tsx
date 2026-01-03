@@ -32,19 +32,24 @@ export default function SummaryPage({ params }: { params: Promise<{ id: string }
 
     const game = stats?.game;
     const player = stats?.player;
-    const character = player?.Character || stats?.character; // Depending on API structure
+    const run = stats?.run;
 
     // Rank Logic (Visual)
-    const integrity = game?.integrity || 0;
-    const isVictory = game?.phase === "VICTORY";
-    const credits = character?.credits || 0;
+    const integrity = typeof game?.integrity === "number" ? game.integrity : 100;
+    const bossDefeated = typeof run?.bossDefeated === "boolean"
+        ? run.bossDefeated
+        : integrity <= 0 || game?.phase === "VICTORY";
+    const extracted = typeof run?.extracted === "boolean"
+        ? run.extracted
+        : (game?.phase === "VICTORY" && player?.MapNode?.type === "START");
+    const isVictory = bossDefeated;
 
-    let rank = "C";
+    let rank = run?.rank || "C";
     let status = "MISSION ABORTED";
     let color = "text-yellow-500";
 
     if (isVictory) {
-        rank = "S";
+        if (!run?.rank) rank = "S";
         status = "MISSION ACCOMPLISHED";
         color = "text-neon-cyan";
     } else if (game?.phase === "ABORTED") {
@@ -86,19 +91,19 @@ export default function SummaryPage({ params }: { params: Promise<{ id: string }
                     <div className="flex flex-col gap-4 justify-center">
                         <div className="flex justify-between items-center border-b border-white/10 pb-2">
                             <span className="text-gray-400 text-sm">Credits Earned</span>
-                            <span className="text-xl font-bold text-neon-cyan">+{game?.currentTurn * 10 /* Placeholder calculation */} CR</span>
+                            <span className="text-xl font-bold text-neon-cyan">+{run?.creditsEarned ?? (game?.currentTurn * 10)} CR</span>
                         </div>
                         <div className="flex justify-between items-center border-b border-white/10 pb-2">
                             <span className="text-gray-400 text-sm">Core Integrity Dmg</span>
                             <span className="text-xl font-bold text-red-400">{(100 - integrity)}%</span>
                         </div>
                         <div className="flex justify-between items-center border-b border-white/10 pb-2">
-                            <span className="text-gray-400 text-sm">Sectors Cleared</span>
-                            <span className="text-xl font-bold text-white">{player?.MapNode?.isExplored ? "YES" : "NO"}</span>
+                            <span className="text-gray-400 text-sm">Boss Neutralized</span>
+                            <span className="text-xl font-bold text-white">{bossDefeated ? "YES" : "NO"}</span>
                         </div>
                         <div className="flex justify-between items-center border-b border-white/10 pb-2">
-                            <span className="text-gray-400 text-sm">Squad Status</span>
-                            <span className="text-xl font-bold text-green-400">ALIVE</span>
+                            <span className="text-gray-400 text-sm">Extraction</span>
+                            <span className={`text-xl font-bold ${extracted ? "text-green-400" : "text-red-400"}`}>{extracted ? "SUCCESS" : "FAILED"}</span>
                         </div>
                     </div>
                 </div>
