@@ -32,6 +32,19 @@ export default async function CharacterViewPage() {
     }
 
     const character = user.characters[0];
+    const inventory = character.inventory || [];
+    const resourceNames = new Set(["Scrap Metal", "Nutrient Paste"]);
+    const resourceCounts = inventory.reduce(
+        (acc: { scrap: number; paste: number }, entry: any) => {
+            const name = entry?.item?.name;
+            const qty = entry?.quantity ?? 1;
+            if (name === "Scrap Metal") acc.scrap += qty;
+            if (name === "Nutrient Paste") acc.paste += qty;
+            return acc;
+        },
+        { scrap: 0, paste: 0 }
+    );
+    const displayInventory = inventory.filter((entry: any) => !resourceNames.has(entry?.item?.name));
     const runsFailed = (character as any).runsFailed ?? 0;
 
     // Parse stats
@@ -41,14 +54,19 @@ export default async function CharacterViewPage() {
     } catch (e) { }
 
     return (
-        <div className="min-h-screen p-4 md:p-8 flex flex-col items-center pt-24">
+        <div className="min-h-full p-4 md:p-8 flex flex-col items-center pt-24">
             <div className="w-full max-w-6xl">
                 <header className="flex items-center justify-between mb-8">
                     <Link href="/menu" className="flex items-center text-neon-cyan hover:text-white transition-colors">
                         <ArrowLeft className="mr-2 h-5 w-5" /> Back to Bridge
                     </Link>
                     <div className="flex items-center gap-4">
-                        <CurrencyDisplay credits={character.credits} voidTokens={character.voidTokens} />
+                        <CurrencyDisplay
+                            credits={character.credits}
+                            voidTokens={character.voidTokens}
+                            scrap={resourceCounts.scrap}
+                            paste={resourceCounts.paste}
+                        />
                     </div>
                 </header>
 
@@ -119,7 +137,7 @@ export default async function CharacterViewPage() {
                             <h2 className="text-xl font-bold text-neon-cyan mb-6 flex items-center uppercase tracking-wider text-sm">
                                 <Box className="mr-2 w-4 h-4" /> Cargo Manifest
                             </h2>
-                            <InventoryInspect inventory={character.inventory} />
+                            <InventoryInspect inventory={displayInventory} />
                         </div>
                     </div>
                 </div>

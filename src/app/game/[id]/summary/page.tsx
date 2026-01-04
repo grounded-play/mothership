@@ -28,7 +28,7 @@ export default function SummaryPage({ params }: { params: Promise<{ id: string }
             .catch(e => console.error(e));
     }, [id]);
 
-    if (loading) return <div className="min-h-screen bg-black text-neon-cyan flex items-center justify-center font-mono animate-pulse">TRANSMITTING MISSION DATA...</div>;
+    if (loading) return <div className="min-h-full bg-black text-neon-cyan flex items-center justify-center font-mono animate-pulse">TRANSMITTING MISSION DATA...</div>;
 
     const game = stats?.game;
     const player = stats?.player;
@@ -64,7 +64,7 @@ export default function SummaryPage({ params }: { params: Promise<{ id: string }
     }
 
     return (
-        <div className="min-h-screen bg-black text-white font-mono flex flex-col items-center justify-center p-4 relative overflow-hidden">
+        <div className="min-h-full bg-black text-white font-mono flex flex-col items-center justify-center p-4 relative overflow-hidden">
             {/* Background Grid */}
             <div className="absolute inset-0 opacity-20 pointer-events-none"
                 style={{ backgroundImage: 'linear-gradient(#0ff 1px, transparent 1px), linear-gradient(90deg, #0ff 1px, transparent 1px)', backgroundSize: '40px 40px' }}

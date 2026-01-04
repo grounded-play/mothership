@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { motion, AnimatePresence } from "framer-motion";
+import SafeImage from "@/components/ui/SafeImage";
 import { Users, Shield, Play, LogOut } from "lucide-react";
 import { getBackpackCapacity } from "@/lib/game/backpack";
 
@@ -19,8 +20,8 @@ export default function LobbyRoom() {
         try {
             const res = await fetch(`/api/lobby/details?id=${id}`);
             if (!res.ok) {
-                if (res.status === 404) {
-                    setError("Lobby disbanded or not found.");
+                if (res.status === 404 || res.status === 410) {
+                    setError(res.status === 410 ? "Lobby expired." : "Lobby disbanded or not found.");
                     setTimeout(() => router.push("/lobby/browse"), 3000);
                 }
                 return;
@@ -109,7 +110,7 @@ export default function LobbyRoom() {
     };
 
     return (
-        <div className="min-h-screen p-8 pt-24 max-w-4xl mx-auto space-y-8">
+        <div className="min-h-full p-8 pt-24 max-w-4xl mx-auto space-y-8">
             {/* Header */}
             <div className="glass-panel p-8 rounded-xl flex justify-between items-center border-neon-cyan/30">
                 <div>
@@ -139,11 +140,12 @@ export default function LobbyRoom() {
                     >
                         <div className="flex items-center gap-4">
                             <div className={`w-12 h-12 rounded-full flex items-center justify-center border overflow-hidden ${member.isReady ? 'border-green-500 bg-green-900/40 text-green-400' : 'border-gray-600 bg-gray-800 text-gray-400'}`}>
-                                {member.character.portrait ? (
-                                    <img src={member.character.portrait} className="w-full h-full object-cover" alt={member.character.name} />
-                                ) : (
-                                    member.character.class[0]
-                                )}
+                                <SafeImage
+                                    src={member.character.portrait}
+                                    alt={member.character.name}
+                                    className="w-full h-full object-cover"
+                                    fallback={<span>{member.character.class[0]}</span>}
+                                />
                             </div>
                             <div>
                                 <div className="font-bold text-white">{member.character.name}</div>

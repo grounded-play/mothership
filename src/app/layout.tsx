@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "../components/auth/AuthProvider";
 import { ToastProvider } from "@/components/ui/Toast";
+import ResponsiveShell from "@/components/layout/ResponsiveShell";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -18,10 +19,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${inter.className} bg-black text-white overflow-x-hidden min-h-screen`}>
+      <body className={`${inter.className} bg-black text-white overflow-hidden h-[100dvh]`}>
         <AuthProvider>
           <ToastProvider>
-            {children}
+            <ResponsiveShell>{children}</ResponsiveShell>
           </ToastProvider>
         </AuthProvider>
       </body>

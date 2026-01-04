@@ -3,6 +3,14 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET() {
     try {
+        const cutoff = new Date(Date.now() - 5 * 60 * 1000);
+        await (prisma as any).gameLobby.deleteMany({
+            where: {
+                status: "WAITING",
+                createdAt: { lt: cutoff }
+            }
+        });
+
         const lobbies = await (prisma as any).gameLobby.findMany({
             where: {
                 status: "WAITING",

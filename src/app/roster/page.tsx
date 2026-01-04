@@ -20,6 +20,9 @@ export default async function RosterPage() {
             credits: true,
             voidTokens: true,
             stats: true,
+            runsCompleted: true,
+            deathCount: true,
+            deepestLevel: true,
         },
         orderBy: { level: 'desc' }
     });
@@ -30,7 +33,7 @@ export default async function RosterPage() {
     }));
 
     return (
-        <div className="min-h-screen p-8 pt-24">
+        <div className="min-h-full p-8 pt-24">
             <header className="fixed top-0 left-0 right-0 z-50 bg-black/50 backdrop-blur-md border-b border-white/5 p-4 px-8 flex items-center justify-between">
                 <Link href="/menu" className="flex items-center text-neon-cyan hover:text-white transition-colors group">
                     <ArrowLeft className="mr-2 h-5 w-5 group-hover:-translate-x-1 transition-transform" />

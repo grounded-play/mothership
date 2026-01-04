@@ -29,6 +29,11 @@ export async function GET(req: Request) {
         });
 
         if (!lobby) return NextResponse.json({ error: "Lobby not found" }, { status: 404 });
+        const cutoff = Date.now() - 5 * 60 * 1000;
+        if (lobby.status === "WAITING" && new Date(lobby.createdAt).getTime() < cutoff) {
+            await (prisma as any).gameLobby.delete({ where: { id: lobby.id } });
+            return NextResponse.json({ error: "Lobby expired" }, { status: 410 });
+        }
 
         // Identify current user's member status
         const currentUserMember = lobby.members.find((m: any) => m.characterId === character?.id);

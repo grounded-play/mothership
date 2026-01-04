@@ -11,7 +11,7 @@ export default async function Home() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center relative p-4">
+    <main className="flex min-h-full flex-col items-center justify-center relative p-4">
 
       <div className="z-10 w-full flex flex-col items-center animate-in fade-in zoom-in duration-1000 slide-in-from-bottom-10">
         <div className="text-center mb-12 w-full px-4">

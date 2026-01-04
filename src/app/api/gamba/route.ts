@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ensurePrinterWorker } from "@/lib/printerWorker";
 
+export const runtime = "nodejs";
+
 ensurePrinterWorker();
 
 export async function POST(req: Request) {
@@ -30,15 +32,32 @@ export async function POST(req: Request) {
         const allItems = await (prisma as any).item.findMany();
         if (allItems.length === 0) return NextResponse.json({ error: "No items in database" }, { status: 500 });
 
-        const roll = Math.random();
-        let rarity = "Common";
-        if (roll > 0.6) rarity = "Rare"; // 40%
-        if (roll > 0.9) rarity = "Epic"; // 10%
-        if (roll > 0.98) rarity = "Legendary"; // 2%
+        const rollRarity = () => {
+            const roll = Math.random();
+            if (roll > 0.97) return "Legendary"; // 3%
+            if (roll > 0.8) return "Epic"; // 17%
+            if (roll > 0.4) return "Rare"; // 40%
+            return "Common"; // 40%
+        };
+
+        const itemRarity = rollRarity();
+        const printRarity = rollRarity();
 
         // Filter items by rarity (fallback to common if none found in high tiers)
-        let pool = allItems.filter((i: any) => i.rarity === rarity);
+        let pool = allItems.filter((i: any) => i.rarity === itemRarity);
         if (pool.length === 0) pool = allItems.filter((i: any) => i.rarity === "Common");
+
+        // Ensure class/suit gear is always in the prize pool for fabricate
+        const classGear = allItems.filter((i: any) =>
+            (i.type === "Weapon" || i.type === "Armor") &&
+            i.suit &&
+            i.classTag
+        );
+        if (classGear.length > 0) {
+            const existing = new Set(pool.map((i: any) => i.id));
+            const injected = classGear.filter((i: any) => !existing.has(i.id));
+            pool = pool.concat(injected);
+        }
 
         const rewardItem = pool[Math.floor(Math.random() * pool.length)];
 
@@ -58,6 +77,7 @@ export async function POST(req: Request) {
                 const { rollStats, rollTraits } = await import("@/lib/mothership_rpg");
                 const stats = rollStats(rewardItem.type);
                 const traits = rollTraits(rewardItem.type);
+                const printTraits = `${traits}, ${printRarity} print`;
 
                 invItem = await (tx as any).inventoryItem.create({
                     data: {
@@ -65,7 +85,7 @@ export async function POST(req: Request) {
                         itemId: rewardItem.id,
                         quantity: 1,
                         instanceStats: JSON.stringify(stats),
-                        visualTraits: traits,
+                        visualTraits: printTraits,
                         imageStatus: "QUEUED",
                         usesRemaining: rewardItem.maxUses ?? null,
                         usesMax: rewardItem.maxUses ?? null
@@ -110,7 +130,9 @@ export async function POST(req: Request) {
             success: true,
             reward: result.newItem.item,
             rewardInstance: result.newItem,
-            credits: (result.character as any).credits
+            credits: (result.character as any).credits,
+            printRarity,
+            itemRarity
         });
 
     } catch (e) {

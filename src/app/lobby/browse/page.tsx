@@ -6,9 +6,12 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { motion } from "framer-motion";
 import { Users, Lock, Unlock, Play, Plus, RefreshCw, LogOut } from "lucide-react";
+import { useToast } from "@/components/ui/Toast";
+import SafeImage from "@/components/ui/SafeImage";
 
 export default function LobbyBrowser() {
     const router = useRouter();
+    const { addToast } = useToast();
     const [lobbies, setLobbies] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [showCreateWrapper, setShowCreateWrapper] = useState(false); // Using wrapper state if needed or just inline
@@ -55,7 +58,7 @@ export default function LobbyBrowser() {
             const data = await res.json();
 
             if (!res.ok) {
-                alert(data.error || "Failed to create lobby");
+                addToast(data.error || "Failed to create lobby", "error");
                 return;
             }
 
@@ -78,7 +81,7 @@ export default function LobbyBrowser() {
             if (data.success) {
                 router.push(`/lobby/${lobbyId}`);
             } else {
-                alert(data.error || "Failed to join");
+                addToast(data.error || "Failed to join", "error");
             }
         } catch (e) {
             console.error(e);
@@ -97,7 +100,7 @@ export default function LobbyBrowser() {
             if (data.success && data.lobbyId) { // Ensure API returns lobbyId
                 router.push(`/lobby/${data.lobbyId}`);
             } else {
-                alert(data.error || "Failed to join");
+                addToast(data.error || "Failed to join", "error");
             }
         } catch (e) {
             console.error(e);
@@ -105,7 +108,7 @@ export default function LobbyBrowser() {
     };
 
     return (
-        <div className="min-h-screen p-8 pt-24 space-y-8">
+        <div className="min-h-full p-8 pt-24 space-y-8">
             <div className="flex justify-between items-end">
                 <div>
                     <h1 className="text-4xl font-bold text-white neon-text mb-2">MISSION CONTROL</h1>
@@ -140,16 +143,16 @@ export default function LobbyBrowser() {
                             <div className="flex-1 flex gap-4 items-center">
                                 {/* Host Portrait */}
                                 <div className="hidden sm:flex w-16 h-16 rounded-full border border-white/20 overflow-hidden bg-gray-900 justify-center items-center">
-                                    {lobby.members.find((m: any) => m.characterId === lobby.hostId)?.character.portrait ? (
-                                        <img
-                                            src={lobby.members.find((m: any) => m.characterId === lobby.hostId)?.character.portrait}
-                                            className="w-full h-full object-cover"
-                                        />
-                                    ) : (
-                                        <span className="text-xl font-bold text-gray-500">
-                                            {lobby.members.find((m: any) => m.characterId === lobby.hostId)?.character.class?.[0] || "?"}
-                                        </span>
-                                    )}
+                                    <SafeImage
+                                        src={lobby.members.find((m: any) => m.characterId === lobby.hostId)?.character.portrait}
+                                        alt={lobby.members.find((m: any) => m.characterId === lobby.hostId)?.character.name}
+                                        className="w-full h-full object-cover"
+                                        fallback={
+                                            <span className="text-xl font-bold text-gray-500">
+                                                {lobby.members.find((m: any) => m.characterId === lobby.hostId)?.character.class?.[0] || "?"}
+                                            </span>
+                                        }
+                                    />
                                 </div>
 
                                 <div>

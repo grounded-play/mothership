@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import SafeImage from "@/components/ui/SafeImage";
 import { Search, ShoppingBag, Filter, Coins, Hexagon, Plus, Dices, Box } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
@@ -69,8 +71,62 @@ export default function MarketInterface({ initialListings, userInventory, credit
     // Generation State
     const [isGenerating, setIsGenerating] = useState(false);
     const [genProgress, setGenProgress] = useState(0);
+    const [regenTarget, setRegenTarget] = useState<any | null>(null);
+    const [regenConfirmOpen, setRegenConfirmOpen] = useState(false);
 
     const router = useRouter();
+
+    const handleRegenerate = async () => {
+        if (!regenTarget) return;
+        setRegenConfirmOpen(false);
+        setIsGenerating(true);
+        setGenProgress(0);
+
+        try {
+            const res = await fetch('/api/items/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    itemId: regenTarget.item.id,
+                    inventoryItemId: regenTarget.id,
+                    stats: regenTarget.instanceStats,
+                    traits: regenTarget.visualTraits
+                })
+            });
+
+            if (!res.body) throw new Error("No stream");
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                const text = decoder.decode(value);
+                const lines = text.split('\n\n');
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        try {
+                            const data = JSON.parse(line.slice(6));
+                            if (data.progress) setGenProgress(data.progress);
+                            if (data.icon) {
+                                setSelectedItem((prev: any) => (prev?.id === regenTarget.id ? { ...prev, customImage: data.icon } : prev));
+                                router.refresh();
+                                addToast("Art Regeneration Complete", "success");
+                            }
+                            if (data.error) addToast(`Error: ${data.error}`, "error");
+                        } catch (e) { console.error(e); }
+                    }
+                }
+            }
+        } catch (e) {
+            console.error(e);
+            addToast("Art regeneration failed", "error");
+        } finally {
+            setIsGenerating(false);
+            setRegenTarget(null);
+        }
+    };
 
     const handleCreateListing = async () => {
         if (!selectedItem) return;
@@ -125,7 +181,19 @@ export default function MarketInterface({ initialListings, userInventory, credit
     };
 
     return (
-        <div className="min-h-screen p-8 pt-24">
+        <div className="min-h-full p-8 pt-24">
+            <ConfirmDialog
+                open={regenConfirmOpen}
+                title="Regenerate Art"
+                message="Rebuild this item image using ComfyUI?"
+                confirmLabel="REGENERATE"
+                onConfirm={handleRegenerate}
+                onCancel={() => {
+                    setRegenConfirmOpen(false);
+                    setRegenTarget(null);
+                }}
+                busy={isGenerating}
+            />
             {/* Header with Hud */}
             <header className="max-w-7xl mx-auto mb-8 flex flex-col md:flex-row justify-between items-end gap-6 text-white">
                 <div>
@@ -160,12 +228,18 @@ export default function MarketInterface({ initialListings, userInventory, credit
                                         {listing.item.rarity}
                                     </div>
 
-                                    {listing.item.icon?.startsWith('/items/') ? (
+                                    {(listing.customImage || listing.item.icon) ? (
                                         <div className="relative group w-24 h-24 mb-2">
-                                            <img
+                                            <SafeImage
                                                 src={listing.customImage || listing.item.icon}
+                                                fallbackSrc={listing.item.icon}
                                                 alt={listing.item.name}
                                                 className="w-full h-full rounded-lg object-cover border border-white/10 transition-transform duration-300 group-hover:scale-150 group-hover:z-50 group-hover:relative group-hover:shadow-[0_0_20px_rgba(0,255,255,0.5)]"
+                                                fallback={
+                                                    <div className="w-full h-full rounded-lg border border-white/10 bg-black/40 flex items-center justify-center">
+                                                        <div className="text-2xl font-bold text-white/80">{listing.item.name[0]}</div>
+                                                    </div>
+                                                }
                                             />
                                             {/* Stat Tag */}
                                             {listing.instanceStats && (
@@ -232,8 +306,13 @@ export default function MarketInterface({ initialListings, userInventory, credit
                                 <div className="mb-4">
                                     <label className="block text-xs uppercase text-gray-500 mb-1">Item</label>
                                     <div className="flex items-center gap-4">
-                                        {(selectedItem.customImage || selectedItem.item.icon)?.startsWith('/items/') && (
-                                            <img src={selectedItem.customImage || selectedItem.item.icon} alt="Art" className="w-16 h-16 rounded border border-white/20" />
+                                        {(selectedItem.customImage || selectedItem.item.icon) && (
+                                            <SafeImage
+                                                src={selectedItem.customImage || selectedItem.item.icon}
+                                                fallbackSrc={selectedItem.item.icon}
+                                                alt="Art"
+                                                className="w-16 h-16 rounded border border-white/20"
+                                            />
                                         )}
                                         <div>
                                             <div className="text-2xl font-bold text-neon-cyan">{selectedItem.item.name}</div>
@@ -272,54 +351,10 @@ export default function MarketInterface({ initialListings, userInventory, credit
                                                 variant="outline"
                                                 className="h-6 text-xs mt-1 border-neon-cyan/50 text-neon-cyan hover:bg-neon-cyan/20"
                                                 disabled={isGenerating}
-                                                onClick={async (e) => {
+                                                onClick={(e) => {
                                                     e.stopPropagation();
-                                                    if (!confirm("Regenerate Art using ComfyUI?")) return;
-
-                                                    setIsGenerating(true);
-                                                    setGenProgress(0);
-
-                                                    try {
-                                                        const res = await fetch('/api/items/generate', {
-                                                            method: 'POST',
-                                                            headers: { 'Content-Type': 'application/json' },
-                                                            body: JSON.stringify({
-                                                                itemId: selectedItem.item.id,
-                                                                inventoryItemId: selectedItem.id, // Pass Instance ID
-                                                                stats: selectedItem.instanceStats,
-                                                                traits: selectedItem.visualTraits
-                                                            })
-                                                        });
-
-                                                        if (!res.body) throw new Error("No stream");
-                                                        const reader = res.body.getReader();
-                                                        const decoder = new TextDecoder();
-
-                                                        while (true) {
-                                                            const { done, value } = await reader.read();
-                                                            if (done) break;
-                                                            const text = decoder.decode(value);
-                                                            const lines = text.split('\n\n');
-
-                                                            for (const line of lines) {
-                                                                if (line.startsWith('data: ')) {
-                                                                    try {
-                                                                        const data = JSON.parse(line.slice(6));
-                                                                        if (data.progress) setGenProgress(data.progress);
-                                                                        if (data.icon) {
-                                                                            // Update specific instance image if returned
-                                                                            selectedItem.customImage = data.icon;
-                                                                            // Fallback to item icon if null? No, customImage takes precedence.
-                                                                            router.refresh();
-                                                                            addToast("Art Regeneration Complete", "success");
-                                                                        }
-                                                                        if (data.error) addToast("Error: " + data.error, "error");
-                                                                    } catch (e) { console.error(e); }
-                                                                }
-                                                            }
-                                                        }
-                                                    } catch (e) { console.error(e); }
-                                                    finally { setIsGenerating(false); }
+                                                    setRegenTarget(selectedItem);
+                                                    setRegenConfirmOpen(true);
                                                 }}
                                             >
                                                 {isGenerating ? "GENERATING..." : "GENERATE ART (COMFY)"}

@@ -14,6 +14,12 @@ export async function POST(req: Request) {
         const character = user?.characters[0];
 
         const lobby = await (prisma as any).gameLobby.findUnique({ where: { id: lobbyId } });
+        if (!lobby) return NextResponse.json({ error: "Lobby not found" }, { status: 404 });
+        const cutoff = Date.now() - 5 * 60 * 1000;
+        if (lobby.status === "WAITING" && new Date(lobby.createdAt).getTime() < cutoff) {
+            await (prisma as any).gameLobby.delete({ where: { id: lobby.id } });
+            return NextResponse.json({ error: "Lobby expired" }, { status: 410 });
+        }
 
         if (lobby.hostId !== character?.id) return NextResponse.json({ error: "Only host can start" }, { status: 403 });
 
