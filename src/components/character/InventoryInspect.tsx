@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Box, X } from "lucide-react";
+import SafeImage from "@/components/ui/SafeImage";
 
 const parseJSON = (raw: any, fallback: any) => {
     try { return JSON.parse(raw); } catch { return fallback; }
@@ -35,8 +36,14 @@ export default function InventoryInspect({ inventory }: { inventory: any[] }) {
                             className="flex items-center gap-3 p-3 bg-black/40 border border-white/5 rounded-lg hover:bg-white/5 transition-colors group text-left"
                         >
                             <div className="w-12 h-12 bg-black/60 rounded flex items-center justify-center shrink-0 border border-white/10 overflow-hidden relative">
-                                {(entry.customImage || entry.item.icon)?.startsWith('/items/') ? (
-                                    <img src={entry.customImage || entry.item.icon} alt={entry.item.name} className="w-full h-full object-cover" />
+                                {(entry.customImage || entry.item.icon) ? (
+                                    <SafeImage
+                                        src={entry.customImage || entry.item.icon}
+                                        fallbackSrc={entry.item.icon}
+                                        alt={entry.item.name}
+                                        className="w-full h-full object-cover"
+                                        fallback={<span className="text-xl font-bold text-gray-600">{entry.item.name[0]}</span>}
+                                    />
                                 ) : (
                                     <span className="text-xl font-bold text-gray-600">{entry.item.name[0]}</span>
                                 )}
@@ -90,8 +97,14 @@ export default function InventoryInspect({ inventory }: { inventory: any[] }) {
 
                         <div className="flex gap-4 items-start">
                             <div className="w-24 h-24 bg-black/60 rounded border border-white/10 overflow-hidden flex items-center justify-center">
-                                {(selected.customImage || selected.item?.icon)?.startsWith('/items/') ? (
-                                    <img src={selected.customImage || selected.item?.icon} alt={selected.item?.name} className="w-full h-full object-cover" />
+                                {(selected.customImage || selected.item?.icon) ? (
+                                    <SafeImage
+                                        src={selected.customImage || selected.item?.icon}
+                                        fallbackSrc={selected.item?.icon}
+                                        alt={selected.item?.name}
+                                        className="w-full h-full object-cover"
+                                        fallback={<span className="text-2xl font-bold text-gray-600">{selected.item?.name?.[0]}</span>}
+                                    />
                                 ) : (
                                     <span className="text-2xl font-bold text-gray-600">{selected.item?.name?.[0]}</span>
                                 )}

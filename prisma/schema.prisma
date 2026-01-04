@@ -23,6 +23,7 @@ model Character {
   class         String
   level         Int             @default(1)
   portrait      String?
+  portraitStatus String         @default("READY")
   backpackLevel Int             @default(1)
   credits       Int             @default(1000)
   voidTokens    Int             @default(0)

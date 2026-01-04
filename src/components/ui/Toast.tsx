@@ -37,7 +37,6 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     return (
         <ToastContext.Provider value={{ addToast }}>
             {children}
-            {children}
             <div className="fixed top-24 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none items-center w-full max-w-md">
                 <AnimatePresence>
                     {toasts.map((toast) => (

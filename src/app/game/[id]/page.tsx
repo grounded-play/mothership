@@ -9,6 +9,7 @@ import SectorGrid from "@/components/game/SectorGrid";
 import RoomScanner from "@/components/game/RoomScanner";
 import MissionLog from "@/components/game/MissionLog";
 import { useToast } from "@/components/ui/Toast";
+import SafeImage from "@/components/ui/SafeImage";
 
 type Facing = "NORTH" | "EAST" | "SOUTH" | "WEST";
 
@@ -63,6 +64,14 @@ export default function GameInterface() {
             secretPaths: secret
         };
     }, [player?.MapNode]);
+    const suitMeta = {
+        BIOTECH: { color: "text-red-400", icon: "\u271A" },
+        PLASMA: { color: "text-orange-400", icon: "\u26A1" },
+        COMMAND: { color: "text-green-400", icon: "\u2617" },
+        VOID: { color: "text-purple-400", icon: "\u{1F300}" },
+        ANOMALY: { color: "text-white", icon: "\u2620" }
+    } as const;
+    const roomSuitMeta = roomInfo?.suit ? suitMeta[roomInfo.suit as keyof typeof suitMeta] : null;
     const connections = useMemo(() => parseJSON(player?.MapNode?.connections || "[]", []), [player?.MapNode?.connections]);
     const roomEnemies = useMemo(() => parseJSON(player?.MapNode?.enemies || "[]", []), [player?.MapNode?.enemies]);
     const hasEnemies = roomEnemies.length > 0;
@@ -100,7 +109,7 @@ export default function GameInterface() {
 
                 if (data.error) {
                     if (res.status === 410 || data.error.includes("Corrupted")) {
-                        alert(data.error);
+                        addToast(data.error, "error");
                         router.push("/lobby/browse");
                         return;
                     }
@@ -247,8 +256,8 @@ export default function GameInterface() {
         addToast("DOUBLES MUST MATCH RANK", "error");
     };
 
-    if (loading) return <div className="min-h-screen flex items-center justify-center text-neon-cyan">Loading Game Protocol...</div>;
-    if (!gameState) return <div className="min-h-screen flex items-center justify-center text-red-500">Game Not Found</div>;
+    if (loading) return <div className="min-h-full flex items-center justify-center text-neon-cyan">Loading Game Protocol...</div>;
+    if (!gameState) return <div className="min-h-full flex items-center justify-center text-red-500">Game Not Found</div>;
 
     const inActionPhase = game?.roundPhase === "ACTION";
     const facing = (player?.facing || "NORTH") as Facing;
@@ -426,60 +435,65 @@ export default function GameInterface() {
     const missionSeconds = missionTimeLeft % 60;
 
     return (
-        <div className="h-[100dvh] bg-black text-white relative overflow-hidden font-mono flex flex-col">
+        <div className="w-full h-full bg-black text-white relative overflow-hidden font-mono flex flex-col">
             {/* Background Ambiance */}
             <div className="absolute inset-0 bg-[url('/bg-space.jpg')] bg-cover opacity-50 z-0" />
             <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-transparent to-black/90 z-0" />
 
             {/* Header: Player Stats, Timer, Abort */}
-            <header className="relative z-30 p-2 lg:p-4 flex justify-between items-start h-20 shrink-0 border-b border-white/10 bg-black/40 backdrop-blur-sm">
-                {/* Player Status */}
-                {player && (
-                    <div className="flex gap-4">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-gray-800 rounded-full overflow-hidden border-2 border-neon-cyan shadow-[0_0_10px_#0ff]">
-                                {player.character?.portrait && <img src={player.character.portrait} alt={`${player.character.name} portrait`} title={`${player.character.name} portrait`} className="w-full h-full object-cover" />}
+                    <header className="relative z-30 px-2 py-1 flex justify-between items-start h-11 shrink-0 border-b border-white/10 bg-black/40 backdrop-blur-sm">
+                        {/* Player Status */}
+                        {player && (
+                            <div className="flex gap-2">
+                                <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 bg-gray-800 rounded-full overflow-hidden border-2 border-neon-cyan shadow-[0_0_8px_#0ff] flex items-center justify-center">
+                                <SafeImage
+                                    src={player.character?.portrait}
+                                    alt={`${player.character.name} portrait`}
+                                    className="w-full h-full object-cover"
+                                    fallback={<User className="w-5 h-5 text-gray-500" />}
+                                />
                             </div>
-                            <div>
-                                <div className="text-sm lg:text-lg font-bold text-neon-cyan uppercase tracking-widest leading-none mb-1">{player.character.name}</div>
-                                <div className="flex gap-3 text-[10px] lg:text-xs text-gray-400 font-bold">
-                                    <span className="flex items-center text-red-400"><Heart className="w-3 h-3 mr-1" /> {player.hp}/{player.maxHp} HP</span>
-                                    <span className="flex items-center text-yellow-400"><Zap className="w-3 h-3 mr-1" /> {player.ap} AP</span>
-                                    <span className="flex items-center text-blue-400"><Shield className="w-3 h-3 mr-1" /> {player.character.credits} CR</span>
+                                    <div>
+                                        <div className="text-xs md:text-sm font-bold text-neon-cyan uppercase tracking-widest leading-none">{player.character.name}</div>
+                                        <div className="flex gap-2 text-[9px] text-gray-400 font-bold">
+                                            <span className="flex items-center text-red-400"><Heart className="w-3 h-3 mr-1" /> {player.hp}/{player.maxHp}</span>
+                                            <span className="flex items-center text-yellow-400"><Zap className="w-3 h-3 mr-1" /> {player.ap}</span>
+                                            <span className="flex items-center text-blue-400"><Shield className="w-3 h-3 mr-1" /> {player.character.credits}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Mission Timer */}
+                                <div className="hidden lg:flex flex-col justify-center items-center px-3 border-l border-white/10">
+                                    <div className="text-[9px] text-gray-500 uppercase tracking-widest">T-MINUS</div>
+                                    <div className={`text-lg font-bold font-mono ${game?.deadline && missionTimeLeft < 300 ? 'text-red-500 animate-pulse' : 'text-white'}`}>
+                                        {game?.deadline ? `${missionMinutes}:${missionSeconds.toString().padStart(2, '0')}` : "--:--"}
+                                    </div>
+                                    <div className="mt-1 text-[10px] text-neon-cyan font-bold">AP POOL {game?.sharedAp ?? 0}/{game?.sharedApMax ?? 0}</div>
                                 </div>
                             </div>
-                        </div>
+                        )}
 
-                        {/* Mission Timer */}
-                        <div className="hidden md:flex flex-col justify-center items-center px-4 border-l border-white/10">
-                            <div className="text-[9px] text-gray-500 uppercase tracking-widest">T-MINUS</div>
-                            <div className={`text-xl font-bold font-mono ${game?.deadline && missionTimeLeft < 300 ? 'text-red-500 animate-pulse' : 'text-white'}`}>
-                                {game?.deadline ? `${missionMinutes}:${missionSeconds.toString().padStart(2, '0')}` : "--:--"}
-                            </div>
-                            <div className="mt-1 text-[10px] text-neon-cyan font-bold">AP POOL {game?.sharedAp ?? 0}/{game?.sharedApMax ?? 0}</div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Abort/Depart Button */}
-                {player?.MapNode?.type === "START" ? (
-                    <Button
-                        variant="primary"
-                        className="bg-green-500/10 text-green-500 border border-green-500 hover:bg-green-500 hover:text-black h-8 text-xs px-4"
-                        onClick={() => setExitIntent("DEPART")}
-                    >
-                        DEPART
-                    </Button>
-                ) : (
-                    <Button
-                        variant="outline"
-                        className="border-red-500/50 text-red-500 hover:bg-red-950/50 h-8 text-xs px-2"
-                        onClick={() => setExitIntent("ABORT")}
-                    >
-                        ABORT
-                    </Button>
-                )}
-            </header>
+                        {/* Abort/Depart Button */}
+                        {player?.MapNode?.type === "START" ? (
+                            <Button
+                                variant="primary"
+                                className="bg-green-500/10 text-green-500 border border-green-500 hover:bg-green-500 hover:text-black h-7 text-[10px] px-3"
+                                onClick={() => setExitIntent("DEPART")}
+                            >
+                                DEPART
+                            </Button>
+                        ) : (
+                            <Button
+                                variant="outline"
+                                className="border-red-500/50 text-red-500 hover:bg-red-950/50 h-7 text-[10px] px-2"
+                                onClick={() => setExitIntent("ABORT")}
+                            >
+                                ABORT
+                            </Button>
+                        )}
+                    </header>
 
             <AnimatePresence>
                 {isVictory && !exitIntent && (
@@ -551,13 +565,13 @@ export default function GameInterface() {
             </AnimatePresence>
 
             {/* Main Grid Layout */}
-            <main className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-12 gap-4 p-4 z-20 relative overflow-y-auto md:overflow-hidden max-w-7xl mx-auto w-full">
+            <main className="flex-1 min-h-0 grid grid-cols-12 gap-2 p-2 z-20 relative overflow-hidden w-full">
 
                 {/* LEFT PANEL: Map & Info (Col Span 3) - Mobile Order 3 */}
-                <div className="flex order-3 md:order-none col-span-1 md:col-span-3 flex-col gap-4 md:h-full min-h-0 relative overflow-hidden">
+                <div className="flex col-span-3 flex-col gap-2 h-full min-h-0 relative overflow-hidden">
 
                     {/* Mission Log (Top - Fixed Height) */}
-                    <div className="glass-panel p-3 border border-white/10 h-48 shrink-0 overflow-y-auto [&::-webkit-scrollbar]:hidden">
+                    <div className="glass-panel p-3 border border-white/10 h-36 shrink-0 overflow-y-auto scrollbar-soft">
                         <div className="text-[9px] text-gray-500 uppercase tracking-widest mb-2 border-b border-white/5 pb-1">MISSION OBJECTIVES</div>
                         <MissionLog objectives={game.objectives || []} />
                     </div>
@@ -568,11 +582,17 @@ export default function GameInterface() {
                             <div className="text-[9px] text-gray-500 uppercase tracking-widest border-b border-white/5 pb-1">ROOM INTEL</div>
                             <div className="flex items-center justify-between">
                                 <span className="text-gray-400 text-xs">Power</span>
-                                <span className="font-bold text-white">{roomInfo.scanned ? roomInfo.power : "?"}</span>
+                                <span className={`font-bold flex items-center gap-2 ${roomInfo.scanned ? (roomSuitMeta?.color || "text-neon-cyan") : "text-gray-500"}`}>
+                                    <span className="text-sm">{roomInfo.scanned ? (roomSuitMeta?.icon || "?") : "?"}</span>
+                                    {roomInfo.scanned ? roomInfo.power : "?"}
+                                </span>
                             </div>
                             <div className="flex items-center justify-between">
                                 <span className="text-gray-400 text-xs">Suit</span>
-                                <span className="font-bold text-neon-cyan">{roomInfo.scanned ? roomInfo.suit : "UNKNOWN"}</span>
+                                <span className={`font-bold flex items-center gap-2 ${roomInfo.scanned ? (roomSuitMeta?.color || "text-neon-cyan") : "text-gray-500"}`}>
+                                    <span className="text-sm">{roomInfo.scanned ? (roomSuitMeta?.icon || "?") : "?"}</span>
+                                    {roomInfo.scanned ? roomInfo.suit : "UNKNOWN"}
+                                </span>
                             </div>
                             <div className="flex items-center justify-between">
                                 <span className="text-gray-400 text-xs">Integrity</span>
@@ -658,7 +678,7 @@ export default function GameInterface() {
                     </div>
 
                     {/* Game Log */}
-                    <div className="glass-panel p-3 border border-white/10 bg-black/60 shrink-0 max-h-52 overflow-y-auto [&::-webkit-scrollbar]:hidden">
+                    <div className="glass-panel p-3 border border-white/10 bg-black/60 shrink-0 max-h-32 overflow-y-auto scrollbar-soft">
                         <div className="text-[9px] text-gray-500 uppercase tracking-widest mb-2">EVENT LOG</div>
                         <div className="space-y-1 text-[11px] text-gray-300">
                             {(game?.gameLog || []).slice().reverse().slice(0, 10).map((log: any, idx: number) => (
@@ -674,23 +694,19 @@ export default function GameInterface() {
                 </div>
 
                 {/* CENTER PANEL: HUD & Controls (Col Span 6) - Mobile Order 1 */}
-                <div className="order-1 md:order-none col-span-1 md:col-span-6 flex flex-col items-center justify-start pt-4 md:pt-10 md:h-full min-h-0 relative">
+                <div className="col-span-6 flex flex-col items-center justify-start pt-2 h-full min-h-0 relative">
 
                     {/* Room Result / Pile */}
-                    <div className="min-h-[140px] mb-6 flex flex-col justify-center items-center w-full">
+                    <div className="min-h-[90px] mb-2 flex flex-col justify-center items-center w-full">
                         {roomInfo?.scanned ? (
-                            <div className="flex flex-col items-center animate-in zoom-in duration-300 space-y-3">
+                            <div className="flex flex-col items-center animate-in zoom-in duration-300 space-y-2">
                                 <div className="text-[9px] font-bold bg-black px-3 py-1 rounded-full border border-neon-cyan text-neon-cyan shadow-[0_0_10px_rgba(0,255,255,0.3)]">ROOM {roomInfo.suit}</div>
-                                <div className="relative w-[120px] h-[160px] flex items-center justify-center">
+                                <div className="relative w-[100px] h-[132px] flex items-center justify-center">
                                     <NavCard card={{ rank: roomInfo.power, suit: roomInfo.suit, power: roomInfo.power }} selected={true} size="md" />
-                                </div>
-                                <div className="text-[10px] font-mono bg-black/50 px-3 py-1 rounded flex items-center gap-2 border border-white/10">
-                                    <span className="text-gray-500">Integrity</span>
-                                    <span className={roomInfo.integrity < 50 ? "text-red-400 font-bold" : "text-white font-bold"}>{roomInfo.integrity}%</span>
                                 </div>
                             </div>
                         ) : (
-                            <div className="text-xs text-gray-600 border border-dashed border-gray-800 p-8 rounded-xl flex items-center justify-center flex-col gap-2">
+                            <div className="text-xs text-gray-600 border border-dashed border-gray-800 p-6 rounded-xl flex items-center justify-center flex-col gap-2">
                                 <span className="w-2 h-2 rounded-full bg-gray-800 animate-pulse" />
                                 ROOM UNSCANNED
                                 <span className="text-[9px] opacity-50">SCAN TO REVEAL POWER</span>
@@ -699,18 +715,21 @@ export default function GameInterface() {
                     </div>
 
                     {/* Navigation HUD */}
-                    <div className="glass-panel p-4 md:p-6 border border-white/20 text-center animate-fade-in relative overflow-hidden w-full max-w-lg mb-4 bg-black/40 backdrop-blur-md shadow-2xl">
+                    <div className="glass-panel p-3 border border-white/20 text-center animate-fade-in relative overflow-hidden w-full max-w-lg mb-2 bg-black/40 backdrop-blur-md shadow-2xl">
                         {/* Scanner */}
-                        <div className="mb-4 flex justify-center">
-                            <div className="w-[180px] h-[120px] md:w-[240px] md:h-[160px] border border-gray-800 rounded bg-black relative shadow-inner overflow-hidden">
+                        <div className="mb-3 flex justify-center">
+                            <div className="w-[180px] h-[120px] border border-gray-800 rounded bg-black relative shadow-inner overflow-hidden">
                                 <RoomScanner type={player.MapNode.type} isExplored={player.MapNode.isExplored} integrity={game.integrity} />
                             </div>
                         </div>
 
                         {/* Status Text */}
-                        <div className="text-[10px] md:text-xs text-neon-cyan uppercase tracking-widest mb-4 flex justify-between border-b border-white/10 pb-2">
-                            <span>Sys: {actionStatus}</span>
-                            <span className="text-gray-400">{actionTimerLabel}</span>
+                        <div className="text-[10px] text-neon-cyan uppercase tracking-widest mb-3 flex items-center gap-2 border-b border-white/10 pb-2">
+                            <span className="flex-1 text-left">Sys: {actionStatus}</span>
+                            <span className={`flex-1 text-center ${roomInfo && roomInfo.scanned && roomInfo.integrity < 50 ? "text-red-400" : "text-gray-400"}`}>
+                                INT {roomInfo?.scanned ? `${roomInfo.integrity}%` : "--"}
+                            </span>
+                            <span className="flex-1 text-right text-gray-400">{actionTimerLabel}</span>
                         </div>
 
                         {/* Room card reveal */}
@@ -718,14 +737,20 @@ export default function GameInterface() {
                             <div className="mb-3 flex items-center justify-center">
                                 <div className="px-3 py-2 rounded-lg border border-white/10 bg-black/60 text-xs text-center">
                                     <div className="text-gray-500">Room Card</div>
-                                    <div className="text-lg font-bold text-white">{roomInfo.scanned ? roomInfo.power : "??"}</div>
-                                    <div className="text-neon-cyan text-[11px] uppercase">{roomInfo.scanned ? roomInfo.suit : "Unknown"}</div>
+                                    <div className={`text-lg font-bold flex items-center justify-center gap-2 ${roomInfo.scanned ? (roomSuitMeta?.color || "text-neon-cyan") : "text-gray-500"}`}>
+                                        <span className="text-sm">{roomInfo.scanned ? (roomSuitMeta?.icon || "?") : "?"}</span>
+                                        {roomInfo.scanned ? roomInfo.power : "??"}
+                                    </div>
+                                    <div className={`text-[11px] uppercase flex items-center justify-center gap-2 ${roomInfo.scanned ? (roomSuitMeta?.color || "text-neon-cyan") : "text-gray-500"}`}>
+                                        <span className="text-sm">{roomInfo.scanned ? (roomSuitMeta?.icon || "?") : "?"}</span>
+                                        {roomInfo.scanned ? roomInfo.suit : "Unknown"}
+                                    </div>
                                 </div>
                             </div>
                         )}
 
                         {/* Controls (Unified Command) */}
-                        <div className="flex flex-col items-center gap-4 mt-2">
+                        <div className="flex flex-col items-center gap-3 mt-2">
                             {/* Directional Pad */}
                             <div className={`grid grid-cols-3 gap-2 p-4 bg-black/60 rounded-full border border-white/10 relative transition-opacity duration-300 ${actionIntent === 'MOVE' ? 'opacity-100 ring-2 ring-neon-cyan' : 'opacity-60'}`}>
                                 <div />
@@ -799,7 +824,24 @@ export default function GameInterface() {
                                     SECURE
                                 </Button>
                             </div>
-                            <div className="mt-2">
+                            <div className="mt-1">
+                                <Button
+                                    onClick={handleExecute}
+                                    disabled={(!actionIntent || actionInvalid || (selectedCardIndices.length === 0 && !canAutoMove)) || isActing || !inActionPhase}
+                                    className={`w-60 py-3 text-[11px] font-bold tracking-widest transition-all duration-300 rounded-xl border-2
+                                        ${(actionIntent && !actionInvalid && (selectedCardIndices.length > 0 || canAutoMove) && inActionPhase)
+                                            ? "bg-neon-cyan text-black border-neon-cyan shadow-[0_0_20px_#0ff] hover:bg-white hover:scale-105"
+                                            : "bg-black/50 text-gray-600 border-gray-800"}
+                                    `}
+                                >
+                                    {!inActionPhase ? "WAITING FOR DRAW" :
+                                        !actionIntent ? "SELECT PROTOCOL" :
+                                            (selectedCardIndices.length === 0 && !canAutoMove) ? "SELECT CARD" :
+                                                (selectedCardIndices.length === 0 && canAutoMove) ? "LOCK MOVE (AUTO)" :
+                                                    `LOCK ${actionIntent}`}
+                                </Button>
+                            </div>
+                            <div className="mt-1">
                                 <Button
                                     onClick={() => setShowInventory(!showInventory)}
                                     className={`w-28 h-8 text-[10px] font-bold tracking-widest border transition-all ${showInventory ? "bg-white text-black border-white" : "bg-black/40 text-gray-300 border-white/10 hover:bg-white/10"}`}
@@ -815,7 +857,7 @@ export default function GameInterface() {
                                     <span>Supply Manifest</span>
                                     <span className="cursor-pointer hover:text-white" onClick={() => setShowInventory(false)}>✕</span>
                                 </h3>
-                                <div className="space-y-2 max-h-60 overflow-y-auto">
+                                <div className="space-y-2 max-h-60 overflow-y-auto scrollbar-soft">
                                     {inventory.length === 0 ? (
                                         <div className="text-gray-500 text-[10px] text-center py-4">NO SUPPLIES DETECTED</div>
                                     ) : (
@@ -835,7 +877,7 @@ export default function GameInterface() {
                     </div>
 
                     {/* Skip Turn (Remains Bottom) */}
-                    <div className="mt-2">
+                    <div className="mt-1">
                         <Button
                             onClick={() => lockAction("SCAN", [], true)}
                             disabled={isAirlock || !inActionPhase}
@@ -847,8 +889,8 @@ export default function GameInterface() {
                     </div>
 
                     {/* Orientation & Compass (Moved Below) */}
-                    <div className="mt-4 flex flex-col items-center gap-2">
-                        <div className="w-16 h-16 rounded-full border border-gray-800 bg-black/50 flex items-center justify-center relative shadow-[0_0_10px_rgba(0,0,0,0.5)]">
+                    <div className="mt-2 flex flex-col items-center gap-2">
+                        <div className="w-14 h-14 rounded-full border border-gray-800 bg-black/50 flex items-center justify-center relative shadow-[0_0_10px_rgba(0,0,0,0.5)]">
                             {/* Compass Arrow */}
                             <div className={`absolute inset-0 flex items-center justify-center transition-transform duration-500 ${compassRotation}`}>
                                 <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[20px] border-b-neon-cyan drop-shadow-[0_0_5px_rgba(0,255,255,0.8)]" />
@@ -862,12 +904,12 @@ export default function GameInterface() {
                 </div>
 
                 {/* RIGHT PANEL: Hand & Protocol (Col Span 3) - Mobile Order 2 */}
-                <div className="flex order-2 md:order-none col-span-1 md:col-span-3 flex-col md:h-full min-h-0 relative pointer-events-none gap-4">
+                <div className="flex col-span-3 flex-col h-full min-h-0 relative pointer-events-none gap-3">
 
                     {/* Hand Interface (TOP - Primary Space, Grows) */}
-                    <div className="pointer-events-auto flex-1 min-h-0 w-full max-w-[320px] flex flex-col pt-4 overflow-hidden">
+                    <div className="pointer-events-auto flex-1 min-h-0 w-full max-w-[320px] flex flex-col pt-1 overflow-hidden">
                         {/* Hand Cards - NO OVERLAP, JUST SPACING */}
-                        <div className="relative w-full flex-1 min-h-0 flex flex-col items-end gap-2 overflow-y-auto pr-2 pb-20 [&::-webkit-scrollbar]:hidden">
+                        <div className="relative w-full flex-1 min-h-0 flex flex-col items-start gap-2 overflow-y-auto pl-1 pb-2 scrollbar-soft">
                             <AnimatePresence>
                         {gameState?.player?.hand?.length > 0 ? gameState.player.hand.map((card: any, index: number) => (
                             <motion.div
@@ -892,24 +934,6 @@ export default function GameInterface() {
                             </AnimatePresence>
                         </div>
 
-                        {/* Confirm/Action Button */}
-                        <div className="mt-4 mb-2 flex flex-col gap-2 justify-end pr-4 shrink-0">
-                            <Button
-                                onClick={handleExecute}
-                                    disabled={(!actionIntent || actionInvalid || (selectedCardIndices.length === 0 && !canAutoMove)) || isActing || !inActionPhase}
-                                    className={`w-64 py-4 text-xs font-bold tracking-widest transition-all duration-300 rounded-xl border-2
-                                                {(actionIntent && !actionInvalid && (selectedCardIndices.length > 0 || canAutoMove) && inActionPhase)
-                                        ? 'bg-neon-cyan text-black border-neon-cyan shadow-[0_0_20px_#0ff] hover:bg-white hover:scale-105'
-                                        : 'bg-black/50 text-gray-600 border-gray-800'}
-                                            `}
-                            >
-                                {!inActionPhase ? 'WAITING FOR DRAW' :
-                                    !actionIntent ? 'SELECT PROTOCOL' :
-                                        (selectedCardIndices.length === 0 && !canAutoMove) ? 'SELECT CARD' :
-                                            (selectedCardIndices.length === 0 && canAutoMove) ? 'LOCK MOVE (AUTO)' :
-                                                `LOCK ${actionIntent}`}
-                            </Button>
-                        </div>
                     </div>
 
                     {/* Mission Protocol (BOTTOM - Compact) */}
@@ -924,8 +948,8 @@ export default function GameInterface() {
                     </div>
                 </div>
 
-            </main >
-        </div >
+            </main>
+        </div>
     );
 }
 
@@ -935,11 +959,11 @@ function NavCard({ card, selected, size = "md" }: { card: any, selected?: boolea
 
     // Mothership / Sci-Fi Theme Mapping
     const suitThemes: any = {
-        "BIOTECH": { color: "text-red-500 border-red-500/50 shadow-red-500/20", icon: "✚", label: "BIOTECH" },
-        "PLASMA": { color: "text-orange-400 border-orange-400/50 shadow-orange-400/20", icon: "⚡", label: "PLASMA" },
-        "COMMAND": { color: "text-green-400 border-green-400/50 shadow-green-400/20", icon: "☗", label: "COMMAND" },
-        "VOID": { color: "text-purple-400 border-purple-400/50 shadow-purple-400/20", icon: "🌀", label: "VOID" },
-        "ANOMALY": { color: "text-white border-white/50 shadow-white/20", icon: "☠", label: "ANOMALY" }
+        "BIOTECH": { color: "text-red-500 border-red-500/50 shadow-red-500/20", icon: "\u271A", label: "BIOTECH" },
+        "PLASMA": { color: "text-orange-400 border-orange-400/50 shadow-orange-400/20", icon: "\u26A1", label: "PLASMA" },
+        "COMMAND": { color: "text-green-400 border-green-400/50 shadow-green-400/20", icon: "\u2617", label: "COMMAND" },
+        "VOID": { color: "text-purple-400 border-purple-400/50 shadow-purple-400/20", icon: "\u{1F300}", label: "VOID" },
+        "ANOMALY": { color: "text-white border-white/50 shadow-white/20", icon: "\u2620", label: "ANOMALY" }
     };
 
     const theme = suitThemes[card.suit] || { color: "text-gray-400 border-gray-400/50", icon: "?", label: "UNKNOWN" }; // Fallback

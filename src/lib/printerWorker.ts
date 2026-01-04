@@ -1,13 +1,24 @@
 import { prisma } from "@/lib/prisma";
 import { generateItemArt } from "@/lib/comfy";
+import { normalizePublicPath } from "@/lib/imagePath";
 
 const POLL_MS = 5000;
 const PROGRESS_STEP = 10;
+const COMFY_API = "http://127.0.0.1:8188";
+const COMFY_TIMEOUT_MS = 1500;
+const COMFY_STATUS_TTL_MS = 15000;
+const STALE_GENERATING_MS = 2 * 60 * 1000;
+const STALE_RESET_INTERVAL_MS = 60000;
+const NO_PRINT_ITEM_NAMES = ["Scrap Metal", "Nutrient Paste"];
 
 type WorkerState = {
     started: boolean;
     running: boolean;
     timer?: ReturnType<typeof setInterval>;
+    currentItemId?: string;
+    lastComfyCheck?: number;
+    comfyOnline?: boolean;
+    lastStaleReset?: number;
 };
 
 const globalState = globalThis as typeof globalThis & {
@@ -19,6 +30,52 @@ const ensureState = () => {
         globalState.__printerWorkerState = { started: false, running: false };
     }
     return globalState.__printerWorkerState;
+};
+
+const checkComfyOnline = async (state: WorkerState) => {
+    const now = Date.now();
+    if (state.lastComfyCheck && state.comfyOnline !== undefined && now - state.lastComfyCheck < COMFY_STATUS_TTL_MS) {
+        return state.comfyOnline;
+    }
+    state.lastComfyCheck = now;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), COMFY_TIMEOUT_MS);
+    try {
+        const res = await fetch(COMFY_API, { signal: controller.signal, cache: "no-store" });
+        state.comfyOnline = res.ok;
+    } catch {
+        state.comfyOnline = false;
+    } finally {
+        clearTimeout(timeout);
+    }
+    return Boolean(state.comfyOnline);
+};
+
+const resetStaleGenerating = async (state: WorkerState) => {
+    const now = Date.now();
+    if (state.lastStaleReset && now - state.lastStaleReset < STALE_RESET_INTERVAL_MS) return;
+    state.lastStaleReset = now;
+    const cutoff = new Date(now - STALE_GENERATING_MS);
+    const excludeActive = state.currentItemId ? { NOT: { id: state.currentItemId } } : {};
+    await prisma.inventoryItem.updateMany({
+        where: {
+            imageStatus: { startsWith: "GENERATING" },
+            updatedAt: { lt: cutoff },
+            ...excludeActive
+        },
+        data: { imageStatus: "QUEUED" }
+    });
+};
+
+const normalizeMissingImages = async () => {
+    await prisma.inventoryItem.updateMany({
+        where: {
+            OR: [{ customImage: null }, { customImage: "" }],
+            imageStatus: "READY",
+            item: { name: { notIn: NO_PRINT_ITEM_NAMES } }
+        },
+        data: { imageStatus: "QUEUED" }
+    });
 };
 
 const buildPrompt = (invItem: any) => {
@@ -34,7 +91,10 @@ const lockItem = async (invItemId: string) => {
     const result = await prisma.inventoryItem.updateMany({
         where: {
             id: invItemId,
-            customImage: null,
+            OR: [
+                { customImage: null },
+                { customImage: "" }
+            ],
             NOT: { imageStatus: { startsWith: "GENERATING" } }
         },
         data: { imageStatus: "GENERATING 0%" }
@@ -42,16 +102,28 @@ const lockItem = async (invItemId: string) => {
     return result.count > 0;
 };
 
-const processNextItem = async () => {
+const processNextItem = async (state: WorkerState) => {
     const next = await prisma.inventoryItem.findFirst({
         where: {
-            customImage: null,
-            instanceStats: { not: null },
-            OR: [
-                { imageStatus: "QUEUED" },
-                { imageStatus: "FAILED" },
-                { imageStatus: "ERROR" },
-                { imageStatus: "READY" }
+            AND: [
+                {
+                    OR: [
+                        { customImage: null },
+                        { customImage: "" }
+                    ]
+                },
+                {
+                    OR: [
+                        { imageStatus: "" },
+                        { imageStatus: "QUEUED" },
+                        { imageStatus: "FAILED" },
+                        { imageStatus: "ERROR" },
+                        { imageStatus: "READY" }
+                    ]
+                },
+                {
+                    item: { name: { notIn: NO_PRINT_ITEM_NAMES } }
+                }
             ]
         },
         include: { item: true },
@@ -65,6 +137,7 @@ const processNextItem = async () => {
 
     let lastProgress = 0;
     try {
+        state.currentItemId = next.id;
         const prompt = buildPrompt(next);
         const iconPath = await generateItemArt(prompt, next.id, "item", async (p) => {
             const percentage = Math.round((p.value / p.max) * 100);
@@ -78,9 +151,10 @@ const processNextItem = async () => {
         });
 
         if (iconPath) {
+            const normalizedIconPath = normalizePublicPath(iconPath) || iconPath;
             await prisma.inventoryItem.update({
                 where: { id: next.id },
-                data: { customImage: iconPath, imageStatus: "READY" }
+                data: { customImage: normalizedIconPath, imageStatus: "READY" }
             });
         } else {
             await prisma.inventoryItem.update({
@@ -94,6 +168,10 @@ const processNextItem = async () => {
             where: { id: next.id },
             data: { imageStatus: "ERROR" }
         });
+    } finally {
+        if (state.currentItemId === next.id) {
+            state.currentItemId = undefined;
+        }
     }
 };
 
@@ -106,7 +184,11 @@ export const ensurePrinterWorker = () => {
         if (state.running) return;
         state.running = true;
         try {
-            await processNextItem();
+            await normalizeMissingImages();
+            await resetStaleGenerating(state);
+            const online = await checkComfyOnline(state);
+            if (!online) return;
+            await processNextItem(state);
         } finally {
             state.running = false;
         }

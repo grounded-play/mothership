@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { User, Shield, Zap, Crosshair } from "lucide-react";
 import { motion } from "framer-motion";
+import SafeImage from "@/components/ui/SafeImage";
 
 const classes = [
     { id: "marine", icon: Crosshair, desc: "Trained for combat and boarding actions." },
@@ -205,7 +206,19 @@ export default function CreateCharacterForm() {
             <div className="relative flex items-center justify-center bg-black/40 rounded-xl border border-white/10 overflow-hidden min-h-[400px]">
                 {portraitUrl ? (
                     <div className="relative w-full h-full">
-                        <img src={portraitUrl} alt="Generated Portrait" className="w-full h-full object-cover" />
+                        <SafeImage
+                            src={portraitUrl}
+                            alt="Generated Portrait"
+                            className="w-full h-full object-cover"
+                            fallback={
+                                <div className="text-center space-y-4 px-8">
+                                    <div className="w-24 h-24 mx-auto border-2 border-dashed border-gray-600 rounded-full flex items-center justify-center">
+                                        <User className="w-10 h-10 text-gray-600" />
+                                    </div>
+                                    <p className="text-gray-500 text-sm">Awaiting Visual Data...</p>
+                                </div>
+                            }
+                        />
                         <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-60" />
                         <div className="absolute bottom-4 left-4">
                             <p className="text-white text-lg font-bold">{selectedClass.toUpperCase()}</p>
