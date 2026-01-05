@@ -20,6 +20,10 @@ export default async function RosterPage() {
             credits: true,
             voidTokens: true,
             stats: true,
+            runsCompleted: true,
+            runsFailed: true,
+            deathCount: true,
+            deepestLevel: true,
         },
         orderBy: { level: 'desc' }
     });

@@ -16,6 +16,12 @@ interface SectorGridProps {
 export default function SectorGrid({ nodes, currentPlayerNodeId, activeZ, playerMarkers }: SectorGridProps) {
     const SIZE = 3;
     const layers = typeof activeZ === "number" ? [activeZ] : [2, 1, 0];
+    const suitColors: Record<string, { text: string; border: string }> = {
+        COMMAND: { text: "text-green-400", border: "border-green-500/40" },
+        BIOTECH: { text: "text-red-400", border: "border-red-500/40" },
+        PLASMA: { text: "text-orange-400", border: "border-orange-500/40" },
+        VOID: { text: "text-purple-400", border: "border-purple-500/40" }
+    };
 
     // Helper to find node at (x,y,z)
     const getNode = (x: number, y: number, z: number) => nodes.find(n => n.x === x && n.y === y && n.z === z);
@@ -57,16 +63,27 @@ export default function SectorGrid({ nodes, currentPlayerNodeId, activeZ, player
                                 const isCurrent = node?.id === currentPlayerNodeId;
                                 const isBoss = x === 1 && y === 2 && z === 2;
 
+                                const scanned = Boolean(node?.scanned);
+                                const security = node?.security ?? 0;
+                                const scanFailed = scanned && security <= 0;
+                                const secured = scanned && security >= 2;
+                                const suit = node?.roomSuit || "";
+                                const suitStyle = suitColors[suit] || { text: "text-gray-400", border: "border-gray-700" };
+                                const suitAbbr = suit ? suit.slice(0, 3).toUpperCase() : "";
+
                                 let statusColor = "bg-gray-800/20 border-gray-800";
                                 if (isCurrent) statusColor = "bg-neon-cyan border-neon-cyan shadow-[0_0_15px_#0ff] z-50";
                                 else if (isBoss) statusColor = "bg-red-900/40 border-red-500/50";
-                                else if (node?.isExplored) statusColor = "bg-gray-700/40 border-gray-500";
+                                else if (scanned && scanFailed) statusColor = "bg-gray-900/60 border-gray-700";
+                                else if (scanned && secured) statusColor = `bg-black/60 ${suitStyle.border}`;
+                                else if (scanned) statusColor = "bg-gray-700/40 border-gray-500";
+                                else if (node?.isExplored) statusColor = "bg-gray-700/30 border-gray-600";
 
                                 return (
                                     <div
                                         key={`${x}-${y}-${z}`}
                                         className={`
-                                            w-9 h-9 md:w-10 md:h-10 flex items-center justify-center border transition-all duration-300
+                                            w-9 h-9 md:w-10 md:h-10 flex items-center justify-center border transition-all duration-300 relative
                                             ${statusColor}
                                             ${isCurrent ? 'scale-125 translate-z-4' : ''}
                                         `}
@@ -87,6 +104,16 @@ export default function SectorGrid({ nodes, currentPlayerNodeId, activeZ, player
                                             </div>
                                         )}
                                         {!isCurrent && isBoss && <div className="text-[6px] text-red-500">BOSS</div>}
+                                        {scanned && (
+                                            <div className={`absolute bottom-0.5 right-0.5 text-[6px] font-bold ${scanFailed ? "text-gray-500" : secured ? suitStyle.text : "text-gray-200"}`}>
+                                                {node?.roomPower ?? "?"}
+                                            </div>
+                                        )}
+                                        {scanned && secured && suitAbbr && (
+                                            <div className={`absolute top-0.5 left-0.5 text-[6px] font-bold ${suitStyle.text}`}>
+                                                {suitAbbr}
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             });

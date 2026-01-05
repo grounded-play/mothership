@@ -1,15 +1,16 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/Button";
+import SafeImage from "@/components/ui/SafeImage";
 import { motion, AnimatePresence, useAnimation } from "framer-motion";
 import { Loader2, Coins, Image as ImageIcon, Zap, ChevronUp, Wrench } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/Toast";
 
-type PrinterProps = { credits: number; inventory: any[]; globalQueue: any[]; backpackLevel: number };
+type PrinterProps = { credits: number; inventory: any[]; globalQueue: any[]; backpackLevel: number; lastMade?: any };
 
-export default function PrinterInterface({ credits, inventory, globalQueue, backpackLevel: initialBackpackLevel }: PrinterProps) {
+export default function PrinterInterface({ credits, inventory, globalQueue, backpackLevel: initialBackpackLevel, lastMade }: PrinterProps) {
     const [spinning, setSpinning] = useState(false);
     const [reward, setReward] = useState<{ name: string; rarity: string; icon?: string } | null>(null);
     const [pendingRarity, setPendingRarity] = useState<string | null>(null);
@@ -437,15 +438,14 @@ export default function PrinterInterface({ credits, inventory, globalQueue, back
                     <Loader2 className="mr-2 animate-spin text-neon-cyan" /> GLOBAL PRINT QUEUE
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {/* Placeholder for real queue data passed via props */}
                     {globalQueue.map((item: any) => (
                         <div key={item.id} className="bg-black/40 p-4 rounded flex items-center gap-4 relative overflow-hidden group border border-white/5">
-                            <div className="w-12 h-12 bg-gray-800 rounded flex items-center justify-center">
-                                {item.item.icon ? <ImageIcon className="w-6 h-6 text-gray-400" /> : <Loader2 className="w-6 h-6 animate-spin text-neon-cyan" />}
+                            <div className="w-12 h-12 bg-gray-900 rounded flex items-center justify-center text-[10px] font-bold text-neon-cyan/80 border border-white/10">
+                                {item.queueType === "CHARACTER" ? "PORTRAIT" : "ITEM"}
                             </div>
                             <div className="flex-1 min-w-0">
-                                <div className="text-white font-bold truncate">{item.item.name}</div>
-                                <div className="text-xs text-neon-cyan truncate">Owner: {item.character.name}</div>
+                                <div className="text-white font-bold truncate">{item.name}</div>
+                                <div className="text-xs text-neon-cyan truncate">Owner: {item.owner}</div>
 
                                 {/* PROGRESS BAR / STATUS */}
                                 <div className="mt-1">
@@ -453,7 +453,7 @@ export default function PrinterInterface({ credits, inventory, globalQueue, back
                                         <div className="w-full bg-gray-800 h-1 rounded overflow-hidden">
                                             <div
                                                 className="h-full bg-neon-cyan transition-all duration-500"
-                                                style={{ width: item.imageStatus.split(' ')[1] || '0%' }}
+                                                style={{ width: item.imageStatus.split(" ")[1] || "0%" }}
                                             />
                                         </div>
                                     ) : (
@@ -468,6 +468,32 @@ export default function PrinterInterface({ credits, inventory, globalQueue, back
                     ))}
                     {globalQueue.length === 0 && <div className="text-gray-500 text-sm col-span-full text-center py-8">Queue Empty. Systems Standby.</div>}
                 </div>
+            </div>
+
+            {/* LAST MADE */}
+            <div className="glass-panel p-6 border border-white/10">
+                <h2 className="text-lg font-bold text-white mb-4 flex items-center">
+                    <ImageIcon className="mr-2 text-neon-cyan" /> LAST FABRICATED
+                </h2>
+                {lastMade ? (
+                    <div className="flex items-center gap-4">
+                        <div className="w-20 h-20 rounded-lg bg-black/60 border border-white/10 flex items-center justify-center overflow-hidden">
+                            <SafeImage
+                                src={lastMade.preview}
+                                alt={lastMade.title || "Last fabricated item"}
+                                className="w-full h-full object-cover"
+                                fallback={<ImageIcon className="w-6 h-6 text-gray-500" />}
+                            />
+                        </div>
+                        <div className="min-w-0">
+                            <div className="text-white font-semibold truncate">{lastMade.title}</div>
+                            <div className="text-xs text-neon-cyan truncate">{lastMade.type || "ITEM"} - {lastMade.owner}</div>
+                            <div className="text-[10px] text-gray-500">{lastMade.imageStatus || "READY"}</div>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="text-gray-500 text-sm">No completed fabrications yet.</div>
+                )}
             </div>
         </div>
     );

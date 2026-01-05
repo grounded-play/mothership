@@ -32,6 +32,8 @@ export default async function CharacterViewPage() {
     }
 
     const character = user.characters[0];
+    const scrapCount = character.inventory?.find((inv: any) => inv.item?.name === "Scrap Metal")?.quantity ?? 0;
+    const pasteCount = character.inventory?.find((inv: any) => inv.item?.name === "Nutrient Paste")?.quantity ?? 0;
     const runsFailed = (character as any).runsFailed ?? 0;
 
     // Parse stats
@@ -48,7 +50,7 @@ export default async function CharacterViewPage() {
                         <ArrowLeft className="mr-2 h-5 w-5" /> Back to Bridge
                     </Link>
                     <div className="flex items-center gap-4">
-                        <CurrencyDisplay credits={character.credits} voidTokens={character.voidTokens} />
+                        <CurrencyDisplay credits={character.credits} voidTokens={character.voidTokens} scrap={scrapCount} paste={pasteCount} />
                     </div>
                 </header>
 

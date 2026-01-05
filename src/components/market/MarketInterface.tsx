@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Search, ShoppingBag, Filter, Coins, Hexagon, Plus, Dices, Box } from "lucide-react";
@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 
 import { useToast } from "@/components/ui/Toast";
+import SafeImage from "@/components/ui/SafeImage";
 
 // Gamba Logic moved to PrinterInterface
 
@@ -38,7 +39,7 @@ function MarketTicker({ version }: { version?: number }) {
                     <div className="text-white font-bold truncate">{tx.item.name}</div>
                     <div className="flex justify-between text-[10px] text-gray-600 mt-1">
                         <span>{tx.seller?.name || "Unknown"}</span>
-                        <span>➔</span>
+                        <span>-&gt;</span>
                         <span>{tx.buyer?.name || "Unknown"}</span>
                     </div>
                 </div>
@@ -60,20 +61,31 @@ export default function MarketInterface({ initialListings, userInventory, credit
     const [creditsDisplay, setCreditsDisplay] = useState(credits);
     const [txVersion, setTxVersion] = useState(0);
     const { addToast } = useToast();
+    const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
+    const groupedInventory = useMemo(() => {
+        const groups = new Map<string, { item: any; items: any[]; totalQty: number }>();
+        (userInventory || []).forEach((inv: any) => {
+            if (!inv?.item) return;
+            const key = inv.itemId;
+            const existing = groups.get(key) || { item: inv.item, items: [], totalQty: 0 };
+            existing.items.push(inv);
+            existing.totalQty += inv.quantity || 0;
+            groups.set(key, existing);
+        });
+        return Array.from(groups.values()).sort((a, b) => a.item.name.localeCompare(b.item.name));
+    }, [userInventory]);
 
     // Sell Logic
     const [selectedItem, setSelectedItem] = useState<any>(null);
     const [sellPrice, setSellPrice] = useState(100);
     const [sellQty, setSellQty] = useState(1);
-
-    // Generation State
-    const [isGenerating, setIsGenerating] = useState(false);
-    const [genProgress, setGenProgress] = useState(0);
+    const isStackableSale = selectedItem?.item?.type === "Material" || selectedItem?.item?.type === "Consumable";
 
     const router = useRouter();
 
     const handleCreateListing = async () => {
         if (!selectedItem) return;
+        const quantity = isStackableSale ? sellQty : 1;
 
         try {
             const res = await fetch('/api/market/listings', {
@@ -82,7 +94,7 @@ export default function MarketInterface({ initialListings, userInventory, credit
                 body: JSON.stringify({
                     itemId: selectedItem.itemId,
                     inventoryItemId: selectedItem.id, // Specifc Item ID
-                    quantity: sellQty,
+                    quantity,
                     price: sellPrice,
                     currency: "CREDITS"
                 })
@@ -160,25 +172,24 @@ export default function MarketInterface({ initialListings, userInventory, credit
                                         {listing.item.rarity}
                                     </div>
 
-                                    {listing.item.icon?.startsWith('/items/') ? (
-                                        <div className="relative group w-24 h-24 mb-2">
-                                            <img
-                                                src={listing.customImage || listing.item.icon}
-                                                alt={listing.item.name}
-                                                className="w-full h-full rounded-lg object-cover border border-white/10 transition-transform duration-300 group-hover:scale-150 group-hover:z-50 group-hover:relative group-hover:shadow-[0_0_20px_rgba(0,255,255,0.5)]"
-                                            />
-                                            {/* Stat Tag */}
-                                            {listing.instanceStats && (
-                                                <div className="absolute bottom-0 right-0 bg-black/80 text-[8px] text-neon-cyan px-1 rounded-tl border-t border-l border-neon-cyan/30">
-                                                    MODDED
+                                    <div className="relative group w-24 h-24 mb-2">
+                                        <SafeImage
+                                            src={listing.customImage || listing.item.icon}
+                                            alt={listing.item.name}
+                                            className="w-full h-full rounded-lg object-cover border border-white/10 transition-transform duration-300 group-hover:scale-150 group-hover:z-50 group-hover:relative group-hover:shadow-[0_0_20px_rgba(0,255,255,0.5)]"
+                                            fallback={
+                                                <div className="w-20 h-20 bg-black/40 rounded-full flex items-center justify-center border border-white/10">
+                                                    <div className="text-2xl font-bold text-white/80">{listing.item.name[0]}</div>
                                                 </div>
-                                            )}
-                                        </div>
-                                    ) : (
-                                        <div className="w-20 h-20 bg-black/40 rounded-full flex items-center justify-center mb-4 border border-white/10">
-                                            <div className="text-2xl font-bold text-white/80">{listing.item.name[0]}</div>
-                                        </div>
-                                    )}
+                                            }
+                                        />
+                                        {/* Stat Tag */}
+                                        {listing.instanceStats && (
+                                            <div className="absolute bottom-0 right-0 bg-black/80 text-[8px] text-neon-cyan px-1 rounded-tl border-t border-l border-neon-cyan/30">
+                                                MODDED
+                                            </div>
+                                        )}
+                                    </div>
 
                                     <h3 className="text-lg font-bold text-white mb-1">{listing.item.name}</h3>
                                     {listing.seller && (
@@ -213,16 +224,60 @@ export default function MarketInterface({ initialListings, userInventory, credit
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div className="glass-panel p-6 rounded-xl">
                             <h2 className="text-xl font-bold mb-4 flex items-center text-neon-blue"><Box className="mr-2" /> Your Inventory</h2>
-                            <div className="space-y-2 max-h-[500px] overflow-y-auto">
-                                {userInventory.map((inv: any) => (
-                                    <div key={inv.id}
-                                        onClick={() => setSelectedItem(inv)}
-                                        className={`p-3 rounded border cursor-pointer transition-all flex justify-between items-center ${selectedItem?.id === inv.id ? 'bg-neon-blue/20 border-neon-blue' : 'bg-black/40 border-white/5 hover:border-white/20'}`}
-                                    >
-                                        <span className="font-bold">{inv.item.name}</span>
-                                        <span className="text-sm text-gray-400">x{inv.quantity}</span>
-                                    </div>
-                                ))}
+                            <div className="space-y-3 max-h-[500px] overflow-y-auto custom-scrollbar">
+                                {groupedInventory.map((group) => {
+                                    const isExpanded = expandedItemId === group.item.id;
+                                    const isSelectedGroup = selectedItem?.itemId === group.item.id;
+                                    return (
+                                        <div key={group.item.id} className="rounded border border-white/10 bg-black/40">
+                                            <button
+                                                type="button"
+                                                onClick={() => setExpandedItemId(isExpanded ? null : group.item.id)}
+                                                className={`w-full px-3 py-2 flex items-center justify-between text-left transition ${isSelectedGroup ? "border-l-2 border-neon-cyan" : ""}`}
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-bold text-sm text-white">{group.item.name}</span>
+                                                    <span className="text-[10px] text-gray-500 uppercase">{group.item.rarity}</span>
+                                                </div>
+                                                <span className="text-xs text-gray-400">x{group.totalQty}</span>
+                                            </button>
+                                            {isExpanded && (
+                                                <div className="border-t border-white/10">
+                                                    {group.items.map((inv) => (
+                                                        <button
+                                                            key={inv.id}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setSelectedItem(inv);
+                                                                setSellQty(1);
+                                                            }}
+                                                            className={`w-full px-3 py-2 flex items-center gap-3 text-left transition ${selectedItem?.id === inv.id ? "bg-neon-blue/20 border-neon-blue" : "hover:bg-white/5"}`}
+                                                        >
+                                                            <SafeImage
+                                                                src={inv.customImage || inv.item.icon}
+                                                                alt={inv.item.name}
+                                                                className="w-8 h-8 rounded border border-white/10 object-cover"
+                                                                fallback={
+                                                                    <div className="w-8 h-8 rounded border border-white/10 flex items-center justify-center text-xs text-gray-400">
+                                                                        {inv.item.name?.[0] || "?"}
+                                                                    </div>
+                                                                }
+                                                            />
+                                                            <div className="flex-1">
+                                                                <div className="text-xs font-bold text-white">{inv.item.name}</div>
+                                                                <div className="text-[10px] text-gray-500">{inv.visualTraits || inv.item.type}</div>
+                                                            </div>
+                                                            <div className="text-[10px] text-gray-400">x{inv.quantity}</div>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                                {groupedInventory.length === 0 && (
+                                    <div className="text-xs text-gray-500 italic">No inventory available.</div>
+                                )}
                             </div>
                         </div>
 
@@ -232,9 +287,12 @@ export default function MarketInterface({ initialListings, userInventory, credit
                                 <div className="mb-4">
                                     <label className="block text-xs uppercase text-gray-500 mb-1">Item</label>
                                     <div className="flex items-center gap-4">
-                                        {(selectedItem.customImage || selectedItem.item.icon)?.startsWith('/items/') && (
-                                            <img src={selectedItem.customImage || selectedItem.item.icon} alt="Art" className="w-16 h-16 rounded border border-white/20" />
-                                        )}
+                                        <SafeImage
+                                            src={selectedItem.customImage || selectedItem.item.icon}
+                                            alt="Art"
+                                            className="w-16 h-16 rounded border border-white/20 object-cover"
+                                            fallback={<Box className="w-5 h-5 text-gray-500" />}
+                                        />
                                         <div>
                                             <div className="text-2xl font-bold text-neon-cyan">{selectedItem.item.name}</div>
 
@@ -251,79 +309,6 @@ export default function MarketInterface({ initialListings, userInventory, credit
                                                 </div>
                                             )}
 
-                                            {/* Progress Bar for Generation */}
-                                            {isGenerating && (
-                                                <div className="w-full mt-2 space-y-1">
-                                                    <div className="h-1 bg-gray-800 rounded-full overflow-hidden">
-                                                        <motion.div
-                                                            className="h-full bg-neon-cyan"
-                                                            initial={{ width: 0 }}
-                                                            animate={{ width: `${genProgress}%` }}
-                                                        />
-                                                    </div>
-                                                    <div className="flex justify-between text-[10px] text-gray-500 uppercase">
-                                                        <span>Uplink Active</span>
-                                                        <span>{genProgress}%</span>
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            <Button
-                                                variant="outline"
-                                                className="h-6 text-xs mt-1 border-neon-cyan/50 text-neon-cyan hover:bg-neon-cyan/20"
-                                                disabled={isGenerating}
-                                                onClick={async (e) => {
-                                                    e.stopPropagation();
-                                                    if (!confirm("Regenerate Art using ComfyUI?")) return;
-
-                                                    setIsGenerating(true);
-                                                    setGenProgress(0);
-
-                                                    try {
-                                                        const res = await fetch('/api/items/generate', {
-                                                            method: 'POST',
-                                                            headers: { 'Content-Type': 'application/json' },
-                                                            body: JSON.stringify({
-                                                                itemId: selectedItem.item.id,
-                                                                inventoryItemId: selectedItem.id, // Pass Instance ID
-                                                                stats: selectedItem.instanceStats,
-                                                                traits: selectedItem.visualTraits
-                                                            })
-                                                        });
-
-                                                        if (!res.body) throw new Error("No stream");
-                                                        const reader = res.body.getReader();
-                                                        const decoder = new TextDecoder();
-
-                                                        while (true) {
-                                                            const { done, value } = await reader.read();
-                                                            if (done) break;
-                                                            const text = decoder.decode(value);
-                                                            const lines = text.split('\n\n');
-
-                                                            for (const line of lines) {
-                                                                if (line.startsWith('data: ')) {
-                                                                    try {
-                                                                        const data = JSON.parse(line.slice(6));
-                                                                        if (data.progress) setGenProgress(data.progress);
-                                                                        if (data.icon) {
-                                                                            // Update specific instance image if returned
-                                                                            selectedItem.customImage = data.icon;
-                                                                            // Fallback to item icon if null? No, customImage takes precedence.
-                                                                            router.refresh();
-                                                                            addToast("Art Regeneration Complete", "success");
-                                                                        }
-                                                                        if (data.error) addToast("Error: " + data.error, "error");
-                                                                    } catch (e) { console.error(e); }
-                                                                }
-                                                            }
-                                                        }
-                                                    } catch (e) { console.error(e); }
-                                                    finally { setIsGenerating(false); }
-                                                }}
-                                            >
-                                                {isGenerating ? "GENERATING..." : "GENERATE ART (COMFY)"}
-                                            </Button>
                                         </div>
                                     </div>
                                 </div>
@@ -335,7 +320,26 @@ export default function MarketInterface({ initialListings, userInventory, credit
                                     </div>
                                     <div className="flex-1">
                                         <label className="block text-xs uppercase text-gray-500 mb-1">Quantity</label>
-                                        <Input type="number" value={sellQty} max={selectedItem.quantity} onChange={(e) => setSellQty(parseInt(e.target.value))} />
+                                        <Input
+                                            type="number"
+                                            value={isStackableSale ? sellQty : 1}
+                                            max={selectedItem.quantity}
+                                            disabled={!isStackableSale}
+                                            onChange={(e) => {
+                                                const next = parseInt(e.target.value, 10);
+                                                if (Number.isNaN(next)) {
+                                                    setSellQty(1);
+                                                    return;
+                                                }
+                                                const clamped = Math.max(1, Math.min(next, selectedItem.quantity));
+                                                setSellQty(clamped);
+                                            }}
+                                        />
+                                        {!isStackableSale && (
+                                            <div className="text-[10px] text-gray-500 mt-1 uppercase tracking-widest">
+                                                Single item only
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 

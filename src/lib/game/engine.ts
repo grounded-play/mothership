@@ -146,7 +146,7 @@ export class GameEngine {
             if (item?.equipSlot) return item.equipSlot.toUpperCase();
             const type = (item?.type || "").toLowerCase();
             if (type === "weapon") return "WEAPON";
-            if (type === "armor") return "ARMOR";
+            if (type === "armor" || type.includes("suit")) return "ARMOR";
             return null;
         };
         const resolveUses = (invItem: any) => {
@@ -209,6 +209,7 @@ export class GameEngine {
                     nodeId: startNode.id, // Assign to Start Node
                     hp: 10,
                     maxHp: 10,
+                    stress: 3,
                     ap: 3,
                     hand: JSON.stringify(hand),
                     inventory: JSON.stringify(sessionInv),

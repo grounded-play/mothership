@@ -12,6 +12,7 @@ type PendingAction = {
     cards: any[];
     direction?: string | null;
     auto?: boolean;
+    emergency?: boolean;
 };
 
 type LogEntry = { ts: number; type: string; message: string };
@@ -350,8 +351,7 @@ async function resolveReaction(gameState: any, players: any[], pending: PendingA
                         mainObjective.current = Math.max(0, target - nextIntegrity);
                         mainObjective.isComplete = nextIntegrity <= 0;
                         if (mainObjective.isComplete) {
-                            phaseOverride = "VICTORY";
-                            logs.push({ ts: now, type: "MAIN", message: "Core neutralized. Mission complete." });
+                            logs.push({ ts: now, type: "MAIN", message: "Core neutralized. Return to airlock for extraction." });
                         }
                     }
                 } else {
@@ -361,38 +361,63 @@ async function resolveReaction(gameState: any, players: any[], pending: PendingA
                 logs.push({ ts: now, type: "ATTACK", message: `${playerName} attack faltered: NO EFFECT` });
             }
         } else if (action.intent === "MOVE") {
-            const direction = action.direction || "FORWARD";
-            if (!node.scanned && node.type !== "START") {
+            const emergencyMove = Boolean(action.emergency);
+            const facing = (player.facing || "NORTH") as Facing;
+            const nodeConnections = parseJSON(node.connections || "[]", []);
+            const candidateDirections = emergencyMove ? ["BACK", "LEFT", "RIGHT", "FORWARD"] : [action.direction || "FORWARD"];
+            let moveResult: { target: any; newFacing: Facing; direction: string } | null = null;
+
+            if (!emergencyMove && !node.scanned && node.type !== "START") {
                 logs.push({ ts: now, type: "MOVE", message: `${playerName} attempted to move but the room is unscanned.` });
                 continue;
             }
 
-            const facing = (player.facing || "NORTH") as Facing;
-            const { dx, dy, dz, newFacing } = resolveMove(direction, facing);
-            const absDir = vectorToDirection(dx, dy, dz);
-            const nodeConnections = parseJSON(node.connections || "[]", []);
-            if (absDir && !nodeConnections.includes(absDir)) {
-                logs.push({ ts: now, type: "MOVE", message: `${playerName} found no hatch in that direction.` });
+            for (const dir of candidateDirections) {
+                const { dx, dy, dz, newFacing } = resolveMove(dir, facing);
+                const absDir = vectorToDirection(dx, dy, dz);
+                if (absDir && !nodeConnections.includes(absDir)) continue;
+
+                const target = await (prisma as any).mapNode.findFirst({
+                    where: { gameId: gameState.id, x: node.x + dx, y: node.y + dy, z: node.z + dz }
+                });
+                if (!target) continue;
+                if (emergencyMove && !target.scanned && target.type !== "START") continue;
+
+                moveResult = { target, newFacing, direction: dir };
+                break;
+            }
+
+            if (!moveResult) {
+                logs.push({ ts: now, type: "MOVE", message: `${playerName} could not find a safe escape route.` });
                 continue;
             }
 
-            const target = await (prisma as any).mapNode.findFirst({
-                where: { gameId: gameState.id, x: node.x + dx, y: node.y + dy, z: node.z + dz }
-            });
-            if (!target) {
-                logs.push({ ts: now, type: "MOVE", message: `${playerName} aborted move: hull breach detected.` });
-                continue;
+            if (emergencyMove) {
+                const nextHp = Math.max(0, (player.hp ?? 0) - 1);
+                updates.push((prisma as any).gamePlayer.update({ where: { id: player.id }, data: { hp: nextHp } }));
+                player.hp = nextHp;
+                logs.push({ ts: now, type: "MOVE", message: `${playerName} triggered emergency escape: -1 HP.` });
+            }
+
+            if ((node.security ?? 0) < 1) {
+                const nextStress = Math.max(0, (player.stress ?? 0) - 1);
+                updates.push((prisma as any).gamePlayer.update({ where: { id: player.id }, data: { stress: nextStress } }));
+                player.stress = nextStress;
+                logs.push({ ts: now, type: "MOVE", message: `${playerName} left an unsecured room: -1 energy.` });
             }
 
             updates.push((prisma as any).mapNode.update({
-                where: { id: target.id },
+                where: { id: moveResult.target.id },
                 data: { isExplored: true }
             }));
             updates.push((prisma as any).gamePlayer.update({
                 where: { id: player.id },
-                data: { nodeId: target.id, facing: newFacing }
+                data: { nodeId: moveResult.target.id, facing: moveResult.newFacing }
             }));
-            logs.push({ ts: now, type: "MOVE", message: `${playerName} moved ${direction}.` });
+            player.MapNode = moveResult.target;
+            player.nodeId = moveResult.target.id;
+            player.facing = moveResult.newFacing;
+            logs.push({ ts: now, type: "MOVE", message: `${playerName} moved ${moveResult.direction}.` });
 
             if (!gameState.deadline && !startedDeadline) {
                 const diff = lobbyDifficulty || "NORMAL";
@@ -403,6 +428,11 @@ async function resolveReaction(gameState: any, players: any[], pending: PendingA
     }
 
     await Promise.all(updates);
+
+    if (mainObjective?.isComplete && players.every(p => p.MapNode?.type === "START")) {
+        phaseOverride = "VICTORY";
+        logs.push({ ts: now, type: "MAIN", message: "Squad extracted. Mission complete." });
+    }
 
     // Reset for next round (back to draw phase)
     const basePool = computeBasePool(players.length);
@@ -430,7 +460,7 @@ export async function POST(req: Request) {
     if (!session?.user?.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     try {
-        const { gameId, action, cards = [], intent, direction, itemId } = await req.json();
+        const { gameId, action, cards = [], intent, direction, itemId, emergency } = await req.json();
         const user = await prisma.user.findUnique({
             where: { email: session.user.email },
             include: { characters: true }
@@ -508,6 +538,7 @@ export async function POST(req: Request) {
 
             const pending = parsePending(gameState.pendingActions);
             let sharedAp = gameState.sharedAp || 0;
+            const emergencyAction = Boolean(emergency);
             const existingIdx = pending.findIndex(p => p.playerId === character.id);
             if (existingIdx !== -1) {
                 sharedAp += pending[existingIdx].cards.length; // refund previous lock
@@ -516,8 +547,8 @@ export async function POST(req: Request) {
 
             // Determine cards to lock
             const currentHand = parseJSON(player.hand || "[]", []);
-            let lockedCards = Array.isArray(cards) && cards.length > 0 ? cards : [];
-            if (lockedCards.length === 0) {
+            let lockedCards = emergencyAction ? [] : (Array.isArray(cards) && cards.length > 0 ? cards : []);
+            if (lockedCards.length === 0 && !emergencyAction) {
                 const autoCard = lowestCard(currentHand);
                 if (autoCard) lockedCards = [autoCard];
             }
@@ -527,8 +558,8 @@ export async function POST(req: Request) {
                     return NextResponse.json({ error: "Doubles must match rank." }, { status: 400 });
                 }
             }
-            const cost = Math.max(1, lockedCards.length);
-            if (sharedAp < cost) {
+            const cost = emergencyAction ? 0 : Math.max(1, lockedCards.length);
+            if (cost > 0 && sharedAp < cost) {
                 return NextResponse.json({ error: "Not enough AP in shared pool" }, { status: 400 });
             }
 
@@ -552,19 +583,22 @@ export async function POST(req: Request) {
             }
 
             // Remove locked cards from hand
-            const lockIds = new Set(lockedCards.map((c: any) => c.id));
-            const newHand = currentHand.filter((c: any) => !lockIds.has(c.id));
-            await (prisma as any).gamePlayer.update({
-                where: { id: player.id },
-                data: { hand: JSON.stringify(newHand) }
-            });
+            if (!emergencyAction) {
+                const lockIds = new Set(lockedCards.map((c: any) => c.id));
+                const newHand = currentHand.filter((c: any) => !lockIds.has(c.id));
+                await (prisma as any).gamePlayer.update({
+                    where: { id: player.id },
+                    data: { hand: JSON.stringify(newHand) }
+                });
+            }
 
             pending.push({
                 playerId: character.id,
                 intent: (intent || "SCAN") as any,
                 cards: lockedCards,
                 direction: direction || null,
-                auto: cards.length === 0
+                auto: cards.length === 0,
+                emergency: emergencyAction
             });
 
             sharedAp = Math.max(0, sharedAp - cost);
