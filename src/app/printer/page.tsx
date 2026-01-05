@@ -107,31 +107,16 @@ export default async function PrinterPage() {
     const lastReadyItem = recentReady.find((entry: any) => hasLocalImage(entry.customImage)) || null;
     const lastReadyPortrait = recentPortraits.find((entry: any) => hasLocalImage(entry.portrait)) || null;
 
-    const lastItemTs = lastReadyItem ? new Date(lastReadyItem.updatedAt).getTime() : 0;
-    const lastPortraitTs = lastReadyPortrait ? new Date(lastReadyPortrait.updatedAt).getTime() : 0;
-
-    let lastMade: any = null;
-    if (lastItemTs || lastPortraitTs) {
-        if (lastPortraitTs > lastItemTs && lastReadyPortrait) {
-            lastMade = {
-                id: lastReadyPortrait.id,
-                type: "CHARACTER",
-                title: lastReadyPortrait.name,
-                owner: lastReadyPortrait.name,
-                preview: normalizePublicPath(lastReadyPortrait.portrait) || lastReadyPortrait.portrait,
-                imageStatus: lastReadyPortrait.portraitStatus || "READY"
-            };
-        } else if (lastReadyItem) {
-            lastMade = {
-                id: lastReadyItem.id,
-                type: "ITEM",
-                title: lastReadyItem.item?.name || "Item",
-                owner: lastReadyItem.character?.name || "Unknown",
-                preview: normalizePublicPath(lastReadyItem.customImage) || lastReadyItem.customImage,
-                imageStatus: lastReadyItem.imageStatus || "READY"
-            };
+    const lastMade: any = lastReadyItem
+        ? {
+            id: lastReadyItem.id,
+            type: "ITEM",
+            title: lastReadyItem.item?.name || "Item",
+            owner: lastReadyItem.character?.name || "Unknown",
+            preview: normalizePublicPath(lastReadyItem.customImage) || lastReadyItem.customImage,
+            imageStatus: lastReadyItem.imageStatus || "READY"
         }
-    }
+        : null;
 
     return (
         <div className="h-full bg-black">

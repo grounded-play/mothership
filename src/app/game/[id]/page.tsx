@@ -590,7 +590,7 @@ export default function GameInterface() {
                 <div className="flex col-span-3 flex-col gap-2 h-full min-h-0 relative overflow-hidden">
 
                     {/* Mission Log (Top - Fixed Height) */}
-                    <div className="glass-panel p-3 border border-white/10 h-48 shrink-0 overflow-y-auto [&::-webkit-scrollbar]:hidden">
+                    <div className="glass-panel p-3 border border-white/10 h-48 shrink-0 overflow-y-auto custom-scrollbar">
                         <div className="text-[9px] text-gray-500 uppercase tracking-widest mb-2 border-b border-white/5 pb-1">MISSION OBJECTIVES</div>
                         <MissionLog objectives={game.objectives || []} />
                     </div>
@@ -876,7 +876,7 @@ export default function GameInterface() {
                                     <span>Supply Manifest</span>
                                     <span className="cursor-pointer hover:text-white" onClick={() => setShowInventory(false)}>X</span>
                                 </h3>
-                                <div className="space-y-2 max-h-60 overflow-y-auto">
+                                <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
                                     {inventory.length === 0 ? (
                                         <div className="text-gray-500 text-[10px] text-center py-4">NO SUPPLIES DETECTED</div>
                                     ) : (

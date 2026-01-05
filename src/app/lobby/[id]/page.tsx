@@ -189,7 +189,7 @@ export default function LobbyRoom() {
                                     </div>
                                 )}
                             </div>
-                            <div className="space-y-2 max-h-40 overflow-y-auto">
+                            <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
                                 {weaponItems.map((inv: any) => {
                                     const uses = formatUses(inv);
                                     const disabled = !!(uses && uses.startsWith("0/"));
@@ -224,7 +224,7 @@ export default function LobbyRoom() {
                                     </div>
                                 )}
                             </div>
-                            <div className="space-y-2 max-h-40 overflow-y-auto">
+                            <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
                                 {armorItems.map((inv: any) => {
                                     const uses = formatUses(inv);
                                     const disabled = !!(uses && uses.startsWith("0/"));

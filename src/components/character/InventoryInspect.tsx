@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Box, X } from "lucide-react";
+import { ArrowDownUp, Box, X } from "lucide-react";
 import SafeImage from "@/components/ui/SafeImage";
 import { normalizePublicPath } from "@/lib/imagePath";
 
@@ -18,6 +18,9 @@ const getRarityClass = (rarity?: string) => {
 
 export default function InventoryInspect({ inventory }: { inventory: any[] }) {
     const [selected, setSelected] = useState<any | null>(null);
+    const [activeTab, setActiveTab] = useState("ALL");
+    const [sortKey, setSortKey] = useState("RARITY");
+    const [sortDir, setSortDir] = useState<"ASC" | "DESC">("DESC");
     const selectedStats = useMemo(() => parseJSON(selected?.instanceStats || "{}", {}), [selected?.instanceStats]);
     const selectedTraits = useMemo(() => {
         const parsed = parseJSON(selected?.visualTraits || "{}", null);
@@ -28,12 +31,112 @@ export default function InventoryInspect({ inventory }: { inventory: any[] }) {
         () => inventory.filter((entry) => !["Scrap Metal", "Nutrient Paste"].includes(entry?.item?.name)),
         [inventory]
     );
+    const rarityRank: Record<string, number> = {
+        Common: 1,
+        Uncommon: 2,
+        Rare: 3,
+        Epic: 4,
+        Legendary: 5
+    };
+
+    const getCategory = (entry: any) => {
+        const type = (entry?.item?.type || "").toLowerCase();
+        if (type.includes("weapon")) return "WEAPON";
+        if (type.includes("armor") || type.includes("suit")) return "ARMOR";
+        if (type.includes("consumable")) return "CONSUMABLE";
+        if (type.includes("material")) return "MATERIAL";
+        return "OTHER";
+    };
+
+    const tabCounts = useMemo(() => {
+        const counts = { ALL: displayInventory.length, WEAPON: 0, ARMOR: 0, CONSUMABLE: 0, MATERIAL: 0, OTHER: 0 };
+        displayInventory.forEach((entry) => {
+            const key = getCategory(entry);
+            counts[key as keyof typeof counts] += 1;
+        });
+        return counts;
+    }, [displayInventory]);
+
+    const filteredInventory = useMemo(() => {
+        const filtered = activeTab === "ALL"
+            ? displayInventory
+            : displayInventory.filter((entry) => getCategory(entry) === activeTab);
+
+        const direction = sortDir === "ASC" ? 1 : -1;
+        const sorted = [...filtered].sort((a, b) => {
+            const aName = a?.item?.name || "";
+            const bName = b?.item?.name || "";
+            const aType = a?.item?.type || "";
+            const bType = b?.item?.type || "";
+            const aRarity = rarityRank[a?.item?.rarity || "Common"] ?? 1;
+            const bRarity = rarityRank[b?.item?.rarity || "Common"] ?? 1;
+            const aQty = a?.quantity ?? 0;
+            const bQty = b?.quantity ?? 0;
+
+            if (sortKey === "NAME") return aName.localeCompare(bName) * direction;
+            if (sortKey === "TYPE") return aType.localeCompare(bType) * direction;
+            if (sortKey === "QTY") return (aQty - bQty) * direction;
+            if (sortKey === "RARITY") return (aRarity - bRarity) * direction;
+            return aName.localeCompare(bName) * direction;
+        });
+
+        return sorted;
+    }, [activeTab, displayInventory, sortDir, sortKey]);
 
     return (
         <>
-            {displayInventory.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {displayInventory.map((entry) => (
+            <div className="flex flex-col gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-widest">
+                        {[
+                            { id: "ALL", label: "All", count: tabCounts.ALL },
+                            { id: "WEAPON", label: "Weapons", count: tabCounts.WEAPON },
+                            { id: "ARMOR", label: "Armor", count: tabCounts.ARMOR },
+                            { id: "CONSUMABLE", label: "Consumables", count: tabCounts.CONSUMABLE },
+                            { id: "MATERIAL", label: "Materials", count: tabCounts.MATERIAL },
+                            { id: "OTHER", label: "Other", count: tabCounts.OTHER }
+                        ].map((tab) => (
+                            <button
+                                key={tab.id}
+                                type="button"
+                                onClick={() => setActiveTab(tab.id)}
+                                className={`px-2 py-1 rounded border transition ${
+                                    activeTab === tab.id
+                                        ? "border-neon-cyan text-neon-cyan bg-black/40"
+                                        : "border-white/10 text-gray-500 hover:border-white/30"
+                                }`}
+                            >
+                                {tab.label} <span className="text-[9px] text-gray-500">({tab.count})</span>
+                            </button>
+                        ))}
+                    </div>
+                    <div className="flex items-center gap-2 text-xs">
+                        <label className="text-[10px] uppercase tracking-widest text-gray-500">Sort</label>
+                        <select
+                            value={sortKey}
+                            onChange={(event) => setSortKey(event.target.value)}
+                            className="bg-black/40 border border-white/10 rounded px-2 py-1 text-xs text-white"
+                        >
+                            <option value="RARITY">Rarity</option>
+                            <option value="NAME">Name</option>
+                            <option value="TYPE">Type</option>
+                            <option value="QTY">Quantity</option>
+                        </select>
+                        <button
+                            type="button"
+                            onClick={() => setSortDir(sortDir === "ASC" ? "DESC" : "ASC")}
+                            className="h-7 w-7 flex items-center justify-center rounded border border-white/10 text-gray-400 hover:text-neon-cyan hover:border-neon-cyan"
+                            aria-label="Toggle sort direction"
+                        >
+                            <ArrowDownUp className="h-3 w-3" />
+                        </button>
+                    </div>
+                </div>
+
+                {filteredInventory.length > 0 ? (
+                    <div className="max-h-[520px] overflow-y-auto custom-scrollbar pr-1">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {filteredInventory.map((entry) => (
                         <button
                             key={entry.id}
                             type="button"
@@ -68,14 +171,16 @@ export default function InventoryInspect({ inventory }: { inventory: any[] }) {
                                 x{entry.quantity}
                             </div>
                         </button>
-                    ))}
-                </div>
-            ) : (
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-600 opacity-50">
-                    <Box className="h-16 w-16 mb-2" />
-                    <p>Cargo Hold Empty</p>
-                </div>
-            )}
+                            ))}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="flex flex-col items-center justify-center text-gray-600 py-10">
+                        <Box className="h-10 w-10 mb-2" />
+                        <p className="text-xs">Cargo Hold Empty</p>
+                    </div>
+                )}
+            </div>
 
             {selected && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">

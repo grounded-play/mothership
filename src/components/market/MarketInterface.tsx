@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Search, ShoppingBag, Filter, Coins, Hexagon, Plus, Dices, Box } from "lucide-react";
+import { ArrowDownUp, Search, ShoppingBag, Filter, Coins, Hexagon, Plus, Dices, Box } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 
@@ -14,6 +14,7 @@ import SafeImage from "@/components/ui/SafeImage";
 
 function MarketTicker({ version }: { version?: number }) {
     const [history, setHistory] = useState<any[]>([]);
+    const [txFilter, setTxFilter] = useState("ALL");
 
     useEffect(() => {
         const fetchHistory = async () => {
@@ -28,23 +29,54 @@ function MarketTicker({ version }: { version?: number }) {
         return () => clearInterval(interval);
     }, [version]);
 
+    const getItemCategory = (item: any) => {
+        const type = (item?.type || "").toLowerCase();
+        if (type.includes("weapon")) return "WEAPON";
+        if (type.includes("armor") || type.includes("suit")) return "ARMOR";
+        if (type.includes("consumable")) return "CONSUMABLE";
+        if (type.includes("material")) return "MATERIAL";
+        return "OTHER";
+    };
+
+    const filteredHistory = useMemo(() => {
+        if (txFilter === "ALL") return history;
+        return history.filter((tx) => getItemCategory(tx.item) === txFilter);
+    }, [history, txFilter]);
+
     return (
         <div className="space-y-3">
-            {history.map((tx: any) => (
-                <div key={tx.id} className="text-xs border-b border-white/5 pb-2">
-                    <div className="flex justify-between text-gray-400">
-                        <span>{new Date(tx.timestamp).toLocaleTimeString()}</span>
-                        <span className="text-neon-cyan">{tx.price} <Coins className="inline w-2 h-2" /></span>
+            <div className="flex items-center justify-between gap-2 text-[10px] uppercase tracking-widest text-gray-500">
+                <span>Filter</span>
+                <select
+                    value={txFilter}
+                    onChange={(event) => setTxFilter(event.target.value)}
+                    className="bg-black/40 border border-white/10 rounded px-2 py-1 text-[10px] text-white"
+                >
+                    <option value="ALL">All</option>
+                    <option value="WEAPON">Weapons</option>
+                    <option value="ARMOR">Armor</option>
+                    <option value="CONSUMABLE">Consumables</option>
+                    <option value="MATERIAL">Materials</option>
+                    <option value="OTHER">Other</option>
+                </select>
+            </div>
+            <div className="max-h-[420px] overflow-y-auto custom-scrollbar pr-1 space-y-3">
+                {filteredHistory.map((tx: any) => (
+                    <div key={tx.id} className="text-xs border-b border-white/5 pb-2">
+                        <div className="flex justify-between text-gray-400">
+                            <span>{new Date(tx.timestamp).toLocaleTimeString()}</span>
+                            <span className="text-neon-cyan">{tx.price} <Coins className="inline w-2 h-2" /></span>
+                        </div>
+                        <div className="text-white font-bold truncate">{tx.item.name}</div>
+                        <div className="flex justify-between text-[10px] text-gray-600 mt-1">
+                            <span>{tx.seller?.name || "Unknown"}</span>
+                            <span>-&gt;</span>
+                            <span>{tx.buyer?.name || "Unknown"}</span>
+                        </div>
                     </div>
-                    <div className="text-white font-bold truncate">{tx.item.name}</div>
-                    <div className="flex justify-between text-[10px] text-gray-600 mt-1">
-                        <span>{tx.seller?.name || "Unknown"}</span>
-                        <span>-&gt;</span>
-                        <span>{tx.buyer?.name || "Unknown"}</span>
-                    </div>
-                </div>
-            ))}
-            {history.length === 0 && <div className="text-gray-600 text-xs italic">No info available</div>}
+                ))}
+                {filteredHistory.length === 0 && <div className="text-gray-600 text-xs italic">No info available</div>}
+            </div>
         </div>
     );
 }
@@ -52,6 +84,12 @@ function MarketTicker({ version }: { version?: number }) {
 export default function MarketInterface({ initialListings, userInventory, credits, voidTokens }: any) {
     const [activeTab, setActiveTab] = useState("market"); // market, sell, printer
     const [listings, setListings] = useState(initialListings || []);
+    const [marketFilterTab, setMarketFilterTab] = useState("ALL");
+    const [marketSortKey, setMarketSortKey] = useState("RARITY");
+    const [marketSortDir, setMarketSortDir] = useState<"ASC" | "DESC">("DESC");
+    const [sellFilterTab, setSellFilterTab] = useState("ALL");
+    const [sellSortKey, setSellSortKey] = useState("NAME");
+    const [sellSortDir, setSellSortDir] = useState<"ASC" | "DESC">("ASC");
 
     // Sync listings when server refreshes (router.refresh)
     useEffect(() => {
@@ -74,6 +112,80 @@ export default function MarketInterface({ initialListings, userInventory, credit
         });
         return Array.from(groups.values()).sort((a, b) => a.item.name.localeCompare(b.item.name));
     }, [userInventory]);
+    const rarityRank: Record<string, number> = {
+        Common: 1,
+        Uncommon: 2,
+        Rare: 3,
+        Epic: 4,
+        Legendary: 5
+    };
+    const getItemCategory = (item: any) => {
+        const type = (item?.type || "").toLowerCase();
+        if (type.includes("weapon")) return "WEAPON";
+        if (type.includes("armor") || type.includes("suit")) return "ARMOR";
+        if (type.includes("consumable")) return "CONSUMABLE";
+        if (type.includes("material")) return "MATERIAL";
+        return "OTHER";
+    };
+    const getListingCategory = (listing: any) => getItemCategory(listing?.item);
+    const listingCounts = useMemo(() => {
+        const counts = { ALL: listings.length, WEAPON: 0, ARMOR: 0, CONSUMABLE: 0, MATERIAL: 0, OTHER: 0 };
+        listings.forEach((listing: any) => {
+            const key = getListingCategory(listing);
+            counts[key as keyof typeof counts] += 1;
+        });
+        return counts;
+    }, [listings]);
+    const sellCounts = useMemo(() => {
+        const counts = { ALL: groupedInventory.length, WEAPON: 0, ARMOR: 0, CONSUMABLE: 0, MATERIAL: 0, OTHER: 0 };
+        groupedInventory.forEach((group: any) => {
+            const key = getItemCategory(group.item);
+            counts[key as keyof typeof counts] += 1;
+        });
+        return counts;
+    }, [groupedInventory]);
+    const filteredListings = useMemo(() => {
+        const filtered = marketFilterTab === "ALL"
+            ? listings
+            : listings.filter((listing: any) => getListingCategory(listing) === marketFilterTab);
+        const direction = marketSortDir === "ASC" ? 1 : -1;
+        return [...filtered].sort((a, b) => {
+            const aName = a?.item?.name || "";
+            const bName = b?.item?.name || "";
+            const aType = a?.item?.type || "";
+            const bType = b?.item?.type || "";
+            const aRarity = rarityRank[a?.item?.rarity || "Common"] ?? 1;
+            const bRarity = rarityRank[b?.item?.rarity || "Common"] ?? 1;
+            const aQty = a?.quantity ?? 0;
+            const bQty = b?.quantity ?? 0;
+            const aPrice = a?.price ?? 0;
+            const bPrice = b?.price ?? 0;
+
+            if (marketSortKey === "NAME") return aName.localeCompare(bName) * direction;
+            if (marketSortKey === "TYPE") return aType.localeCompare(bType) * direction;
+            if (marketSortKey === "QTY") return (aQty - bQty) * direction;
+            if (marketSortKey === "PRICE") return (aPrice - bPrice) * direction;
+            if (marketSortKey === "RARITY") return (aRarity - bRarity) * direction;
+            return aName.localeCompare(bName) * direction;
+        });
+    }, [listings, marketFilterTab, marketSortDir, marketSortKey]);
+    const filteredGroupedInventory = useMemo(() => {
+        const filtered = sellFilterTab === "ALL"
+            ? groupedInventory
+            : groupedInventory.filter((group: any) => getItemCategory(group.item) === sellFilterTab);
+        const direction = sellSortDir === "ASC" ? 1 : -1;
+        return [...filtered].sort((a, b) => {
+            const aName = a.item?.name || "";
+            const bName = b.item?.name || "";
+            const aRarity = rarityRank[a.item?.rarity || "Common"] ?? 1;
+            const bRarity = rarityRank[b.item?.rarity || "Common"] ?? 1;
+            const aQty = a.totalQty ?? 0;
+            const bQty = b.totalQty ?? 0;
+            if (sellSortKey === "RARITY") return (aRarity - bRarity) * direction;
+            if (sellSortKey === "QTY") return (aQty - bQty) * direction;
+            return aName.localeCompare(bName) * direction;
+        });
+    }, [groupedInventory, sellFilterTab, sellSortDir, sellSortKey, rarityRank]);
 
     // Sell Logic
     const [selectedItem, setSelectedItem] = useState<any>(null);
@@ -160,54 +272,109 @@ export default function MarketInterface({ initialListings, userInventory, credit
                 {activeTab === "market" && (
                     <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
                         {/* Listings Column */}
-                        <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {listings.map((listing: any) => (
-                                <motion.div
-                                    key={listing.id}
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    className="glass-panel p-4 rounded-xl flex flex-col items-center text-center relative"
-                                >
-                                    <div className={`text-sm font-bold mb-2 ${listing.item.rarity === 'Legendary' ? 'text-neon-magenta' : 'text-neon-cyan'}`}>
-                                        {listing.item.rarity}
-                                    </div>
-
-                                    <div className="relative group w-24 h-24 mb-2">
-                                        <SafeImage
-                                            src={listing.customImage || listing.item.icon}
-                                            alt={listing.item.name}
-                                            className="w-full h-full rounded-lg object-cover border border-white/10 transition-transform duration-300 group-hover:scale-150 group-hover:z-50 group-hover:relative group-hover:shadow-[0_0_20px_rgba(0,255,255,0.5)]"
-                                            fallback={
-                                                <div className="w-20 h-20 bg-black/40 rounded-full flex items-center justify-center border border-white/10">
-                                                    <div className="text-2xl font-bold text-white/80">{listing.item.name[0]}</div>
-                                                </div>
-                                            }
-                                        />
-                                        {/* Stat Tag */}
-                                        {listing.instanceStats && (
-                                            <div className="absolute bottom-0 right-0 bg-black/80 text-[8px] text-neon-cyan px-1 rounded-tl border-t border-l border-neon-cyan/30">
-                                                MODDED
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    <h3 className="text-lg font-bold text-white mb-1">{listing.item.name}</h3>
-                                    {listing.seller && (
-                                        <div className="text-[10px] text-gray-500 uppercase tracking-widest mb-1">
-                                            SOLD BY {listing.seller.name}
-                                        </div>
-                                    )}
-                                    <div className="text-sm text-gray-400 mb-4">Qty: {listing.quantity}</div>
-                                    <Button
-                                        className="w-full mt-auto"
-                                        disabled={creditsDisplay < listing.price}
-                                        onClick={() => handleBuy(listing)}
+                        <div className="lg:col-span-3 flex flex-col gap-4 min-h-0">
+                            <div className="glass-panel p-4 rounded-xl border border-white/10 flex flex-wrap items-center justify-between gap-3">
+                                <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-widest">
+                                    {[
+                                        { id: "ALL", label: "All", count: listingCounts.ALL },
+                                        { id: "WEAPON", label: "Weapons", count: listingCounts.WEAPON },
+                                        { id: "ARMOR", label: "Armor", count: listingCounts.ARMOR },
+                                        { id: "CONSUMABLE", label: "Consumables", count: listingCounts.CONSUMABLE },
+                                        { id: "MATERIAL", label: "Materials", count: listingCounts.MATERIAL },
+                                        { id: "OTHER", label: "Other", count: listingCounts.OTHER }
+                                    ].map((tab) => (
+                                        <button
+                                            key={tab.id}
+                                            type="button"
+                                            onClick={() => setMarketFilterTab(tab.id)}
+                                            className={`px-2 py-1 rounded border transition ${
+                                                marketFilterTab === tab.id
+                                                    ? "border-neon-cyan text-neon-cyan bg-black/40"
+                                                    : "border-white/10 text-gray-500 hover:border-white/30"
+                                            }`}
+                                        >
+                                            {tab.label} <span className="text-[9px] text-gray-500">({tab.count})</span>
+                                        </button>
+                                    ))}
+                                </div>
+                                <div className="flex items-center gap-2 text-xs">
+                                    <label className="text-[10px] uppercase tracking-widest text-gray-500">Sort</label>
+                                    <select
+                                        value={marketSortKey}
+                                        onChange={(event) => setMarketSortKey(event.target.value)}
+                                        className="bg-black/40 border border-white/10 rounded px-2 py-1 text-xs text-white"
                                     >
-                                        Buy for {listing.price} <Coins className="ml-1 w-3 h-3" />
-                                    </Button>
-                                </motion.div>
-                            ))}
-                            {listings.length === 0 && <div className="col-span-3 text-center text-gray-500">No active listings. Be the first!</div>}
+                                        <option value="RARITY">Rarity</option>
+                                        <option value="NAME">Name</option>
+                                        <option value="TYPE">Type</option>
+                                        <option value="QTY">Quantity</option>
+                                        <option value="PRICE">Price</option>
+                                    </select>
+                                    <button
+                                        type="button"
+                                        onClick={() => setMarketSortDir(marketSortDir === "ASC" ? "DESC" : "ASC")}
+                                        className="h-7 w-7 flex items-center justify-center rounded border border-white/10 text-gray-400 hover:text-neon-cyan hover:border-neon-cyan"
+                                        aria-label="Toggle sort direction"
+                                    >
+                                        <ArrowDownUp className="h-3 w-3" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="max-h-[65vh] overflow-y-auto custom-scrollbar pr-2">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    {filteredListings.map((listing: any) => (
+                                        <motion.div
+                                            key={listing.id}
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            className="glass-panel p-4 rounded-xl flex flex-col items-center text-center relative"
+                                        >
+                                            <div className={`text-sm font-bold mb-2 ${listing.item.rarity === 'Legendary' ? 'text-neon-magenta' : 'text-neon-cyan'}`}>
+                                                {listing.item.rarity}
+                                            </div>
+
+                                            <div className="relative group w-24 h-24 mb-2">
+                                                <SafeImage
+                                                    src={listing.customImage || listing.item.icon}
+                                                    alt={listing.item.name}
+                                                    className="w-full h-full rounded-lg object-cover border border-white/10 transition-transform duration-300 group-hover:scale-150 group-hover:z-50 group-hover:relative group-hover:shadow-[0_0_20px_rgba(0,255,255,0.5)]"
+                                                    fallback={
+                                                        <div className="w-20 h-20 bg-black/40 rounded-full flex items-center justify-center border border-white/10">
+                                                            <div className="text-2xl font-bold text-white/80">{listing.item.name[0]}</div>
+                                                        </div>
+                                                    }
+                                                />
+                                                {/* Stat Tag */}
+                                                {listing.instanceStats && (
+                                                    <div className="absolute bottom-0 right-0 bg-black/80 text-[8px] text-neon-cyan px-1 rounded-tl border-t border-l border-neon-cyan/30">
+                                                        MODDED
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <h3 className="text-lg font-bold text-white mb-1">{listing.item.name}</h3>
+                                            {listing.seller && (
+                                                <div className="text-[10px] text-gray-500 uppercase tracking-widest mb-1">
+                                                    SOLD BY {listing.seller.name}
+                                                </div>
+                                            )}
+                                            <div className="text-sm text-gray-400 mb-4">Qty: {listing.quantity}</div>
+                                            <Button
+                                                className="w-full mt-auto"
+                                                disabled={creditsDisplay < listing.price}
+                                                onClick={() => handleBuy(listing)}
+                                            >
+                                                Buy for {listing.price} <Coins className="ml-1 w-3 h-3" />
+                                            </Button>
+                                        </motion.div>
+                                    ))}
+                                    {filteredListings.length === 0 && (
+                                        <div className="col-span-3 text-center text-gray-500">No matching listings.</div>
+                                    )}
+                                </div>
+                            </div>
+                            {listings.length === 0 && <div className="text-center text-gray-500">No active listings. Be the first!</div>}
                         </div>
 
                         {/* Ticker Sidebar */}
@@ -224,8 +391,53 @@ export default function MarketInterface({ initialListings, userInventory, credit
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div className="glass-panel p-6 rounded-xl">
                             <h2 className="text-xl font-bold mb-4 flex items-center text-neon-blue"><Box className="mr-2" /> Your Inventory</h2>
+                            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                                <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-widest">
+                                    {[
+                                        { id: "ALL", label: "All", count: sellCounts.ALL },
+                                        { id: "WEAPON", label: "Weapons", count: sellCounts.WEAPON },
+                                        { id: "ARMOR", label: "Armor", count: sellCounts.ARMOR },
+                                        { id: "CONSUMABLE", label: "Consumables", count: sellCounts.CONSUMABLE },
+                                        { id: "MATERIAL", label: "Materials", count: sellCounts.MATERIAL },
+                                        { id: "OTHER", label: "Other", count: sellCounts.OTHER }
+                                    ].map((tab) => (
+                                        <button
+                                            key={tab.id}
+                                            type="button"
+                                            onClick={() => setSellFilterTab(tab.id)}
+                                            className={`px-2 py-1 rounded border transition ${
+                                                sellFilterTab === tab.id
+                                                    ? "border-neon-cyan text-neon-cyan bg-black/40"
+                                                    : "border-white/10 text-gray-500 hover:border-white/30"
+                                            }`}
+                                        >
+                                            {tab.label} <span className="text-[9px] text-gray-500">({tab.count})</span>
+                                        </button>
+                                    ))}
+                                </div>
+                                <div className="flex items-center gap-2 text-xs">
+                                    <label className="text-[10px] uppercase tracking-widest text-gray-500">Sort</label>
+                                    <select
+                                        value={sellSortKey}
+                                        onChange={(event) => setSellSortKey(event.target.value)}
+                                        className="bg-black/40 border border-white/10 rounded px-2 py-1 text-xs text-white"
+                                    >
+                                        <option value="NAME">Name</option>
+                                        <option value="RARITY">Rarity</option>
+                                        <option value="QTY">Quantity</option>
+                                    </select>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSellSortDir(sellSortDir === "ASC" ? "DESC" : "ASC")}
+                                        className="h-7 w-7 flex items-center justify-center rounded border border-white/10 text-gray-400 hover:text-neon-cyan hover:border-neon-cyan"
+                                        aria-label="Toggle sort direction"
+                                    >
+                                        <ArrowDownUp className="h-3 w-3" />
+                                    </button>
+                                </div>
+                            </div>
                             <div className="space-y-3 max-h-[500px] overflow-y-auto custom-scrollbar">
-                                {groupedInventory.map((group) => {
+                                {filteredGroupedInventory.map((group) => {
                                     const isExpanded = expandedItemId === group.item.id;
                                     const isSelectedGroup = selectedItem?.itemId === group.item.id;
                                     return (
@@ -275,7 +487,7 @@ export default function MarketInterface({ initialListings, userInventory, credit
                                         </div>
                                     );
                                 })}
-                                {groupedInventory.length === 0 && (
+                                {filteredGroupedInventory.length === 0 && (
                                     <div className="text-xs text-gray-500 italic">No inventory available.</div>
                                 )}
                             </div>
