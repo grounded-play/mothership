@@ -196,10 +196,28 @@ export class GameEngine {
                     }
                 });
                 return true;
+                return true;
             };
 
             const weaponUsable = equippedWeapon ? await consumeRunUse(equippedWeapon) : false;
             const armorUsable = equippedArmor ? await consumeRunUse(equippedArmor) : false;
+
+            // V15 Fix: Populate sessionInv with persistent items
+            // V18 Fix: Only populate sessionInv with EQUIPPED items.
+            // "Everything else stays back at the pre-game".
+            sessionInv.push(...persistentInv
+                .filter((i: any) => i.isEquipped)
+                .map((i: any) => ({
+                    id: i.id,
+                    name: i.item.name,
+                    description: i.item.description,
+                    qty: 1,
+                    usesRemaining: i.usesRemaining,
+                    usesMax: i.usesMax ?? i.item.maxUses, // V19: Pass max uses
+                    type: (i.item.type || "").toLowerCase(),
+                    isEquipped: true // Explicitly true since we filtered
+                }))
+            );
 
             const p = await (prisma as any).gamePlayer.create({
                 data: {

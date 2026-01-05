@@ -7,25 +7,55 @@ interface RoomScannerProps {
 }
 
 export default function RoomScanner({ type, isExplored, integrity }: RoomScannerProps) {
+    const containerRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const [dimensions, setDimensions] = React.useState({ width: 0, height: 0 });
+
+    useEffect(() => {
+        if (!containerRef.current) return;
+
+        const updateDimensions = () => {
+            if (containerRef.current) {
+                const { clientWidth, clientHeight } = containerRef.current;
+                setDimensions({ width: clientWidth, height: clientHeight });
+            }
+        };
+
+        const resizeObserver = new ResizeObserver(updateDimensions);
+        resizeObserver.observe(containerRef.current);
+        updateDimensions(); // Initial
+
+        return () => resizeObserver.disconnect();
+    }, []);
 
     useEffect(() => {
         const canvas = canvasRef.current;
-        if (!canvas) return;
+        if (!canvas || dimensions.width === 0 || dimensions.height === 0) return;
+
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
+
+        // Handle High DPI
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = dimensions.width * dpr;
+        canvas.height = dimensions.height * dpr;
+
+        // Scale context to match logical size
+        ctx.scale(dpr, dpr);
 
         let animationFrameId: number;
         let scanLine = 0;
 
         const draw = () => {
-            ctx.fillStyle = '#050510';
-            ctx.fillRect(0, 0, canvas.width, canvas.height); // Clear
-
-            const w = canvas.width;
-            const h = canvas.height;
+            // Use logical dimensions for drawing logic
+            const w = dimensions.width;
+            const h = dimensions.height;
             const cx = w / 2;
             const cy = h / 2;
+
+            ctx.fillStyle = '#050510';
+            ctx.fillRect(0, 0, w, h); // Clear
+
 
             // Wireframe Color based on Type
             let color = '#0ff'; // Default Cyan
@@ -37,8 +67,11 @@ export default function RoomScanner({ type, isExplored, integrity }: RoomScanner
             ctx.strokeStyle = color;
             ctx.lineWidth = 1;
 
-            // Draw Wireframe Box (Perspective)
+            // Draw Wireframe Box (Perspective) - Scale box relative to canvas size? Or keep fixed?
+            // Let's keep fixed size but centered, maybe scale slightly if canvas is huge?
+            // Actually, let's keep it fixed but ensure it fits.
             ctx.beginPath();
+
             // Back Wall
             ctx.strokeRect(cx - 30, cy - 30, 60, 60);
             // Front Wall (Larger)
@@ -56,9 +89,10 @@ export default function RoomScanner({ type, isExplored, integrity }: RoomScanner
             ctx.fillStyle = `rgba(0, 255, 255, 0.1)`;
             ctx.fillRect(0, scanLine, w, 4);
 
-            // Text Info
+            // Text Info - Scaling font?
+            // Fixed font size is usually fine, but let's make it sharp.
             ctx.fillStyle = color;
-            ctx.font = '10px monospace';
+            ctx.font = '12px monospace'; // Increased size slightly and dpr handles sharpness
             ctx.fillText(`SECTOR: ${type}`, 10, 20);
             ctx.fillText(`INTEGRITY: ${integrity}%`, 10, h - 10);
 
@@ -66,8 +100,10 @@ export default function RoomScanner({ type, isExplored, integrity }: RoomScanner
                 ctx.fillStyle = 'rgba(0,0,0,0.8)';
                 ctx.fillRect(0, 0, w, h);
                 ctx.fillStyle = '#fff';
-                ctx.font = '12px monospace';
-                ctx.fillText("SCANNING...", cx - 30, cy);
+                ctx.font = '14px monospace';
+                const text = "SCANNING...";
+                const textMetrics = ctx.measureText(text);
+                ctx.fillText(text, cx - (textMetrics.width / 2), cy);
             }
 
             animationFrameId = requestAnimationFrame(draw);
@@ -75,14 +111,15 @@ export default function RoomScanner({ type, isExplored, integrity }: RoomScanner
 
         draw();
         return () => cancelAnimationFrame(animationFrameId);
-    }, [type, isExplored, integrity]);
+    }, [type, isExplored, integrity, dimensions]);
 
     return (
-        <canvas
-            ref={canvasRef}
-            width={300}
-            height={200}
-            className="block w-full h-full border border-gray-800 rounded bg-black shadow-inner"
-        />
+        <div ref={containerRef} className="w-full h-full relative border border-gray-800 rounded bg-black shadow-inner overflow-hidden">
+            <canvas
+                ref={canvasRef}
+                style={{ width: '100%', height: '100%' }}
+                className="block"
+            />
+        </div>
     );
 }

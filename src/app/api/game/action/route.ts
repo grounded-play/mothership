@@ -58,21 +58,60 @@ const getBackpackCapacityForPlayer = (player: any) => {
 
 const getSlotsUsed = (inv: any[]) => inv.reduce((sum, item) => sum + (item?.slotSize || 1), 0);
 
+// V20/V22: Enhanced Combat Synergy & Breakdown
 function cardStrength(cards: any[], roomSuit?: string, integrity?: number, ctx?: SuitContext) {
     const normalizedRoomSuit = normalizeSuit(roomSuit);
-    const modForSuit = (suit: string) => {
-        if (normalizedRoomSuit && suit === normalizedRoomSuit) return 1;
-        if (normalizedRoomSuit && suitOpposites[suit] === normalizedRoomSuit) return -1;
-        return 0;
-    };
     const integrityMod = integrity && integrity < 50 ? -1 : 0;
-    return cards.reduce((sum, c) => {
+
+    // V22: Breakdown Tracking
+    const breakdown = {
+        base: 0,
+        weapon: 0,
+        classMod: 0,
+        roomMod: 0,
+        integrity: integrityMod,
+        total: 0
+    };
+
+    const total = cards.reduce((sum, c) => {
         const cardSuit = normalizeSuit(c.suit || c.suitName);
-        const mod = modForSuit(cardSuit);
-        const bonus = getPlayerSuitBonus(cardSuit, ctx);
+        let bonus = 0;
+
+        // 1. Base Power
         const base = c.power || c.rank || 0;
-        return sum + base + mod + bonus;
+        breakdown.base += base;
+
+        // 2. Weapon Match (Card == Weapon)
+        // Note: ctx.weaponSuit is the suit of the EQUIPPED WEAPON
+        const weaponSuit = normalizeSuit(ctx?.weaponSuit);
+        if (weaponSuit && cardSuit === weaponSuit) {
+            bonus += 1;
+            breakdown.weapon += 1;
+        }
+
+        // 3. Class Match (Weapon == Class)
+        const classSuit = normalizeSuit(getClassSuit(ctx?.playerClass || undefined));
+        if (classSuit && weaponSuit && classSuit === weaponSuit) {
+            bonus += 1;
+            breakdown.classMod += 1;
+        }
+
+        // 4. Room Synergy
+        if (normalizedRoomSuit) {
+            if (cardSuit === normalizedRoomSuit) {
+                bonus += 1;
+                breakdown.roomMod += 1;
+            } else if (suitOpposites[cardSuit] === normalizedRoomSuit) {
+                bonus -= 1;
+                breakdown.roomMod -= 1;
+            }
+        }
+
+        return sum + base + bonus;
     }, integrityMod);
+
+    breakdown.total = total;
+    return { strength: total, breakdown };
 }
 
 type Facing = "NORTH" | "EAST" | "SOUTH" | "WEST";
@@ -105,9 +144,7 @@ const turnRight = (facing: Facing): Facing => {
 };
 
 const resolveMove = (direction: string, facing: Facing) => {
-    let dx = 0;
-    let dy = 0;
-    let dz = 0;
+    let dx = 0, dy = 0, dz = 0;
     let newFacing = facing;
 
     if (direction === "LEFT") {
@@ -217,7 +254,7 @@ async function resolveReaction(gameState: any, players: any[], pending: PendingA
     }
     let startedDeadline: Date | null = null;
     let nextIntegrity = gameState.integrity ?? 100;
-    let phaseOverride: "VICTORY" | null = null;
+    let phaseOverride: string | null = null;
     const objectives = parseJSON(gameState.objectives || "[]", []);
     const secureObjective = objectives.find((o: any) => o.id === "sub-1" || /secure/i.test(o.description || ""));
     const mainObjective = objectives.find((o: any) => o.id === "main-1" || /core|station|boss/i.test(o.description || ""));
@@ -247,7 +284,7 @@ async function resolveReaction(gameState: any, players: any[], pending: PendingA
                     playerClass: player?.Character?.class,
                     weaponSuit: player?.equippedWeaponSuit,
                     armorSuit: player?.equippedArmorSuit
-                }),
+                }).strength,
                 rank: a.cards[0]?.rank || 0,
                 player
             };
@@ -310,7 +347,7 @@ async function resolveReaction(gameState: any, players: any[], pending: PendingA
         if (!player?.MapNode) continue;
         const node = player.MapNode;
         const nodePower = node.roomPower || 0;
-        const strength = cardStrength(action.cards, node.roomSuit, node.integrity, {
+        const { strength, breakdown } = cardStrength(action.cards, node.roomSuit, node.integrity, {
             playerClass: player?.Character?.class,
             weaponSuit: player?.equippedWeaponSuit,
             armorSuit: player?.equippedArmorSuit
@@ -320,16 +357,51 @@ async function resolveReaction(gameState: any, players: any[], pending: PendingA
 
         if (action.intent === "SECURE") {
             const newIntegrity = Math.min(100, (node.integrity || 100) + (success ? 15 : 0));
+
+            // V20: Armor "Scare" Logic
+            let enemiesRemoved = false;
+            const nodeEnemies = parseJSON(node.enemies || "[]", []);
+            if (success && nodeEnemies.length > 0) {
+                if (node.type !== "BOSS") {
+                    enemiesRemoved = true;
+                }
+            }
+
             updates.push((prisma as any).mapNode.update({
                 where: { id: node.id },
                 data: {
                     security: success ? Math.max(node.security || 0, strength) : node.security,
                     integrity: success ? newIntegrity : Math.max(0, (node.integrity || 100) - 5),
                     scanned: true,
-                    isExplored: true
+                    isExplored: true,
+                    enemies: enemiesRemoved ? "[]" : node.enemies
                 }
             }));
-            logs.push({ ts: now, type: "SECURE", message: `${playerName} secured ${node.roomSuit} room: ${success ? "STABLE" : "UNSTABLE"}` });
+
+            let msg = `${playerName} secured ${node.roomSuit} room: ${success ? "STABLE" : "UNSTABLE"}`;
+            if (success && enemiesRemoved) msg += " (Hostiles routed)";
+
+            // V22: Detailed Log
+            const detailMsg = `[Base ${breakdown.base}${breakdown.weapon ? `+Wpn` : ''}${breakdown.roomMod ? `${breakdown.roomMod > 0 ? '+' : ''}Rm` : ''}]`;
+            logs.push({ ts: now, type: "SECURE", message: `${msg} ${detailMsg} (${strength} vs ${nodePower})` });
+
+            // V22: Visual Data Payload (Hidden from standard log, read by UI)
+            logs.push({
+                ts: now,
+                type: "RESOLUTION_DATA",
+                message: JSON.stringify({
+                    type: "SECURE",
+                    playerId: action.playerId,
+                    playerName,
+                    strength,
+                    nodePower,
+                    breakdown,
+                    success,
+                    enemiesRemoved,
+                    roomSuit: node.roomSuit
+                })
+            });
+
             if (success && secureObjective && !securedNodeIds.has(node.id)) {
                 securedNodeIds.add(node.id);
                 const target = typeof secureObjective.target === "number" ? secureObjective.target : 5;
@@ -339,6 +411,16 @@ async function resolveReaction(gameState: any, players: any[], pending: PendingA
                 secureObjective.isComplete = secureObjective.current >= target;
             }
         } else if (action.intent === "ATTACK") {
+            // V20: Weapon Requirement
+            if (!player.equippedWeaponSuit) {
+                const pInv = parseJSON(player.inventory || "[]", []);
+                const hasWeapon = pInv.some((i: any) => i.isEquipped && (i.type === "weapon" || i.item?.type === "weapon"));
+                if (!hasWeapon) {
+                    logs.push({ ts: now, type: "ATTACK", message: `${playerName} tried to attack without a weapon!` });
+                    continue;
+                }
+            }
+
             if (success) {
                 if (node.type === "BOSS") {
                     const isAnomaly = (action.cards || []).some((c: any) => (c.suit || c.suitName) === "ANOMALY" || c.rank === 99);
@@ -355,10 +437,53 @@ async function resolveReaction(gameState: any, players: any[], pending: PendingA
                         }
                     }
                 } else {
-                    logs.push({ ts: now, type: "ATTACK", message: `${playerName} neutralized nearby hostiles.` });
+                    // V22: Detailed Log
+                    const detailMsg = `[Base ${breakdown.base}${breakdown.weapon ? `+Wpn` : ''}${breakdown.roomMod ? `${breakdown.roomMod > 0 ? '+' : ''}Rm` : ''}]`;
+                    logs.push({ ts: now, type: "ATTACK", message: `${playerName} neutralized hostiles: ${strength} vs ${nodePower} ${detailMsg}` });
+
+                    // V22: Visual Data Payload
+                    logs.push({
+                        ts: now,
+                        type: "RESOLUTION_DATA",
+                        message: JSON.stringify({
+                            type: "ATTACK",
+                            playerId: action.playerId,
+                            playerName,
+                            strength,
+                            nodePower,
+                            breakdown,
+                            success: true,
+                            targetType: "ENEMY",
+                            roomSuit: node.roomSuit
+                        })
+                    });
+
+                    updates.push((prisma as any).mapNode.update({
+                        where: { id: node.id },
+                        data: { enemies: "[]" }
+                    }));
                 }
             } else {
-                logs.push({ ts: now, type: "ATTACK", message: `${playerName} attack faltered: NO EFFECT` });
+                // V22: Detailed Log
+                const detailMsg = `[Base ${breakdown.base}${breakdown.weapon ? `+Wpn` : ''}${breakdown.roomMod ? `${breakdown.roomMod > 0 ? '+' : ''}Rm` : ''}]`;
+                logs.push({ ts: now, type: "ATTACK", message: `${playerName} attack faltered (Str ${strength} < P${nodePower}): NO EFFECT ${detailMsg}` });
+
+                // V22: Visual Data Payload
+                logs.push({
+                    ts: now,
+                    type: "RESOLUTION_DATA",
+                    message: JSON.stringify({
+                        type: "ATTACK",
+                        playerId: action.playerId,
+                        playerName,
+                        strength,
+                        nodePower,
+                        breakdown,
+                        success: false,
+                        targetType: "ENEMY",
+                        roomSuit: node.roomSuit
+                    })
+                });
             }
         } else if (action.intent === "MOVE") {
             const emergencyMove = Boolean(action.emergency);
@@ -429,9 +554,75 @@ async function resolveReaction(gameState: any, players: any[], pending: PendingA
 
     await Promise.all(updates);
 
+    // V23: Endgame Handling (Defeat Check)
+    if (!phaseOverride && nextIntegrity <= 0) {
+        phaseOverride = "DEFEAT"; // Or "ABORTED" if we differentiate. Let's use DEFEAT for hull collapse.
+        logs.push({ ts: now, type: "MAIN", message: "CRITICAL FAILURE: Hull Integrity compromised. Mission failed." });
+    }
+
     if (mainObjective?.isComplete && players.every(p => p.MapNode?.type === "START")) {
         phaseOverride = "VICTORY";
         logs.push({ ts: now, type: "MAIN", message: "Squad extracted. Mission complete." });
+    }
+
+    // V23: Scoring & Persistence
+    if (phaseOverride) {
+        const isVictory = phaseOverride === "VICTORY";
+        const turnCount = gameState.currentTurn || 0;
+
+        // Finalize Run for each player
+        for (const p of players) {
+            // Calculate Score
+            let score = 1000;
+            if (isVictory) {
+                score += 500; // Objective
+                score += Math.max(0, (20 - turnCount) * 50); // Speed Bonus (assuming 20 turn par)
+                score += nextIntegrity * 10; // Integrity Bonus
+                // Loot Bonus
+                const inv = parseJSON(p.inventory || "[]", []);
+                score += inv.filter((i: any) => i.type === "LOOT").length * 100;
+            } else {
+                score = Math.floor(score * 0.1); // Participation trophy
+            }
+
+            // Determine Rank
+            let rank = "F";
+            if (isVictory) {
+                if (score >= 2500) rank = "S";
+                else if (score >= 2000) rank = "A";
+                else if (score >= 1500) rank = "B";
+                else rank = "C";
+            }
+
+            // Create GameRun Result
+            await (prisma as any).gameRun.create({
+                data: {
+                    gameId: gameState.id,
+                    characterId: p.characterId,
+                    difficulty: lobbyDifficulty || "NORMAL",
+                    outcome: phaseOverride,
+                    rank,
+                    score,
+                    creditsEarned: Math.floor(score / 2),
+                    bossDefeated: isVictory, // Simplification
+                    extracted: isVictory, // Simplification
+                    turns: turnCount,
+                    startedAt: gameState.createdAt, // Approx
+                    endedAt: new Date()
+                }
+            });
+
+            // Update Character Stats
+            const charUpdates: any = {
+                runsCompleted: { increment: isVictory ? 1 : 0 },
+                runsFailed: { increment: isVictory ? 0 : 1 },
+                credits: { increment: Math.floor(score / 2) }
+            };
+            await (prisma as any).character.update({
+                where: { id: p.characterId },
+                data: charUpdates
+            });
+        }
     }
 
     // Reset for next round (back to draw phase)
@@ -495,6 +686,54 @@ export async function POST(req: Request) {
             const item = inv[idx];
             const updates: Promise<any>[] = [];
 
+            // V19: Generic Item Usage Tracking
+            // If item has maxUses, we must track usages.
+            if (typeof item.usesMax === 'number' || typeof item.item?.maxUses === 'number') {
+                const max = item.usesMax ?? item.item?.maxUses;
+                const current = item.usesRemaining ?? max;
+
+                if (current <= 0) {
+                    return NextResponse.json({ error: "Item depleted" }, { status: 400 });
+                }
+
+                const next = Math.max(0, current - 1);
+                inv[idx].usesRemaining = next;
+
+                // Update Inventory in DB
+                updates.push((prisma as any).gamePlayer.update({
+                    where: { id: player.id },
+                    data: { inventory: JSON.stringify(inv) }
+                }));
+
+                // If persistent (has real database ID), update that too so it carries over?
+                // "we should see how many uses are left and if an item is used to 0 we can't use it anymore"
+                // Usually session inventory is separate, but if we want it to persist across games (like Roguelike), we might update the source.
+                // For now, let's update the session inventory. The user's request "only take in two games" implies session-based?
+                // Actually, if it's "Loadout", it might imply persistence.
+                // Let's stick to session for safety to avoid destroying persistent items unless explicitly requested.
+                // Wait, logic in Engine was updating persistent item?
+                // `await (prisma as any).inventoryItem.update(...)`
+                // Yes, the engine code I saw earlier updated the persistent `inventoryItem`.
+                // If I only update session inventory JSON, it won't persist.
+                // BUT, `inv` here is the session inventory JSON.
+                // `item.id` might be the persistent ID if it came from loadout.
+                // Let's try to update the persistent record IF it exists.
+
+                const persistentItem = await (prisma as any).inventoryItem.findUnique({ where: { id: item.id } });
+                if (persistentItem) {
+                    updates.push((prisma as any).inventoryItem.update({
+                        where: { id: item.id },
+                        data: { usesRemaining: next }
+                    }));
+                }
+
+                await Promise.all(updates);
+                const message = `Used ${item.name}. Uses left: ${next}/${max}`;
+                await appendLog(gameId, gameState.gameLog, [{ ts: Date.now(), type: "ITEM", message }]);
+                return NextResponse.json({ success: true, message, usesRemaining: next });
+            }
+
+            // Fallback for Consumables (Paste) which don't have explicit MaxUses logic yet
             if (/paste/i.test(item.name || "")) {
                 const heal = 2;
                 const maxHp = player.maxHp ?? 10;
@@ -510,11 +749,47 @@ export async function POST(req: Request) {
                 return NextResponse.json({ success: true, message, hp: nextHp });
             }
 
+            // V21: Replenishment Logic (Battery / Kit)
+            if (/battery|kit|charge/i.test(item.name || "")) {
+                // Find an equipped item that needs charging
+                const targetIdx = inv.findIndex((i: any) => i.isEquipped && typeof i.usesMax === 'number' && (i.usesRemaining ?? i.usesMax) < i.usesMax);
+
+                if (targetIdx === -1) {
+                    return NextResponse.json({ error: "No equipped items need charging." }, { status: 400 });
+                }
+
+                const target = inv[targetIdx];
+                const max = target.usesMax;
+                const current = target.usesRemaining ?? max;
+                const chargeAmount = 3; // Arbitrary charge amount
+                const next = Math.min(max, current + chargeAmount);
+                inv[targetIdx].usesRemaining = next;
+
+                // Consume the replenish item
+                if (item.qty && item.qty > 1) inv[idx].qty -= 1; else inv.splice(idx, 1);
+
+                // Update DB
+                updates.push((prisma as any).gamePlayer.update({ where: { id: player.id }, data: { inventory: JSON.stringify(inv) } }));
+
+                // Also update persistent if target is persistent (likely is)
+                if (target.id && !target.id.startsWith('loot-')) {
+                    updates.push((prisma as any).inventoryItem.update({
+                        where: { id: target.id },
+                        data: { usesRemaining: next }
+                    }));
+                }
+
+                await Promise.all(updates);
+                const message = `Recharged ${target.name} (+${chargeAmount}). Uses: ${next}/${max}`;
+                await appendLog(gameId, gameState.gameLog, [{ ts: Date.now(), type: "ITEM", message }]);
+                return NextResponse.json({ success: true, message, usesRemaining: next });
+            }
+
             if (/scrap/i.test(item.name || "")) {
                 return NextResponse.json({ error: "Scrap is only usable at the 3D printer." }, { status: 400 });
             }
 
-            return NextResponse.json({ error: "Item cannot be used in-mission." }, { status: 400 });
+            return NextResponse.json({ error: "Item has no effect." }, { status: 400 });
         }
 
         // Kick off draw -> action phase if we're waiting at draw
