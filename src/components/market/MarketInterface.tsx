@@ -47,8 +47,9 @@ function MarketTicker({ version }: { version?: number }) {
     return (
         <div className="space-y-3">
             <div className="flex items-center justify-between gap-2 text-[10px] uppercase tracking-widest text-gray-500">
-                <span>Filter</span>
+                <label htmlFor="history-filter">Filter</label>
                 <select
+                    id="history-filter"
                     value={txFilter}
                     onChange={(event) => setTxFilter(event.target.value)}
                     className="bg-black/40 border border-white/10 rounded px-2 py-1 text-[10px] text-white"
@@ -368,8 +369,9 @@ export default function MarketInterface({ initialListings, userInventory, credit
                                     ))}
                                 </div>
                                 <div className="flex items-center gap-2 text-xs">
-                                    <label className="text-[10px] uppercase tracking-widest text-gray-500">Sort</label>
+                                    <label htmlFor="market-sort" className="text-[10px] uppercase tracking-widest text-gray-500">Sort</label>
                                     <select
+                                        id="market-sort"
                                         value={marketSortKey}
                                         onChange={(event) => setMarketSortKey(event.target.value)}
                                         className="bg-black/40 border border-white/10 rounded px-2 py-1 text-xs text-white"
@@ -485,8 +487,9 @@ export default function MarketInterface({ initialListings, userInventory, credit
                                     ))}
                                 </div>
                                 <div className="flex items-center gap-2 text-xs">
-                                    <label className="text-[10px] uppercase tracking-widest text-gray-500">Sort</label>
+                                    <label htmlFor="inventory-sort" className="text-[10px] uppercase tracking-widest text-gray-500">Sort</label>
                                     <select
+                                        id="inventory-sort"
                                         value={sellSortKey}
                                         onChange={(event) => setSellSortKey(event.target.value)}
                                         className="bg-black/40 border border-white/10 rounded px-2 py-1 text-xs text-white"

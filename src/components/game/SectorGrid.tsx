@@ -4,6 +4,7 @@ interface SectorGridProps {
     nodes: any[];
     currentPlayerNodeId: string;
     activeZ?: number;
+    rotation?: number;
     playerMarkers?: {
         id: string;
         x: number;
@@ -13,7 +14,7 @@ interface SectorGridProps {
     }[];
 }
 
-export default function SectorGrid({ nodes, currentPlayerNodeId, activeZ, playerMarkers }: SectorGridProps) {
+export default function SectorGrid({ nodes, currentPlayerNodeId, activeZ, rotation = 0, playerMarkers }: SectorGridProps) {
     const SIZE = 3;
     const layers = typeof activeZ === "number" ? [activeZ] : [2, 1, 0];
     const suitColors: Record<string, { text: string; border: string }> = {
@@ -47,7 +48,7 @@ export default function SectorGrid({ nodes, currentPlayerNodeId, activeZ, player
                     <div
                         className="grid grid-cols-3 gap-2 p-2 bg-black/40 border border-white/10 transform transition-all duration-500 hover:rotate-x-0 group-hover:scale-105"
                         style={{
-                            transform: `rotateX(60deg) rotateZ(45deg) translateZ(${z * 20}px)`,
+                            transform: `rotateX(60deg) rotateZ(${45 + rotation}deg) translateZ(${z * 20}px)`,
                             boxShadow: '0 10px 30px rgba(0,0,0,0.5)'
                         }}
                     >

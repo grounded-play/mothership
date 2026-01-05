@@ -100,11 +100,10 @@ export default function InventoryInspect({ inventory }: { inventory: any[] }) {
                                 key={tab.id}
                                 type="button"
                                 onClick={() => setActiveTab(tab.id)}
-                                className={`px-2 py-1 rounded border transition ${
-                                    activeTab === tab.id
+                                className={`px-2 py-1 rounded border transition ${activeTab === tab.id
                                         ? "border-neon-cyan text-neon-cyan bg-black/40"
                                         : "border-white/10 text-gray-500 hover:border-white/30"
-                                }`}
+                                    }`}
                             >
                                 {tab.label} <span className="text-[9px] text-gray-500">({tab.count})</span>
                             </button>
@@ -115,6 +114,7 @@ export default function InventoryInspect({ inventory }: { inventory: any[] }) {
                         <select
                             value={sortKey}
                             onChange={(event) => setSortKey(event.target.value)}
+                            aria-label="Sort inventory"
                             className="bg-black/40 border border-white/10 rounded px-2 py-1 text-xs text-white"
                         >
                             <option value="RARITY">Rarity</option>
@@ -137,40 +137,40 @@ export default function InventoryInspect({ inventory }: { inventory: any[] }) {
                     <div className="max-h-[520px] overflow-y-auto custom-scrollbar pr-1">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             {filteredInventory.map((entry) => (
-                        <button
-                            key={entry.id}
-                            type="button"
-                            onClick={() => setSelected(entry)}
-                            className="flex items-center gap-3 p-3 bg-black/40 border border-white/5 rounded-lg hover:bg-white/5 transition-colors group text-left"
-                        >
-                            <div className="w-12 h-12 bg-black/60 rounded flex items-center justify-center shrink-0 border border-white/10 overflow-hidden relative">
-                                {normalizePublicPath(entry.customImage || entry.item.icon) ? (
-                                    <SafeImage
-                                        src={entry.customImage || entry.item.icon}
-                                        alt={entry.item.name}
-                                        className="w-full h-full object-cover"
-                                        fallback={<span className="text-xl font-bold text-gray-600">{entry.item.name[0]}</span>}
-                                    />
-                                ) : (
-                                    <span className="text-xl font-bold text-gray-600">{entry.item.name[0]}</span>
-                                )}
-                            </div>
+                                <button
+                                    key={entry.id}
+                                    type="button"
+                                    onClick={() => setSelected(entry)}
+                                    className="flex items-center gap-3 p-3 bg-black/40 border border-white/5 rounded-lg hover:bg-white/5 transition-colors group text-left"
+                                >
+                                    <div className="w-12 h-12 bg-black/60 rounded flex items-center justify-center shrink-0 border border-white/10 overflow-hidden relative">
+                                        {normalizePublicPath(entry.customImage || entry.item.icon) ? (
+                                            <SafeImage
+                                                src={entry.customImage || entry.item.icon}
+                                                alt={entry.item.name}
+                                                className="w-full h-full object-cover"
+                                                fallback={<span className="text-xl font-bold text-gray-600">{entry.item.name[0]}</span>}
+                                            />
+                                        ) : (
+                                            <span className="text-xl font-bold text-gray-600">{entry.item.name[0]}</span>
+                                        )}
+                                    </div>
 
-                            <div className="flex-1 min-w-0">
-                                <div className={`font-medium truncate ${getRarityClass(entry.item.rarity)}`}>
-                                    {entry.item.name}
-                                </div>
-                                <div className="text-[10px] text-gray-400 truncate uppercase mt-0.5">
-                                    {entry.visualTraits || entry.item.type}
-                                </div>
-                                <div className="text-[10px] text-neon-cyan/70 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    Inspect
-                                </div>
-                            </div>
-                            <div className="text-sm font-mono text-gray-500 bg-black/80 px-2 py-1 rounded border border-white/5">
-                                x{entry.quantity}
-                            </div>
-                        </button>
+                                    <div className="flex-1 min-w-0">
+                                        <div className={`font-medium truncate ${getRarityClass(entry.item.rarity)}`}>
+                                            {entry.item.name}
+                                        </div>
+                                        <div className="text-[10px] text-gray-400 truncate uppercase mt-0.5">
+                                            {entry.visualTraits || entry.item.type}
+                                        </div>
+                                        <div className="text-[10px] text-neon-cyan/70 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            Inspect
+                                        </div>
+                                    </div>
+                                    <div className="text-sm font-mono text-gray-500 bg-black/80 px-2 py-1 rounded border border-white/5">
+                                        x{entry.quantity}
+                                    </div>
+                                </button>
                             ))}
                         </div>
                     </div>

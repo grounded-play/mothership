@@ -261,7 +261,7 @@ export default function PrinterInterface({ credits, inventory, globalQueue, back
 
                 // Using string value for calc() in Framer Motion
                 // Initial position is padded to 50%, so simple subtraction aligns item center to 50%
-                const targetX = `- ${itemCenterV} px`;
+                const targetX = `-${itemCenterV}px`;
 
                 addToast("Starting Fabrication Sequence...", "info");
 
@@ -390,9 +390,9 @@ export default function PrinterInterface({ credits, inventory, globalQueue, back
 
                                         return (
                                             <>
-                                                <div className={`absolute top - 0 bottom - 0 left - 1 / 2 w - 0.5 - translate - x - 1 / 2 z - 20 ${color.split(' ')[0]} ${shadow} `} />
-                                                <div className={`absolute top - 2 left - 1 / 2 - translate - x - 1 / 2 z - 20 ${color.split(' ')[1]} `}><ChevronUp className="rotate-180" /></div>
-                                                <div className={`absolute bottom - 2 left - 1 / 2 - translate - x - 1 / 2 z - 20 ${color.split(' ')[1]} `}><ChevronUp /></div>
+                                                <div className={`absolute top-0 bottom-0 left-1/2 w-0.5 -translate-x-1/2 z-20 ${color.split(' ')[0]} ${shadow}`} />
+                                                <div className={`absolute top-2 left-1/2 -translate-x-1/2 z-20 ${color.split(' ')[1]}`}><ChevronUp className="rotate-180" /></div>
+                                                <div className={`absolute bottom-2 left-1/2 -translate-x-1/2 z-20 ${color.split(' ')[1]}`}><ChevronUp /></div>
                                             </>
                                         );
                                     })()
@@ -410,13 +410,13 @@ export default function PrinterInterface({ credits, inventory, globalQueue, back
                                                     <div
                                                         key={i}
                                                         className={`
-flex - shrink - 0 w - 24 h - 24 rounded - lg border - 2 flex items - center justify - center shadow - lg
+                                                            flex-shrink-0 w-24 h-24 rounded-lg border-2 flex items-center justify-center shadow-lg
                                                             ${rarity === 'Common' ? 'bg-slate-800 border-slate-600' : ''}
                                                             ${rarity === 'Uncommon' ? 'bg-green-900/80 border-green-500 shadow-[0_0_10px_rgba(34,197,94,0.3)]' : ''}
                                                             ${rarity === 'Rare' ? 'bg-blue-900/80 border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.4)]' : ''}
                                                             ${rarity === 'Epic' ? 'bg-purple-900/80 border-purple-500 shadow-[0_0_20px_rgba(168,85,247,0.5)]' : ''}
                                                             ${rarity === 'Legendary' ? 'bg-orange-600 border-orange-400 shadow-[0_0_30px_rgba(251,146,60,0.6)]' : ''}
-`}
+                                                        `}
                                                     >
                                                         <div className="text-[10px] uppercase font-bold tracking-wider text-white/50">{rarity}</div>
                                                     </div>
@@ -433,10 +433,10 @@ flex - shrink - 0 w - 24 h - 24 rounded - lg border - 2 flex items - center just
                                             <div className="text-3xl font-black text-white drop-shadow-[0_0_10px_rgba(0,255,255,0.8)]">
                                                 {reward.name}
                                             </div>
-                                            <div className={`text - sm font - bold px - 3 py - 1 rounded - full border ${reward.rarity === 'Legendary' ? 'border-orange-500 text-orange-400 bg-orange-900/20' :
+                                            <div className={`text-sm font-bold px-3 py-1 rounded-full border ${reward.rarity === 'Legendary' ? 'border-orange-500 text-orange-400 bg-orange-900/20' :
                                                 reward.rarity === 'Epic' ? 'border-purple-500 text-purple-400 bg-purple-900/20' :
                                                     'border-white/20 text-gray-400'
-                                                } `}>
+                                                }`}>
                                                 {reward.rarity.toUpperCase()} REWARD
                                             </div>
                                             <div className="text-[10px] text-neon-cyan/70 mt-2">SENT TO VISUALIZER</div>

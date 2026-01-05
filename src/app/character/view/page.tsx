@@ -69,21 +69,21 @@ export default async function CharacterViewPage() {
                                 <div className="flex justify-between items-center bg-black/30 p-2 px-3 rounded text-xs uppercase ">
                                     <span className="text-gray-400">Strength</span>
                                     <div className="h-1.5 w-24 bg-gray-800 rounded-full overflow-hidden">
-                                        <div style={{ width: `${stats.str * 5}%` }} className="h-full bg-red-500" />
+                                        <div style={{ "--w": `${stats.str * 5}%` } as React.CSSProperties} className="h-full bg-red-500 w-[var(--w)]" />
                                     </div>
                                     <span className="font-mono text-white">{stats.str}</span>
                                 </div>
                                 <div className="flex justify-between items-center bg-black/30 p-2 px-3 rounded text-xs uppercase ">
                                     <span className="text-gray-400">Agility</span>
                                     <div className="h-1.5 w-24 bg-gray-800 rounded-full overflow-hidden">
-                                        <div style={{ width: `${stats.agi * 5}%` }} className="h-full bg-green-500" />
+                                        <div style={{ "--w": `${stats.agi * 5}%` } as React.CSSProperties} className="h-full bg-green-500 w-[var(--w)]" />
                                     </div>
                                     <span className="font-mono text-white">{stats.agi}</span>
                                 </div>
                                 <div className="flex justify-between items-center bg-black/30 p-2 px-3 rounded text-xs uppercase ">
                                     <span className="text-gray-400">Intellect</span>
                                     <div className="h-1.5 w-24 bg-gray-800 rounded-full overflow-hidden">
-                                        <div style={{ width: `${stats.int * 5}%` }} className="h-full bg-blue-500" />
+                                        <div style={{ "--w": `${stats.int * 5}%` } as React.CSSProperties} className="h-full bg-blue-500 w-[var(--w)]" />
                                     </div>
                                     <span className="font-mono text-white">{stats.int}</span>
                                 </div>

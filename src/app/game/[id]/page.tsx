@@ -46,6 +46,7 @@ export default function GameInterface() {
     const hasStartedRoundRef = useRef(false);
     const prevPlayerZRef = useRef<number | null>(null);
     const { addToast } = useToast();
+    const [confirmEmergency, setConfirmEmergency] = useState(false);
     const lastPileSizeRef = useRef(0);
     const { game, player } = gameState ?? { game: null, player: null };
     const inventory = useMemo(() => {
@@ -261,7 +262,7 @@ export default function GameInterface() {
 
     const inActionPhase = game?.roundPhase === "ACTION";
     const facing = (player?.facing || "NORTH") as Facing;
-    const mapRotationDeg = facing === "EAST" ? 90 : facing === "SOUTH" ? 180 : facing === "WEST" ? 270 : 0;
+    const mapRotationDeg = facing === "EAST" ? 270 : facing === "SOUTH" ? 180 : facing === "WEST" ? 90 : 0;
     const isRoomScanned = !!player?.MapNode?.scanned;
     const isBossRoom = player?.MapNode?.type === "BOSS";
     const isVictory = game?.phase === "VICTORY" || game?.roundPhase === "VICTORY";
@@ -584,23 +585,24 @@ export default function GameInterface() {
                 )}
             </AnimatePresence>
 
+
             {/* Main Grid Layout */}
-            <main className="flex-1 min-h-0 grid grid-cols-12 gap-2 p-2 z-20 relative overflow-hidden w-full">
+            <main className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-12 gap-2 p-2 z-20 relative overflow-hidden w-full">
 
 
-                {/* LEFT PANEL: Map & Info (Col Span 3) - Mobile Order 3 */}
-                <div className="flex col-span-3 flex-col gap-2 h-full min-h-0 relative overflow-hidden">
+                {/* LEFT PANEL: Map & Info (Col Span 3) */}
+                <div className="flex col-span-1 md:col-span-3 flex-col gap-2 h-full min-h-0 relative overflow-hidden">
 
 
-                    {/* Mission Log (Top - Fixed Height) */}
-                    <div className="glass-panel p-3 border border-white/10 h-48 shrink-0 overflow-y-auto custom-scrollbar">
+                    {/* Mission Log */}
+                    <div className="glass-panel p-3 border border-white/10 h-32 shrink-0 overflow-y-auto custom-scrollbar">
                         <div className="text-[9px] text-gray-500 uppercase tracking-widest mb-2 border-b border-white/5 pb-1">MISSION OBJECTIVES</div>
                         <MissionLog objectives={game.objectives || []} />
                     </div>
 
                     {/* Room Intel */}
                     {roomInfo && (
-                        <div className="glass-panel p-3 border border-white/20 text-sm space-y-2">
+                        <div className="glass-panel p-3 border border-white/20 text-sm space-y-2 shrink-0">
                             <div className="text-[9px] text-gray-500 uppercase tracking-widest border-b border-white/5 pb-1">ROOM INTEL</div>
                             <div className="flex items-center justify-between">
                                 <span className="text-gray-400 text-xs">Power</span>
@@ -627,364 +629,258 @@ export default function GameInterface() {
                                     <span className="font-bold text-red-400">{game?.integrity ?? 0}%</span>
                                 </div>
                             )}
-                            <div className="text-[10px] text-gray-500">{roomInfo.scanned ? "SCANNED" : "UNSCANNED"}</div>
-                            {roomInfo.secretPaths?.length > 0 && (
-                                <div className="text-[10px] text-neon-cyan">Secret path mapped.</div>
-                            )}
                         </div>
                     )}
 
-                    {/* Map (Middle - Flex Grow / Main Focus) */}
+                    {/* Map (Flex Grow) */}
                     {player?.MapNode && (
-                        <div className="glass-panel p-3 border border-white/20 flex-1 min-h-0 flex flex-col animate-in slide-in-from-left duration-500 shadow-lg">
-                            <div className="flex items-center justify-between mb-2 border-b border-white/5 pb-1">
-                                <div className="flex items-center gap-2">
-                                    <div className="text-[9px] text-gray-500 uppercase tracking-widest">SECTOR MAP</div>
-                                    <div className="flex items-center gap-1 text-[8px] text-gray-400">
-                                        <div className="relative w-5 h-5 rounded-full border border-white/10 bg-black/60 flex items-center justify-center">
-                                            <div
-                                                className="absolute inset-0 flex items-center justify-center transition-transform duration-300"
-                                                style={{ transform: `rotate(${mapRotationDeg}deg)` }}
-                                            >
-                                                <ChevronUp className="w-3 h-3 text-neon-cyan" />
-                                                <span className="absolute -top-1 text-[7px] text-neon-cyan font-bold">N</span>
-                                            </div>
-                                        </div>
-                                        <span className="uppercase tracking-widest">ORT {facing}</span>
+                        <div className="glass-panel p-1 border border-white/20 flex-1 min-h-0 flex flex-col animate-in slide-in-from-left duration-500 shadow-lg relative">
+                            <div className="absolute top-2 left-3 z-10 text-[9px] text-gray-500 uppercase tracking-widest">SECTOR MAP</div>
+
+                            {/* Orientation (Top Right) */}
+                            <div className="absolute top-2 right-2 z-10 flex flex-col items-center">
+                                <div className="relative w-12 h-12 rounded-full border border-white/10 bg-black/80 flex items-center justify-center shadow-lg backdrop-blur">
+                                    <div
+                                        className="absolute inset-0 flex items-center justify-center transition-transform duration-300"
+                                        style={{ transform: `rotate(${mapRotationDeg}deg)` }}
+                                    >
+                                        <ChevronUp className="w-8 h-8 text-neon-cyan opacity-80" />
+                                        <span className="absolute -top-3 text-[9px] text-neon-cyan font-bold tracking-widest">N</span>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-1">
-                                    {[0, 1, 2].map((z) => (
-                                        <button
-                                            key={z}
-                                            type="button"
-                                            onClick={() => setMapZ(z)}
-                                            className={`px-2 py-0.5 text-[8px] rounded border ${activeDeck === z ? "bg-neon-cyan text-black border-neon-cyan" : "bg-black/50 text-gray-400 border-white/10 hover:border-white/30"}`}
-                                        >
-                                            D{z}
-                                        </button>
-                                    ))}
-                                    <button
-                                        type="button"
-                                        onClick={() => setMapZ(player.MapNode.z)}
-                                        className="px-2 py-0.5 text-[8px] rounded border bg-black/50 text-neon-cyan border-white/10 hover:border-white/30"
-                                    >
-                                        FOLLOW
-                                    </button>
-                                </div>
                             </div>
+
                             <div className="w-full flex-1 min-h-0 bg-black/50 border border-white/5 relative overflow-hidden rounded">
-                                <div className="w-full h-full transition-transform duration-300" style={{ transform: `rotate(${mapRotationDeg}deg)` }}>
-                                    <SectorGrid nodes={game.MapNode || []} currentPlayerNodeId={player.nodeId} activeZ={activeDeck} playerMarkers={playerMarkers} />
+                                <div className="w-full h-full">
+                                    {/* Removed outer rotation, passing rotation to SectorGrid */}
+                                    <SectorGrid nodes={game.MapNode || []} currentPlayerNodeId={player.nodeId} activeZ={activeDeck} playerMarkers={playerMarkers} rotation={mapRotationDeg} />
                                 </div>
-                                <div className="absolute bottom-1 right-1 text-[8px] font-mono text-gray-600">GRID v.0.9</div>
+                                <div className="absolute bottom-1 right-1 text-[8px] font-mono text-gray-600">DECK {activeDeck}</div>
                             </div>
-                            <div className="flex justify-between items-end mt-2">
-                                <span className={`text-sm font-bold ${player.MapNode.type === 'START' ? 'text-green-400' : 'text-white'}`}>{player.MapNode.type}</span>
-                                <span className="text-xs font-mono text-gray-400 bg-gray-900 px-2 rounded">[{player.MapNode.x}, {player.MapNode.y}, {player.MapNode.z}]</span>
+
+                            {/* Dock Deck & Info (Bottom) */}
+                            <div className="p-2 border-t border-white/10 bg-black/40 flex flex-col gap-1">
+                                <div className="flex justify-between items-center">
+                                    <div className="flex items-center gap-1">
+                                        {[0, 1, 2].map((z) => (
+                                            <button
+                                                key={z}
+                                                type="button"
+                                                onClick={() => setMapZ(z)}
+                                                className={`w-6 h-6 text-[10px] flex items-center justify-center rounded border transition-colors ${activeDeck === z ? "bg-neon-cyan text-black border-neon-cyan font-bold" : "bg-black/50 text-gray-400 border-white/10 hover:border-white/30"}`}
+                                            >
+                                                D{z}
+                                            </button>
+                                        ))}
+                                        <button
+                                            type="button"
+                                            onClick={() => setMapZ(player.MapNode.z)}
+                                            className="h-6 px-2 text-[9px] rounded border bg-black/50 text-neon-cyan border-white/10 hover:border-white/30 uppercase"
+                                        >
+                                            LOCATE
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="flex justify-between items-end">
+                                    <span className={`text-sm font-bold uppercase ${player.MapNode.type === 'START' ? 'text-green-400' : 'text-white'}`}>{player.MapNode.type} NODE</span>
+                                    <span className="text-[10px] font-mono text-gray-400 bg-gray-900 px-1 rounded">SEC {player.MapNode.x}-{player.MapNode.y}-{player.MapNode.z}</span>
+                                </div>
                             </div>
                         </div>
                     )}
-
-                    {/* Turn Order (Bottom) */}
-                    <div className="glass-panel p-3 border border-white/10 bg-black/60 shrink-0">
-                        <div className="text-[9px] text-gray-500 uppercase tracking-widest mb-2">SQUAD PROTOCOL</div>
-                        <div className="flex flex-col gap-2">
-                            {game.turnOrder.map((pid: string, idx: number) => {
-                                const isActive = idx === game.activePlayerIndex;
-                                const isAI = pid === "STATION_CORE";
-                                const isEnv = pid === "ENVIRONMENT";
-                                let name = pid.substring(0, 8);
-
-                                const p = gameState.otherPlayers.find((op: any) => op.id === pid) || (pid === player?.characterId ? player : null);
-
-                                if (pid === player?.characterId) name = "YOU";
-                                else if (isAI || isEnv) name = "CORE AI";
-                                else if (p) name = p.character?.name || p.name || "UNKNOWN";
-
-                                return (
-                                    <div key={idx} className={`text-xs flex justify-between items-center p-1 rounded ${isActive ? 'bg-white/10 text-neon-cyan font-bold border-l-2 border-neon-cyan' : 'text-gray-600'}`}>
-                                        <span>{name}</span>
-                                        {isActive && <span className="animate-pulse text-[9px]">ACTIVE</span>}
-                                    </div>
-                                )
-                            })}
-                        </div>
-                    </div>
 
                 </div>
 
-                {/* CENTER PANEL: HUD & Controls (Col Span 6) - Mobile Order 1 */}
-                <div className="flex col-span-6 flex-col items-center gap-2 h-full min-h-0 relative">
+                {/* CENTER/RIGHT PANEL: HUD & Hand (Col Span 9) */}
+                <div className="flex col-span-1 md:col-span-9 flex-col items-center gap-2 h-full min-h-0 relative">
 
-                    {/* Navigation HUD */}
-                    <div className="glass-panel p-3 border border-white/20 text-center animate-fade-in relative overflow-hidden w-full max-w-lg mb-2 bg-black/40 backdrop-blur-md shadow-2xl">
-                        {/* Scanner */}
-                        <div className="mb-3 flex justify-center">
-                            <div className="w-[180px] h-[120px] border border-gray-800 rounded bg-black relative shadow-inner overflow-hidden">
+                    {/* Main Interaction Area */}
+                    <div className="glass-panel p-4 border border-white/20 animate-fade-in relative overflow-hidden w-full flex-1 min-h-0 flex flex-col items-center bg-black/40 backdrop-blur-md shadow-2xl">
+
+                        {/* 1. TOP: PLAYED CARDS & SCANNER */}
+                        <div className="flex-none flex flex-col items-center justify-center gap-2 mb-4 w-full relative min-h-[160px]">
+
+                            {/* Played Cards Pile (The "Stack" - Centered Top) */}
+                            <div className="relative w-full max-w-[600px] h-32 flex justify-center items-center z-10">
+                                {gameState?.game?.currentPile && gameState.game.currentPile.length > 0 && gameState.game.currentPile.slice(-3).map((card: any, i: number) => (
+                                    <div key={i} className="absolute transform transition-all duration-500 shadow-2xl" style={{
+                                        zIndex: i,
+                                        transform: `translateY(${i * 8}px) scale(${1 - (gameState.game.currentPile.slice(-3).length - 1 - i) * 0.05})`,
+                                        opacity: 1 - (gameState.game.currentPile.slice(-3).length - 1 - i) * 0.2
+                                    }}>
+                                        <NavCard card={card} size="sm" />
+                                    </div>
+                                ))}
+                                {(!gameState?.game?.currentPile || gameState.game.currentPile.length === 0) && (
+                                    <div className="text-[10px] text-gray-700 tracking-[0.5em] uppercase font-bold border border-white/5 p-2 rounded">SUB-SPACE CHANNEL EMPTY</div>
+                                )}
+                            </div>
+
+                            {/* Room Scanner (Behind/Below Pile) */}
+                            <div className="absolute top-4 right-4 w-[160px] h-[100px] border border-white/10 rounded bg-black/50 overflow-hidden z-0 opacity-50">
                                 <RoomScanner type={player.MapNode.type} isExplored={player.MapNode.isExplored} integrity={game.integrity} />
                             </div>
                         </div>
 
-                        {/* Status Text */}
-                        <div className="text-[10px] md:text-xs text-neon-cyan uppercase tracking-widest mb-4 flex items-center gap-2 border-b border-white/10 pb-2">
-                            <span className="flex-1 text-left">Sys: {actionStatus}</span>
-                            <span className={`flex-1 text-center ${roomInfo && roomInfo.scanned && roomInfo.integrity < 50 ? "text-red-400" : "text-gray-400"}`}>
-                                INT {roomInfo?.scanned ? `${roomInfo.integrity}%` : "--"}
-                            </span>
-                            <span className="flex-1 text-right text-gray-400">{actionTimerLabel}</span>
+                        {/* 2. MIDDLE: HAND (Cards) */}
+                        <div className="flex-1 min-h-0 w-full flex flex-col items-center justify-center py-2 relative">
+                            <div className="text-[9px] text-gray-500 uppercase tracking-widest mb-2">NEURAL LINK</div>
+                            <div className="flex items-center justify-center gap-4 h-40 w-full overflow-x-auto px-4 custom-scrollbar">
+                                <AnimatePresence>
+                                    {gameState?.player?.hand?.length > 0 ? gameState.player.hand.map((card: any, index: number) => (
+                                        <motion.div
+                                            key={card.id || index}
+                                            layout
+                                            initial={{ y: 50, opacity: 0 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ y: 50, opacity: 0 }}
+                                            onClick={() => toggleCardSelection(index)}
+                                            className={`
+                                                relative cursor-pointer transition-all duration-200 shrink-0
+                                                ${selectedCardIndices.includes(index) ? 'translate-y-[-15px] scale-110 z-20 brightness-110' : 'hover:translate-y-[-5px] hover:scale-105 z-10'}
+                                            `}
+                                        >
+                                            <NavCard card={card} selected={selectedCardIndices.includes(index)} size="md" />
+                                        </motion.div>
+                                    )) : (
+                                        <div className="text-xs text-center text-gray-600 border border-white/5 bg-white/5 p-4 rounded uppercase tracking-widest w-full max-w-sm">
+                                            No Signal Detected
+                                        </div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
                         </div>
 
-                        {/* Room card reveal */}
-                        {roomInfo && (
-                            <div className="mb-3 flex items-center justify-center">
-                                <div className="px-3 py-2 rounded-lg border border-white/10 bg-black/60 text-xs text-center">
-                                    <div className="text-gray-500">Room Card</div>
-                                    <div className={`text-lg font-bold flex items-center justify-center gap-2 ${roomInfo.scanned ? (roomSuitMeta?.color || "text-neon-cyan") : "text-gray-500"}`}>
-                                        <span className="text-[10px]">{roomInfo.scanned ? (roomSuitMeta?.icon || "?") : "?"}</span>
-                                        {roomInfo.scanned ? roomInfo.power : "??"}
-                                    </div>
-                                    <div className={`text-[11px] uppercase flex items-center justify-center gap-2 ${roomInfo.scanned ? (roomSuitMeta?.color || "text-neon-cyan") : "text-gray-500"}`}>
-                                        <span className="text-[10px]">{roomInfo.scanned ? (roomSuitMeta?.icon || "?") : "?"}</span>
-                                        {roomInfo.scanned ? roomInfo.suit : "Unknown"}
-                                    </div>
+                        {/* 3. BOTTOM: CONTROLS */}
+                        <div className="flex-none flex flex-row gap-6 w-full max-w-4xl mx-auto items-center justify-center pt-2 pb-6">
+
+                            {/* Left: Action Selectors */}
+                            <div className="flex gap-2">
+                                <Button onClick={() => { setActionIntent("SCAN"); setMoveDirection(null); }} disabled={!canScan} className={`w-20 h-12 text-[10px] font-bold tracking-widest border flex flex-col gap-1 items-center justify-center ${actionIntent === "SCAN" ? "bg-green-500 text-black border-green-500" : "bg-black/50 text-green-500 border-green-900 hover:bg-green-900/30"}`}>
+                                    <Zap className="h-4 w-4" /> SCAN
+                                </Button>
+                                <Button onClick={() => { setActionIntent("ATTACK"); setMoveDirection(null); }} disabled={!canAttack} className={`w-20 h-12 text-[10px] font-bold tracking-widest border flex flex-col gap-1 items-center justify-center ${actionIntent === "ATTACK" ? "bg-red-500 text-black border-red-500" : "bg-black/50 text-red-500 border-red-900 hover:bg-red-900/30"}`}>
+                                    <Crosshair className="h-4 w-4" /> ENGAGE
+                                </Button>
+                                <Button onClick={() => { setActionIntent("SECURE"); setMoveDirection(null); }} disabled={!canSecure} className={`w-20 h-12 text-[10px] font-bold tracking-widest border flex flex-col gap-1 items-center justify-center ${actionIntent === "SECURE" ? "bg-yellow-400 text-black border-yellow-400" : "bg-black/50 text-yellow-500 border-yellow-900 hover:bg-yellow-900/30"}`}>
+                                    <Shield className="h-4 w-4" /> SECURE
+                                </Button>
+                            </div>
+
+                            {/* Center: D-PAD & Execute */}
+                            <div className="flex flex-col items-center gap-4">
+                                <div className={`grid grid-cols-3 gap-1 p-2 bg-black/60 rounded-xl border border-white/10 relative ${actionIntent === 'MOVE' ? 'shadow-[0_0_15px_rgba(0,255,255,0.1)]' : ''}`}>
+                                    <div />
+                                    <Button onClick={() => { setActionIntent("MOVE"); setMoveDirection("FORWARD"); }} disabled={!canMoveForward} className={`h-10 w-10 ${moveDirection === "FORWARD" && actionIntent === "MOVE" ? "bg-neon-cyan text-black" : "bg-black border border-white/20 text-neon-cyan"}`}><ChevronUp className="w-4 h-4" /></Button>
+                                    <div />
+                                    <Button onClick={() => { setActionIntent("MOVE"); setMoveDirection("LEFT"); }} disabled={!canMoveLeft} className={`h-10 w-10 ${moveDirection === "LEFT" && actionIntent === "MOVE" ? "bg-neon-cyan text-black" : "bg-black border border-white/20 text-neon-cyan"}`}><ChevronLeft className="w-4 h-4" /></Button>
+                                    <Button onClick={() => { setActionIntent("MOVE"); setMoveDirection("UP"); }} disabled={!canMoveUp} className={`h-10 w-10 text-[8px] font-bold ${moveDirection === "UP" && actionIntent === "MOVE" ? "bg-neon-cyan text-black" : "bg-black border border-white/20 text-neon-cyan"}`}>UP</Button>
+                                    <Button onClick={() => { setActionIntent("MOVE"); setMoveDirection("RIGHT"); }} disabled={!canMoveRight} className={`h-10 w-10 ${moveDirection === "RIGHT" && actionIntent === "MOVE" ? "bg-neon-cyan text-black" : "bg-black border border-white/20 text-neon-cyan"}`}><ChevronRight className="w-4 h-4" /></Button>
+                                    <div />
+                                    <Button onClick={() => { setActionIntent("MOVE"); setMoveDirection("BACK"); }} disabled={!canMoveBack} className={`h-10 w-10 ${moveDirection === "BACK" && actionIntent === "MOVE" ? "bg-neon-cyan text-black" : "bg-black border border-white/20 text-neon-cyan"}`}><ChevronDown className="w-4 h-4" /></Button>
+                                    <Button onClick={() => { setActionIntent("MOVE"); setMoveDirection("DOWN"); }} disabled={!canMoveDown} className={`h-10 w-10 text-[8px] font-bold ${moveDirection === "DOWN" && actionIntent === "MOVE" ? "bg-neon-cyan text-black" : "bg-black border border-white/20 text-neon-cyan"}`}>DN</Button>
                                 </div>
-                            </div>
-                        )}
-
-                        {/* Controls (Unified Command) */}
-                        <div className="flex flex-col items-center gap-3 mt-2">
-                            {/* Directional Pad */}
-                            <div className={`grid grid-cols-3 gap-2 p-4 bg-black/60 rounded-full border border-white/10 relative transition-opacity duration-300 ${actionIntent === 'MOVE' ? 'opacity-100 ring-2 ring-neon-cyan' : 'opacity-60'}`}>
-                                <div />
-                                <Button
-                                    onClick={() => { setActionIntent("MOVE"); setMoveDirection("FORWARD"); }}
-                                    disabled={!canMoveForward}
-                                    className={`h-12 w-12 rounded-t-xl ${moveDirection === "FORWARD" && actionIntent === "MOVE" ? "bg-neon-cyan text-black shadow-[0_0_15px_rgba(0,255,255,0.5)]" : "bg-black border border-white/20 text-neon-cyan hover:bg-white/10"} ${!canMoveForward ? "opacity-30 cursor-not-allowed hover:bg-black" : ""}`}
-                                >
-                                    <ChevronUp className="w-5 h-5" />
-                                </Button>
-                                <div />
-
-                                <Button
-                                    onClick={() => { setActionIntent("MOVE"); setMoveDirection("LEFT"); }}
-                                    disabled={!canMoveLeft}
-                                    className={`h-12 w-12 rounded-l-xl ${moveDirection === "LEFT" && actionIntent === "MOVE" ? "bg-neon-cyan text-black shadow-[0_0_15px_rgba(0,255,255,0.5)]" : "bg-black border border-white/20 text-neon-cyan hover:bg-white/10"} ${!canMoveLeft ? "opacity-30 cursor-not-allowed hover:bg-black" : ""}`}
-                                >
-                                    <ChevronLeft className="w-5 h-5" />
-                                </Button>
-                                <div className="h-12 w-12 flex items-center justify-center bg-black/80 rounded-full border border-white/5">
-                                    <div className={`w-2 h-2 rounded-full ${actionIntent === "MOVE" ? "bg-neon-cyan animate-ping" : "bg-gray-800"}`} />
-                                </div>
-                                <Button
-                                    onClick={() => { setActionIntent("MOVE"); setMoveDirection("RIGHT"); }}
-                                    disabled={!canMoveRight}
-                                    className={`h-12 w-12 rounded-r-xl ${moveDirection === "RIGHT" && actionIntent === "MOVE" ? "bg-neon-cyan text-black shadow-[0_0_15px_rgba(0,255,255,0.5)]" : "bg-black border border-white/20 text-neon-cyan hover:bg-white/10"} ${!canMoveRight ? "opacity-30 cursor-not-allowed hover:bg-black" : ""}`}
-                                >
-                                    <ChevronRight className="w-5 h-5" />
-                                </Button>
-
-                                <div />
-                                <Button
-                                    onClick={() => { setActionIntent("MOVE"); setMoveDirection("BACK"); }}
-                                    disabled={!canMoveBack}
-                                    className={`h-12 w-12 rounded-b-xl ${moveDirection === "BACK" && actionIntent === "MOVE" ? "bg-neon-cyan text-black shadow-[0_0_15px_rgba(0,255,255,0.5)]" : "bg-black border border-white/20 text-neon-cyan hover:bg-white/10"} ${!canMoveBack ? "opacity-30 cursor-not-allowed hover:bg-black" : ""}`}
-                                >
-                                    <ChevronDown className="w-5 h-5" />
-                                </Button>
-                                <div />
-                            </div>
-                            <div className="flex gap-3">
-                                <Button
-                                    onClick={() => { setActionIntent("MOVE"); setMoveDirection("UP"); }}
-                                    disabled={!canMoveUp}
-                                    className={`h-8 w-16 text-[10px] font-bold tracking-widest border transition-all ${moveDirection === "UP" && actionIntent === "MOVE" ? "bg-neon-cyan text-black border-neon-cyan shadow-[0_0_10px_rgba(0,255,255,0.4)]" : "bg-black/50 text-neon-cyan border-white/20 hover:bg-white/10"} ${!canMoveUp ? "opacity-30 cursor-not-allowed hover:bg-black/50" : ""}`}
-                                >
-                                    UP
-                                </Button>
-                                <Button
-                                    onClick={() => { setActionIntent("MOVE"); setMoveDirection("DOWN"); }}
-                                    disabled={!canMoveDown}
-                                    className={`h-8 w-16 text-[10px] font-bold tracking-widest border transition-all ${moveDirection === "DOWN" && actionIntent === "MOVE" ? "bg-neon-cyan text-black border-neon-cyan shadow-[0_0_10px_rgba(0,255,255,0.4)]" : "bg-black/50 text-neon-cyan border-white/20 hover:bg-white/10"} ${!canMoveDown ? "opacity-30 cursor-not-allowed hover:bg-black/50" : ""}`}
-                                >
-                                    DOWN
-                                </Button>
-                            </div>
-
-                            {/* Extra Actions Selection */}
-                            <div className="flex gap-4">
-                                <Button
-                                    onClick={() => { setActionIntent("SCAN"); setMoveDirection(null); }}
-                                    disabled={!canScan}
-                                    className={`w-28 h-10 text-xs font-bold tracking-widest border transition-all ${actionIntent === "SCAN" ? "bg-green-500 text-black border-green-500 shadow-[0_0_15px_rgba(0,255,0,0.3)]" : "bg-black/50 text-green-500 border-green-900 hover:bg-green-900/30"} ${!canScan ? "opacity-30 cursor-not-allowed hover:bg-black/50" : ""}`}
-                                >
-                                    SCAN
-                                </Button>
-                                <Button
-                                    onClick={() => { setActionIntent("ATTACK"); setMoveDirection(null); }}
-                                    disabled={!canAttack}
-                                    className={`w-28 h-10 text-xs font-bold tracking-widest border transition-all ${actionIntent === "ATTACK" ? "bg-red-500 text-black border-red-500 shadow-[0_0_15px_rgba(255,0,0,0.3)]" : "bg-black/50 text-red-500 border-red-900 hover:bg-red-900/30"} ${!canAttack ? "opacity-30 cursor-not-allowed hover:bg-black/50" : ""}`}
-                                >
-                                    ENGAGE
-                                </Button>
-                                <Button
-                                    onClick={() => { setActionIntent("SECURE"); setMoveDirection(null); }}
-                                    disabled={!canSecure}
-                                    className={`w-28 h-10 text-xs font-bold tracking-widest border transition-all ${actionIntent === "SECURE" ? "bg-yellow-400 text-black border-yellow-400 shadow-[0_0_15px_rgba(255,255,0,0.3)]" : "bg-black/50 text-yellow-400 border-yellow-900 hover:bg-yellow-900/30"} ${!canSecure ? "opacity-30 cursor-not-allowed hover:bg-black/50" : ""}`}
-                                >
-                                    SECURE
-                                </Button>
-                            </div>
-                            <div className="mt-1">
                                 <Button
                                     onClick={handleExecute}
                                     disabled={(!actionIntent || actionInvalid || (selectedCardIndices.length === 0 && !canAutoMove)) || isActing || !inActionPhase}
-                                    className={`w-60 py-3 text-[11px] font-bold tracking-widest transition-all duration-300 rounded-xl border-2
-                                        ${(actionIntent && !actionInvalid && (selectedCardIndices.length > 0 || canAutoMove) && inActionPhase)
-                                            ? "bg-neon-cyan text-black border-neon-cyan shadow-[0_0_20px_#0ff] hover:bg-white hover:scale-105"
-                                            : "bg-black/50 text-gray-600 border-gray-800"}
-                                    `}
+                                    className={`w-40 py-2 text-xs font-bold tracking-widest rounded transition-all
+                                             ${(actionIntent && !actionInvalid && (selectedCardIndices.length > 0 || canAutoMove) && inActionPhase)
+                                            ? 'bg-neon-cyan text-black shadow-[0_0_15px_#0ff] hover:scale-105'
+                                            : 'bg-black/50 text-gray-600 border border-gray-800'}
+                                         `}
                                 >
-                                    {!inActionPhase ? "WAITING FOR DRAW" :
-                                        !actionIntent ? "SELECT PROTOCOL" :
-                                            (selectedCardIndices.length === 0 && !canAutoMove) ? "SELECT CARD" :
-                                                (selectedCardIndices.length === 0 && canAutoMove) ? "LOCK MOVE (AUTO)" :
-                                                    `LOCK ${actionIntent}`}
+                                    LOCK
                                 </Button>
                             </div>
-                            <div className="mt-1">
+
+                            {/* Right: Supplies/Emerg */}
+                            <div className="flex flex-col gap-2">
                                 <Button
                                     onClick={() => setShowInventory(!showInventory)}
-                                    className={`w-28 h-8 text-[10px] font-bold tracking-widest border transition-all ${showInventory ? "bg-white text-black border-white" : "bg-black/40 text-gray-300 border-white/10 hover:bg-white/10"}`}
+                                    className={`w-28 h-8 text-[9px] font-bold tracking-widest border ${showInventory ? "bg-white text-black border-white" : "bg-black/40 text-gray-300 border-white/10 hover:bg-white/10"}`}
                                 >
-                                    SUPPLIES
-                                </Button>
-                            </div>
-                            <div className="mt-3 w-full flex flex-col items-center gap-2">
-                                <div className="text-[10px] text-neon-cyan font-bold tracking-widest">
-                                    AP POOL {game?.sharedAp ?? 0}/{game?.sharedApMax ?? 0}
-                                </div>
-                                <Button
-                                    onClick={handleExecute}
-                                    disabled={(!actionIntent || actionInvalid || (selectedCardIndices.length === 0 && !canAutoMove)) || isActing || !inActionPhase}
-                                    className={`w-64 py-3 text-xs font-bold tracking-widest transition-all duration-300 rounded-xl border-2
-                                            ${(actionIntent && !actionInvalid && (selectedCardIndices.length > 0 || canAutoMove) && inActionPhase)
-                                            ? 'bg-neon-cyan text-black border-neon-cyan shadow-[0_0_20px_#0ff] hover:bg-white hover:scale-105'
-                                            : 'bg-black/50 text-gray-600 border-gray-800'}
-                                        `}
-                                >
-                                    {!inActionPhase ? 'WAITING FOR DRAW' :
-                                        !actionIntent ? 'SELECT PROTOCOL' :
-                                            (selectedCardIndices.length === 0 && !canAutoMove) ? 'SELECT CARD' :
-                                                (selectedCardIndices.length === 0 && canAutoMove) ? 'LOCK MOVE (AUTO)' :
-                                                    `LOCK ${actionIntent}`}
+                                    SUPPLIES {inventory.length > 0 && `(${inventory.length})`}
                                 </Button>
                                 <Button
-                                    onClick={handleEmergencyEscape}
+                                    onClick={() => {
+                                        if (confirmEmergency) {
+                                            handleEmergencyEscape();
+                                            setConfirmEmergency(false);
+                                        } else {
+                                            setConfirmEmergency(true);
+                                            setTimeout(() => setConfirmEmergency(false), 3000);
+                                        }
+                                    }}
                                     disabled={!inActionPhase || isActing}
                                     variant="ghost"
-                                    className={`w-64 text-red-200 hover:text-white text-[10px] border border-red-900/60 bg-red-950/40 hover:bg-red-900/60 px-4 py-2 ${!inActionPhase || isActing ? "opacity-30 cursor-not-allowed hover:bg-red-950/40" : ""}`}
+                                    className={`w-28 h-8 text-[9px] border transition-colors ${confirmEmergency ? "bg-red-500 text-black border-red-500 font-bold animate-pulse" : "text-red-400 border-red-900/30 hover:bg-red-900/20"}`}
                                 >
-                                    EMERGENCY ESCAPE (-1 HP)
+                                    {confirmEmergency ? "CONFIRM?" : "EMERGENCY"}
                                 </Button>
                             </div>
                         </div>
 
-                        {/* INVENTORY OVERLAY */}{showInventory && (
-                            <div className="absolute top-20 left-0 right-0 mx-auto w-64 bg-black/90 border border-yellow-500/50 p-4 rounded-xl backdrop-blur-xl z-50 shadow-2xl animate-in zoom-in-95">
+
+                        {/* Inventory Overlay */}
+                        {showInventory && (
+                            <div className="absolute top-20 left-0 right-0 mx-auto w-80 bg-black/95 border border-yellow-500/50 p-4 rounded-xl backdrop-blur-xl z-50 shadow-2xl animate-in zoom-in-95">
                                 <h3 className="text-yellow-500 text-xs font-bold uppercase tracking-widest mb-4 flex justify-between">
                                     <span>Supply Manifest</span>
                                     <span className="cursor-pointer hover:text-white" onClick={() => setShowInventory(false)}>X</span>
                                 </h3>
-                                <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
+                                <div className="space-y-2 max-h-80 overflow-y-auto custom-scrollbar">
                                     {inventory.length === 0 ? (
                                         <div className="text-gray-500 text-[10px] text-center py-4">NO SUPPLIES DETECTED</div>
                                     ) : (
                                         inventory.map((item: any, idx: number) => (
-                                            <div key={idx} className="flex items-center justify-between bg-white/5 p-2 rounded border border-white/10">
+                                            <div key={idx} className="flex items-center justify-between bg-white/5 p-2 rounded border border-white/10 hover:bg-white/10 transition-colors">
                                                 <div className="flex flex-col">
                                                     <span className="text-xs font-bold text-white">{item.name} <span className="text-[10px] text-gray-400">x{item.qty}</span></span>
                                                     <span className="text-[9px] text-gray-500">{item.description}</span>
                                                 </div>
-                                                <Button className="h-6 text-[9px] bg-yellow-500/20 text-yellow-500 hover:bg-yellow-500 hover:text-black" onClick={() => handleUseItem(item.id)}>USE</Button>
+                                                <Button className="h-6 text-[9px] bg-yellow-500/20 text-yellow-500 hover:bg-yellow-500 hover:text-black border border-yellow-500/30" onClick={() => handleUseItem(item.id)}>USE</Button>
                                             </div>
                                         ))
                                     )}
                                 </div>
                             </div>
                         )}
-                    </div>
-
-                    {/* Skip Turn (Remains Bottom) */}
-                    <div className="mt-1">
-                        <Button
-                            onClick={() => lockAction("SCAN", [], true)}
-                            disabled={isAirlock || !inActionPhase}
-                            variant="ghost"
-                            className={`text-red-500/50 hover:text-red-500 hover:bg-red-950/20 text-xs border border-transparent hover:border-red-900 ${isAirlock || !inActionPhase ? "opacity-30 cursor-not-allowed hover:bg-transparent" : ""}`}
-                        >
-                            EMERGENCY VENT (-1 HP / SKIP)
-                        </Button>
-                    </div>
-
-                    {/* Event Log (Bottom Center) */}
-                    <div className="glass-panel p-3 border border-white/10 bg-black/60 w-full max-w-lg shrink-0 max-h-40 overflow-y-auto custom-scrollbar">
-                        <div className="text-[9px] text-gray-500 uppercase tracking-widest mb-2">EVENT LOG</div>
-                        <div className="space-y-1 text-[11px] text-gray-300">
-                            {(game?.gameLog || []).slice().reverse().slice(0, 10).map((log: any, idx: number) => (
-                                <div key={idx} className="border-b border-white/5 pb-1">
-                                    <span className="text-[9px] text-gray-500 mr-2">{new Date(log.ts || Date.now()).toLocaleTimeString()}</span>
-                                    <span className="text-neon-cyan font-bold mr-1">{log.type}</span>
-                                    <span>{log.message}</span>
-                                </div>
-                            ))}
-                            {(game?.gameLog || []).length === 0 && <div className="text-gray-600 text-xs">Awaiting signals...</div>}
+                        <div className="absolute bottom-1 right-2 text-[10px] text-neon-cyan font-bold tracking-widest z-30">
+                            AP {game?.sharedAp ?? 0}/{game?.sharedApMax ?? 0}
                         </div>
+
                     </div>
-                </div>
 
-                {/* RIGHT PANEL: Hand & Protocol (Col Span 3) */}
-                <div className="flex col-span-3 flex-col h-full min-h-0 relative pointer-events-none gap-2 items-end">
+                    {/* Event Log & Phase (Stacked Bottom) */}
+                    <div className="w-full max-w-2xl shrink-0 flex flex-col gap-1">
+                        {/* Phase Indicator (Moved Above Log) */}
+                        <div className="flex items-center justify-between px-3 py-1 bg-black/60 border-l-2 border-neon-cyan backdrop-blur-sm">
+                            <div className="text-[9px] text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                                <span className={`w-1.5 h-1.5 rounded-full ${inActionPhase ? "bg-neon-cyan animate-pulse" : "bg-gray-600"}`} />
+                                CURRENT PHASE
+                            </div>
+                            <div className="text-[10px] font-bold text-white uppercase">
+                                {inActionPhase ? "ACTION WINDOW ACQUIRING TARGET" : "DRAW PHASE REGENERATING"}
+                            </div>
+                        </div>
 
-                    {/* Hand Interface (TOP - Primary Space, Grows) */}
-                    <div className="pointer-events-auto flex-1 min-h-0 w-full max-w-[320px] flex flex-col pt-0 overflow-hidden">
-                        {/* Hand Cards - NO OVERLAP, JUST SPACING */}
-                        <div className="relative w-full flex-1 min-h-0 flex flex-col items-end gap-2 overflow-y-auto pr-1 pb-2 custom-scrollbar">
-                            <AnimatePresence>
-                                {gameState?.player?.hand?.length > 0 ? gameState.player.hand.map((card: any, index: number) => (
-                                    <motion.div
-                                        key={card.id || index}
-                                        layout
-                                        initial={{ x: 20, opacity: 0 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        exit={{ x: 20, opacity: 0 }}
-                                        onClick={() => toggleCardSelection(index)}
-                                        className={`
-                                            relative cursor-pointer transition-all duration-200 origin-right
-                                            ${selectedCardIndices.includes(index) ? 'translate-x-[0px] scale-105 z-10' : 'hover:translate-x-[-10px]'}
-                                        `}
-                                    >
-                                        <NavCard card={card} selected={selectedCardIndices.includes(index)} size="sm" />
-                                    </motion.div>
-                                )) : (
-                                    <div className="text-xs text-red-500 font-bold border border-red-900 bg-red-950/30 p-2 rounded">DECK DEPLETED
+                        {/* Event Log */}
+                        <div className="glass-panel p-2 border border-white/10 bg-black/80 h-24 overflow-y-auto custom-scrollbar">
+                            <div className="space-y-1 text-[11px] text-gray-300">
+                                {(game?.gameLog || []).slice().reverse().slice(0, 10).map((log: any, idx: number) => (
+                                    <div key={idx} className="border-b border-white/5 pb-0.5 flex gap-2">
+                                        <span className="text-[9px] text-gray-600 font-mono shrink-0 pt-0.5">{new Date(log.ts || Date.now()).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+                                        <div className="flex-1 leading-tight">
+                                            <span className="text-neon-cyan font-bold mr-1 text-[10px]">{log.type}</span>
+                                            <span className="text-gray-400">{log.message}</span>
+                                        </div>
                                     </div>
-                                )}
-                            </AnimatePresence>
-                        </div>
-
-                    </div>
-
-                    {/* Mission Protocol (BOTTOM - Compact) */}
-                    <div className="pointer-events-auto glass-panel p-3 border-l-4 border-neon-cyan backdrop-blur-xl animate-in slide-in-from-right duration-500 mb-0 shrink-0">
-                        <div className="text-[10px] text-neon-cyan uppercase tracking-widest mb-1 flex items-center gap-2">
-                            <span className="w-2 h-2 bg-neon-cyan rounded-full animate-pulse" />
-                            CURRENT PHASE
-                        </div>
-                        <div className="text-xs md:text-sm font-bold text-white leading-tight">
-                            {inActionPhase ? "ACTION: SELECT CARD + PROTOCOL" : "DRAW: PREPPING NEXT ROUND"}
+                                ))}
+                                {(game?.gameLog || []).length === 0 && <div className="text-gray-600 text-[10px] italic p-2">Listening for subspace signals...</div>}
+                            </div>
                         </div>
                     </div>
+
                 </div>
 
             </main>
@@ -993,39 +889,42 @@ export default function GameInterface() {
 }
 
 // Sub-component for Sci-Fi Card
+// Sub-component for Sci-Fi Card
 function NavCard({ card, selected, size = "md" }: { card: any, selected?: boolean, size?: "md" | "sm" }) {
     const isSm = size === "sm";
 
     // Mothership / Sci-Fi Theme Mapping
     const suitThemes: any = {
-        "BIOTECH": { color: "text-red-500 border-red-500/50 shadow-red-500/20", icon: "BIO", label: "BIOTECH" },
-        "PLASMA": { color: "text-orange-400 border-orange-400/50 shadow-orange-400/20", icon: "PLS", label: "PLASMA" },
-        "COMMAND": { color: "text-green-400 border-green-400/50 shadow-green-400/20", icon: "CMD", label: "COMMAND" },
-        "VOID": { color: "text-purple-400 border-purple-400/50 shadow-purple-400/20", icon: "VOID", label: "VOID" },
-        "ANOMALY": { color: "text-white border-white/50 shadow-white/20", icon: "ANOM", label: "ANOMALY" }
+        "BIOTECH": { color: "text-red-500 border-red-500 shadow-red-500/20 bg-red-950/20", icon: <Heart className="w-full h-full" />, label: "BIOTECH" },
+        "PLASMA": { color: "text-orange-400 border-orange-400 shadow-orange-400/20 bg-orange-950/20", icon: <Zap className="w-full h-full" />, label: "PLASMA" },
+        "COMMAND": { color: "text-green-400 border-green-400 shadow-green-400/20 bg-green-950/20", icon: <Crosshair className="w-full h-full" />, label: "COMMAND" },
+        "VOID": { color: "text-purple-400 border-purple-400 shadow-purple-400/20 bg-purple-950/20", icon: <Shield className="w-full h-full" />, label: "VOID" },
+        "ANOMALY": { color: "text-white border-white shadow-white/20 bg-gray-900/50", icon: <AlertTriangle className="w-full h-full" />, label: "ANOMALY" }
     };
 
-    const theme = suitThemes[card.suit] || { color: "text-gray-400 border-gray-400/50", icon: "?", label: "UNKNOWN" }; // Fallback
+    const theme = suitThemes[card.suit] || { color: "text-gray-400 border-gray-400", icon: "?", label: "UNKNOWN" }; // Fallback
     const bgColor = selected ? "bg-slate-900" : "bg-black/90";
 
     return (
         <div className={`
-            relative rounded-r-xl border-l-4 flex items-center justify-between overflow-hidden transition-all px-4
+            relative rounded-xl border-2 flex flex-col items-center justify-between overflow-hidden transition-all duration-300
             ${theme.color} ${bgColor}
-            ${selected ? "shadow-[0_0_20px_currentColor] border-white translate-x-4 animate-pulse" : "hover:border-white/60 hover:translate-x-2"}
-            ${isSm ? "w-48 h-12 text-sm" : "w-64 h-16"}
+            ${selected ? "shadow-[0_0_20px_currentColor] -translate-y-4 scale-110 z-20" : "hover:border-white/60 hover:-translate-y-2"}
+            ${isSm ? "w-16 h-24 p-1" : "w-24 h-32 p-2"}
         `}>
             {/* Holographic Scanline Overlay */}
-            <div className="absolute inset-0 bg-[url('/scanlines.png')] opacity-10 pointer-events-none" />
+            <div className="absolute inset-0 bg-[url('/scanlines.png')] opacity-20 pointer-events-none" />
 
-            {/* Rank & Icon */}
-            <div className={`font-black text-center ${isSm ? "text-lg w-6" : "text-2xl w-8"}`}>{card.rank}</div>
+            {/* Rank (Top Left) */}
+            <div className="w-full text-left font-black text-xs opacity-80">{card.rank}</div>
 
-            {/* Label */}
-            <div className="flex-1 text-right">
-                <div className="text-[10px] tracking-[0.2em] opacity-50">{theme.label}</div>
-                <div className={`${isSm ? "text-lg" : "text-xl"} font-bold`}>{theme.icon}</div>
+            {/* Icon (Center) */}
+            <div className={`flex items-center justify-center opacity-80 ${isSm ? "w-6 h-6" : "w-10 h-10"}`}>
+                {theme.icon}
             </div>
+
+            {/* Rank (Bottom Right) */}
+            <div className="w-full text-right font-black text-xs opacity-80 rotate-180">{card.rank}</div>
         </div>
     );
 }
