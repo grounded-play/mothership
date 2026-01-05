@@ -1,13 +1,13 @@
 ﻿"use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/Button";
 import SafeImage from "@/components/ui/SafeImage";
 import { motion, AnimatePresence, useAnimation } from "framer-motion";
 import { Loader2, Coins, Image as ImageIcon, Zap, ChevronUp, Wrench, User } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/Toast";
-import SafeImage from "@/components/ui/SafeImage";
+
 
 type QueueEntry = {
     id: string;
@@ -25,8 +25,9 @@ type QueueEntry = {
 type PrinterProps = { credits: number; inventory: any[]; globalQueue: any[]; backpackLevel: number; lastMade?: any };
 
 export default function PrinterInterface({ credits, inventory, globalQueue, backpackLevel: initialBackpackLevel, lastMade }: PrinterProps) {
-export default function PrinterInterface({ credits, inventory, globalQueue, backpackLevel: initialBackpackLevel, lastMade }: PrinterProps) {
+
     const [spinning, setSpinning] = useState(false);
+    const [printerOnline, setPrinterOnline] = useState(false);
     const [reward, setReward] = useState<{ name: string; rarity: string; icon?: string } | null>(null);
     const [pendingRarity, setPendingRarity] = useState<string | null>(null);
     const [creditsDisplay, setCreditsDisplay] = useState(credits);
@@ -260,7 +261,7 @@ export default function PrinterInterface({ credits, inventory, globalQueue, back
 
                 // Using string value for calc() in Framer Motion
                 // Initial position is padded to 50%, so simple subtraction aligns item center to 50%
-                const targetX = `-${itemCenterV}px`;
+                const targetX = `- ${itemCenterV} px`;
 
                 addToast("Starting Fabrication Sequence...", "info");
 
@@ -282,7 +283,7 @@ export default function PrinterInterface({ credits, inventory, globalQueue, back
                 setSpinning(false);
                 setTimeout(() => setQueueHold(false), 400);
                 router.refresh();
-                addToast(`Fabrication Complete: ${data.reward.name}`, "success");
+                addToast(`Fabrication Complete: ${data.reward.name} `, "success");
 
                 if (data.rewardInstance) {
                     setTimeout(() => {
@@ -302,7 +303,7 @@ export default function PrinterInterface({ credits, inventory, globalQueue, back
         }
     };
 
-    const handleGenerateArt = async () => {
+    const handleGenerateArt = async (instance?: any) => {
         addToast("Queued for Fabrication", "info");
         router.refresh();
     };
@@ -385,13 +386,13 @@ export default function PrinterInterface({ credits, inventory, globalQueue, back
                                                     pendingRarity === 'Uncommon' ? 'bg-green-500 text-green-500' :
                                                         pendingRarity === 'Common' ? 'bg-slate-500 text-slate-500' :
                                                             'bg-neon-cyan/50 text-neon-cyan';
-                                        const shadow = pendingRarity ? `shadow-[0_0_15px_currentColor]` : 'shadow-[0_0_10px_#0ff]';
+                                        const shadow = pendingRarity ? `shadow - [0_0_15px_currentColor]` : 'shadow-[0_0_10px_#0ff]';
 
                                         return (
                                             <>
-                                                <div className={`absolute top-0 bottom-0 left-1/2 w-0.5 -translate-x-1/2 z-20 ${color.split(' ')[0]} ${shadow}`} />
-                                                <div className={`absolute top-2 left-1/2 -translate-x-1/2 z-20 ${color.split(' ')[1]}`}><ChevronUp className="rotate-180" /></div>
-                                                <div className={`absolute bottom-2 left-1/2 -translate-x-1/2 z-20 ${color.split(' ')[1]}`}><ChevronUp /></div>
+                                                <div className={`absolute top - 0 bottom - 0 left - 1 / 2 w - 0.5 - translate - x - 1 / 2 z - 20 ${color.split(' ')[0]} ${shadow} `} />
+                                                <div className={`absolute top - 2 left - 1 / 2 - translate - x - 1 / 2 z - 20 ${color.split(' ')[1]} `}><ChevronUp className="rotate-180" /></div>
+                                                <div className={`absolute bottom - 2 left - 1 / 2 - translate - x - 1 / 2 z - 20 ${color.split(' ')[1]} `}><ChevronUp /></div>
                                             </>
                                         );
                                     })()
@@ -409,13 +410,13 @@ export default function PrinterInterface({ credits, inventory, globalQueue, back
                                                     <div
                                                         key={i}
                                                         className={`
-                                                            flex-shrink-0 w-24 h-24 rounded-lg border-2 flex items-center justify-center shadow-lg
+flex - shrink - 0 w - 24 h - 24 rounded - lg border - 2 flex items - center justify - center shadow - lg
                                                             ${rarity === 'Common' ? 'bg-slate-800 border-slate-600' : ''}
                                                             ${rarity === 'Uncommon' ? 'bg-green-900/80 border-green-500 shadow-[0_0_10px_rgba(34,197,94,0.3)]' : ''}
                                                             ${rarity === 'Rare' ? 'bg-blue-900/80 border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.4)]' : ''}
                                                             ${rarity === 'Epic' ? 'bg-purple-900/80 border-purple-500 shadow-[0_0_20px_rgba(168,85,247,0.5)]' : ''}
                                                             ${rarity === 'Legendary' ? 'bg-orange-600 border-orange-400 shadow-[0_0_30px_rgba(251,146,60,0.6)]' : ''}
-                                                        `}
+`}
                                                     >
                                                         <div className="text-[10px] uppercase font-bold tracking-wider text-white/50">{rarity}</div>
                                                     </div>
@@ -432,10 +433,10 @@ export default function PrinterInterface({ credits, inventory, globalQueue, back
                                             <div className="text-3xl font-black text-white drop-shadow-[0_0_10px_rgba(0,255,255,0.8)]">
                                                 {reward.name}
                                             </div>
-                                            <div className={`text-sm font-bold px-3 py-1 rounded-full border ${reward.rarity === 'Legendary' ? 'border-orange-500 text-orange-400 bg-orange-900/20' :
+                                            <div className={`text - sm font - bold px - 3 py - 1 rounded - full border ${reward.rarity === 'Legendary' ? 'border-orange-500 text-orange-400 bg-orange-900/20' :
                                                 reward.rarity === 'Epic' ? 'border-purple-500 text-purple-400 bg-purple-900/20' :
                                                     'border-white/20 text-gray-400'
-                                                }`}>
+                                                } `}>
                                                 {reward.rarity.toUpperCase()} REWARD
                                             </div>
                                             <div className="text-[10px] text-neon-cyan/70 mt-2">SENT TO VISUALIZER</div>
@@ -487,7 +488,7 @@ export default function PrinterInterface({ credits, inventory, globalQueue, back
                                     variant="primary"
                                     className="h-10 px-6 text-sm font-bold rounded-full disabled:opacity-50"
                                 >
-                                    {upgradeCost ? `UPGRADE (${upgradeCost} CR)` : "MAX LEVEL"}
+                                    {upgradeCost ? `UPGRADE(${upgradeCost} CR)` : "MAX LEVEL"}
                                 </Button>
                             </div>
 
@@ -552,7 +553,7 @@ export default function PrinterInterface({ credits, inventory, globalQueue, back
                                             </div>
                                             <div className="flex items-center gap-2 text-[10px] text-gray-500">
                                                 {isGenerating && <Loader2 className="h-3 w-3 animate-spin text-neon-cyan" />}
-                                                <span>{isActive ? statusLabel : `#${index + 1}`}</span>
+                                                <span>{isActive ? statusLabel : `#${index + 1} `}</span>
                                             </div>
                                         </div>
                                         {isGenerating && (
@@ -579,7 +580,7 @@ export default function PrinterInterface({ credits, inventory, globalQueue, back
                         <h2 className="text-lg font-bold text-white mb-4 flex items-center">
                             <ImageIcon className="mr-2 text-neon-cyan" /> LAST FABRICATED
                         </h2>
-                        {lastMade ? (
+                        {lastMade && (
                             <div className="flex items-center gap-4">
                                 <div className="w-20 h-20 rounded-lg bg-black/60 border border-white/10 flex items-center justify-center overflow-hidden">
                                     <SafeImage
@@ -596,53 +597,7 @@ export default function PrinterInterface({ credits, inventory, globalQueue, back
                                         {lastMade.completedAt ? new Date(lastMade.completedAt).toLocaleString() : "READY"}
                                     </div>
                                 </div>
-                            )}
-                        </div>
-
-                        <div className="flex-1 min-h-0 flex flex-col">
-                            <div className="text-[10px] text-gray-500 uppercase tracking-widest mb-2">Queue List</div>
-                            <div className="space-y-2 flex-1 min-h-0 max-h-[320px] overflow-y-auto pr-1">
-                                {queueSummary.queued.map((entry: any, idx: number) => {
-                                    const isActiveGenerating = queueSummary.generating?.id === entry.id;
-                                    const displayStatus = entry.status?.startsWith("GENERATING") && !isActiveGenerating
-                                        ? "QUEUED"
-                                        : entry.status === "READY"
-                                            ? "QUEUED"
-                                            : entry.status;
-                                    const statusTone = displayStatus === "FAILED" || displayStatus === "ERROR" ? "text-red-400" :
-                                        displayStatus === "QUEUED" ? "text-gray-400" : "text-neon-cyan";
-                                    return (
-                                        <div key={`${entry.kind}-${entry.id}`} className="bg-black/40 border border-white/5 rounded-lg px-3 py-2 flex items-center gap-3">
-                                            <div className="text-[10px] text-gray-500 font-mono w-8 text-center">#{idx + 1}</div>
-                                            <div className="w-8 h-8 bg-gray-900 rounded flex items-center justify-center overflow-hidden border border-white/5">
-                                                {entry.hasImage && (entry.preview || entry.icon) ? (
-                                                    <SafeImage
-                                                        src={(entry.preview || entry.icon) as string}
-                                                        alt={entry.title}
-                                                        className="w-full h-full object-cover"
-                                                        fallback={entry.kind === "CHARACTER" ? <User className="w-4 h-4 text-gray-500" /> : <ImageIcon className="w-4 h-4 text-gray-500" />}
-                                                    />
-                                                ) : (
-                                                    entry.kind === "CHARACTER" ? <User className="w-4 h-4 text-gray-500" /> : <ImageIcon className="w-4 h-4 text-gray-500" />
-                                                )}
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="text-sm text-white truncate">{entry.title}</div>
-                                                <div className="text-[10px] text-neon-cyan/70 truncate">{entry.owner}</div>
-                                            </div>
-                                            <div className="text-[9px] uppercase text-gray-400">{entry.kind}</div>
-                                            <div className={`text-[10px] ${statusTone}`}>{displayStatus}</div>
-                                        </div>
-                                    );
-                                })}
-                                {queueSummary.queued.length === 0 && (
-                                    <div className="text-gray-500 text-sm text-center py-4 bg-black/30 border border-white/5 rounded-lg">
-                                        Queue empty. Systems standby.
-                                    </div>
-                                )}
                             </div>
-                        ) : (
-                            <div className="text-gray-500 text-sm">No completed fabrications yet.</div>
                         )}
                     </div>
                 </div>
@@ -650,3 +605,4 @@ export default function PrinterInterface({ credits, inventory, globalQueue, back
         </div>
     );
 }
+

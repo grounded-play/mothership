@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 
 import { useToast } from "@/components/ui/Toast";
 import SafeImage from "@/components/ui/SafeImage";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
 // Gamba Logic moved to PrinterInterface
 
@@ -63,8 +64,8 @@ function MarketTicker({ version }: { version?: number }) {
             <div className="max-h-[420px] overflow-y-auto custom-scrollbar pr-1 space-y-3">
                 {filteredHistory.map((tx: any) => (
                     <div key={tx.id} className="text-xs border-b border-white/5 pb-2">
-                    <div className="flex justify-between text-gray-400">
-                        <span>{new Date(tx.timestamp).toLocaleString()}</span>
+                        <div className="flex justify-between text-gray-400">
+                            <span>{new Date(tx.timestamp).toLocaleString()}</span>
                             <span className="text-neon-cyan">{tx.price} <Coins className="inline w-2 h-2" /></span>
                         </div>
                         <div className="text-white font-bold truncate">{tx.item.name}</div>
@@ -90,6 +91,12 @@ export default function MarketInterface({ initialListings, userInventory, credit
     const [sellFilterTab, setSellFilterTab] = useState("ALL");
     const [sellSortKey, setSellSortKey] = useState("NAME");
     const [sellSortDir, setSellSortDir] = useState<"ASC" | "DESC">("ASC");
+
+    // Regeneration State
+    const [regenTarget, setRegenTarget] = useState<any>(null);
+    const [regenConfirmOpen, setRegenConfirmOpen] = useState(false);
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [genProgress, setGenProgress] = useState(0);
 
     // Sync listings when server refreshes (router.refresh)
     useEffect(() => {
@@ -351,11 +358,10 @@ export default function MarketInterface({ initialListings, userInventory, credit
                                             key={tab.id}
                                             type="button"
                                             onClick={() => setMarketFilterTab(tab.id)}
-                                            className={`px-2 py-1 rounded border transition ${
-                                                marketFilterTab === tab.id
-                                                    ? "border-neon-cyan text-neon-cyan bg-black/40"
-                                                    : "border-white/10 text-gray-500 hover:border-white/30"
-                                            }`}
+                                            className={`px-2 py-1 rounded border transition ${marketFilterTab === tab.id
+                                                ? "border-neon-cyan text-neon-cyan bg-black/40"
+                                                : "border-white/10 text-gray-500 hover:border-white/30"
+                                                }`}
                                         >
                                             {tab.label} <span className="text-[9px] text-gray-500">({tab.count})</span>
                                         </button>
@@ -469,11 +475,10 @@ export default function MarketInterface({ initialListings, userInventory, credit
                                             key={tab.id}
                                             type="button"
                                             onClick={() => setSellFilterTab(tab.id)}
-                                            className={`px-2 py-1 rounded border transition ${
-                                                sellFilterTab === tab.id
-                                                    ? "border-neon-cyan text-neon-cyan bg-black/40"
-                                                    : "border-white/10 text-gray-500 hover:border-white/30"
-                                            }`}
+                                            className={`px-2 py-1 rounded border transition ${sellFilterTab === tab.id
+                                                ? "border-neon-cyan text-neon-cyan bg-black/40"
+                                                : "border-white/10 text-gray-500 hover:border-white/30"
+                                                }`}
                                         >
                                             {tab.label} <span className="text-[9px] text-gray-500">({tab.count})</span>
                                         </button>

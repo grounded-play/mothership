@@ -586,11 +586,11 @@ export default function GameInterface() {
 
             {/* Main Grid Layout */}
             <main className="flex-1 min-h-0 grid grid-cols-12 gap-2 p-2 z-20 relative overflow-hidden w-full">
-            <main className="flex-1 min-h-0 grid grid-cols-12 gap-2 p-2 z-20 relative overflow-hidden w-full">
+
 
                 {/* LEFT PANEL: Map & Info (Col Span 3) - Mobile Order 3 */}
                 <div className="flex col-span-3 flex-col gap-2 h-full min-h-0 relative overflow-hidden">
-                <div className="flex col-span-3 flex-col gap-2 h-full min-h-0 relative overflow-hidden">
+
 
                     {/* Mission Log (Top - Fixed Height) */}
                     <div className="glass-panel p-3 border border-white/10 h-48 shrink-0 overflow-y-auto custom-scrollbar">
@@ -869,8 +869,8 @@ export default function GameInterface() {
                                     disabled={(!actionIntent || actionInvalid || (selectedCardIndices.length === 0 && !canAutoMove)) || isActing || !inActionPhase}
                                     className={`w-64 py-3 text-xs font-bold tracking-widest transition-all duration-300 rounded-xl border-2
                                             ${(actionIntent && !actionInvalid && (selectedCardIndices.length > 0 || canAutoMove) && inActionPhase)
-                                        ? 'bg-neon-cyan text-black border-neon-cyan shadow-[0_0_20px_#0ff] hover:bg-white hover:scale-105'
-                                        : 'bg-black/50 text-gray-600 border-gray-800'}
+                                            ? 'bg-neon-cyan text-black border-neon-cyan shadow-[0_0_20px_#0ff] hover:bg-white hover:scale-105'
+                                            : 'bg-black/50 text-gray-600 border-gray-800'}
                                         `}
                                 >
                                     {!inActionPhase ? 'WAITING FOR DRAW' :
@@ -951,12 +951,12 @@ export default function GameInterface() {
                         {/* Hand Cards - NO OVERLAP, JUST SPACING */}
                         <div className="relative w-full flex-1 min-h-0 flex flex-col items-end gap-2 overflow-y-auto pr-1 pb-2 custom-scrollbar">
                             <AnimatePresence>
-                        {gameState?.player?.hand?.length > 0 ? gameState.player.hand.map((card: any, index: number) => (
-                            <motion.div
-                                key={card.id || index}
-                                layout
-                                initial={{ x: 20, opacity: 0 }}
-                                animate={{ opacity: 1, x: 0 }}
+                                {gameState?.player?.hand?.length > 0 ? gameState.player.hand.map((card: any, index: number) => (
+                                    <motion.div
+                                        key={card.id || index}
+                                        layout
+                                        initial={{ x: 20, opacity: 0 }}
+                                        animate={{ opacity: 1, x: 0 }}
                                         exit={{ x: 20, opacity: 0 }}
                                         onClick={() => toggleCardSelection(index)}
                                         className={`

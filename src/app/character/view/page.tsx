@@ -121,7 +121,7 @@ export default async function CharacterViewPage() {
                             <h2 className="text-xl font-bold text-neon-cyan mb-6 flex items-center uppercase tracking-wider text-sm">
                                 <Box className="mr-2 w-4 h-4" /> Cargo Manifest
                             </h2>
-                            <InventoryInspect inventory={displayInventory} />
+                            <InventoryInspect inventory={character.inventory} />
                         </div>
                     </div>
                 </div>

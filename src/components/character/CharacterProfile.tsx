@@ -4,10 +4,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import { useToast } from "@/components/ui/Toast";
 import SafeImage from "@/components/ui/SafeImage";
 import { User, Zap, RefreshCw, Shield, Crosshair } from "lucide-react";
 import { motion } from "framer-motion";
-import SafeImage from "@/components/ui/SafeImage";
+
 
 interface CharacterProfileProps {
     character: any; // Type accurately if possible

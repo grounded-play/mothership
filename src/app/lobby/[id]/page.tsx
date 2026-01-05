@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import SafeImage from "@/components/ui/SafeImage";
 import { Users, Shield, Play, LogOut } from "lucide-react";
 import { getBackpackCapacity } from "@/lib/game/backpack";
-import SafeImage from "@/components/ui/SafeImage";
+
 
 export default function LobbyRoom() {
     const { id } = useParams();

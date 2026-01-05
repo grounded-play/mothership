@@ -107,7 +107,6 @@ export async function POST(req: Request) {
                 const stats = rollStats(rewardItem.type);
                 const traits = rollTraits(rewardItem.type);
                 const printTraits = `${traits}, ${printRarity} print`;
-                const printTraits = `${traits}, ${printRarity} print`;
 
                 invItem = await (tx as any).inventoryItem.create({
                     data: {
@@ -115,7 +114,6 @@ export async function POST(req: Request) {
                         itemId: rewardItem.id,
                         quantity: 1,
                         instanceStats: JSON.stringify(stats),
-                        visualTraits: printTraits,
                         visualTraits: printTraits,
                         imageStatus: "QUEUED",
                         usesRemaining: rewardItem.maxUses ?? null,

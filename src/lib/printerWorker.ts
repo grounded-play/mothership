@@ -7,6 +7,13 @@ const PROGRESS_STEP = 10;
 const STALE_MS = 10 * 60 * 1000;
 const GENERATION_TIMEOUT_MS = 2 * 60 * 1000;
 
+const COMFY_API = "http://127.0.0.1:8188/";
+const COMFY_STATUS_TTL_MS = 30000;
+const COMFY_TIMEOUT_MS = 5000;
+const STALE_RESET_INTERVAL_MS = 60000;
+const STALE_GENERATING_MS = 5 * 60 * 1000;
+const NO_PRINT_ITEM_NAMES: string[] = ["Scrap Metal", "Nutrient Paste"];
+
 type WorkerState = {
     started: boolean;
     running: boolean;
@@ -120,7 +127,7 @@ const normalizeQueue = async () => {
     });
 };
 
-const processNextItem = async () => {
+const processNextItem = async (state: WorkerState) => {
     await normalizeQueue();
 
     const next = await prisma.inventoryItem.findFirst({
