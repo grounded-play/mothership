@@ -516,8 +516,10 @@ export default function PrinterInterface({ credits, inventory, globalQueue, back
                                 </div>
                                 <div className="min-w-0">
                                     <div className="text-white font-semibold truncate">{lastMade.title}</div>
-                                    <div className="text-xs text-neon-cyan truncate">{lastMade.type || "ITEM"} - {lastMade.owner}</div>
-                                    <div className="text-[10px] text-gray-500">{lastMade.imageStatus || "READY"}</div>
+                                    <div className="text-xs text-neon-cyan truncate">{lastMade.owner}</div>
+                                    <div className="text-[10px] text-gray-500">
+                                        {lastMade.completedAt ? new Date(lastMade.completedAt).toLocaleString() : "READY"}
+                                    </div>
                                 </div>
                             </div>
                         ) : (

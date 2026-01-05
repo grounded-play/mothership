@@ -9,6 +9,8 @@ export const normalizePublicPath = (value?: string | null) => {
     const publicIndex = lower.lastIndexOf("/public/");
     if (publicIndex !== -1) {
         normalized = normalized.slice(publicIndex + "/public".length);
+    } else if (lower.startsWith("public/")) {
+        normalized = normalized.slice("public".length);
     }
 
     if (!normalized.startsWith("/")) {

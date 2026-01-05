@@ -91,30 +91,46 @@ export default async function PrinterPage() {
             imageStatus: "READY"
         },
         include: { item: true, character: { select: { name: true } } },
-        orderBy: { updatedAt: "desc" },
+        orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
         take: 10
     });
 
-    const recentPortraits = await (prisma as any).character.findMany({
-        where: {
-            portrait: { not: null },
-            NOT: { portrait: "" }
-        },
-        orderBy: { updatedAt: "desc" },
-        take: 10
-    });
+    const getAgeTs = (entry: any) => {
+        const updatedAt = entry?.updatedAt ? new Date(entry.updatedAt).getTime() : Number.NaN;
+        if (!Number.isNaN(updatedAt)) return updatedAt;
+        const createdAt = entry?.createdAt ? new Date(entry.createdAt).getTime() : Number.NaN;
+        if (!Number.isNaN(createdAt)) return createdAt;
+        return Number.NaN;
+    };
 
-    const lastReadyItem = recentReady.find((entry: any) => hasLocalImage(entry.customImage)) || null;
-    const lastReadyPortrait = recentPortraits.find((entry: any) => hasLocalImage(entry.portrait)) || null;
+    type ReadyEntry = { entry: any; ts: number; rand: number };
+    const sortedReady = recentReady
+        .map((entry: any): ReadyEntry => ({
+            entry,
+            ts: getAgeTs(entry),
+            rand: Math.random()
+        }))
+        .sort((a: ReadyEntry, b: ReadyEntry) => {
+            const aHasTs = !Number.isNaN(a.ts);
+            const bHasTs = !Number.isNaN(b.ts);
+            if (aHasTs && bHasTs) return b.ts - a.ts;
+            if (aHasTs) return -1;
+            if (bHasTs) return 1;
+            return b.rand - a.rand;
+        });
+
+    const preferredItem = sortedReady.find((item: ReadyEntry) => hasLocalImage(item.entry.customImage))?.entry || null;
+    const fallbackItem = sortedReady[0]?.entry || null;
+    const lastReadyItem = preferredItem || fallbackItem;
 
     const lastMade: any = lastReadyItem
         ? {
             id: lastReadyItem.id,
-            type: "ITEM",
             title: lastReadyItem.item?.name || "Item",
             owner: lastReadyItem.character?.name || "Unknown",
             preview: normalizePublicPath(lastReadyItem.customImage) || lastReadyItem.customImage,
-            imageStatus: lastReadyItem.imageStatus || "READY"
+            imageStatus: lastReadyItem.imageStatus || "READY",
+            completedAt: lastReadyItem.updatedAt || lastReadyItem.createdAt
         }
         : null;
 

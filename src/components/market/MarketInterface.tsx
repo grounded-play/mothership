@@ -63,8 +63,8 @@ function MarketTicker({ version }: { version?: number }) {
             <div className="max-h-[420px] overflow-y-auto custom-scrollbar pr-1 space-y-3">
                 {filteredHistory.map((tx: any) => (
                     <div key={tx.id} className="text-xs border-b border-white/5 pb-2">
-                        <div className="flex justify-between text-gray-400">
-                            <span>{new Date(tx.timestamp).toLocaleTimeString()}</span>
+                    <div className="flex justify-between text-gray-400">
+                        <span>{new Date(tx.timestamp).toLocaleString()}</span>
                             <span className="text-neon-cyan">{tx.price} <Coins className="inline w-2 h-2" /></span>
                         </div>
                         <div className="text-white font-bold truncate">{tx.item.name}</div>

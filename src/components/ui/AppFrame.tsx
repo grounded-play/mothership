@@ -8,7 +8,9 @@ const BASE_HEIGHT = 1080;
 export default function AppFrame({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         const updateScale = () => {
-            const scale = Math.min(window.innerWidth / BASE_WIDTH, window.innerHeight / BASE_HEIGHT);
+            const width = document.documentElement.clientWidth || window.innerWidth;
+            const height = document.documentElement.clientHeight || window.innerHeight;
+            const scale = Math.min(width / BASE_WIDTH, height / BASE_HEIGHT);
             document.documentElement.style.setProperty("--app-scale", scale.toString());
         };
         updateScale();
