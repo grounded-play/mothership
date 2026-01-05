@@ -4,15 +4,15 @@ import { useEffect, useState, useRef, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { motion, AnimatePresence } from "framer-motion";
-import { Shield, Zap, Crosshair, User, Heart, AlertTriangle, Cpu, ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { Shield, Zap, Crosshair, User, Heart, AlertTriangle, Cpu, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ArrowLeft, ArrowRight } from "lucide-react";
 import SectorGrid from "@/components/game/SectorGrid";
 import RoomScanner from "@/components/game/RoomScanner";
 import MissionLog from "@/components/game/MissionLog";
+import ResolutionOverlay from "@/components/game/ResolutionOverlay";
 import { useToast } from "@/components/ui/Toast";
 import SafeImage from "@/components/ui/SafeImage";
 
 type Facing = "NORTH" | "EAST" | "SOUTH" | "WEST";
-
 const parseJSON = (raw: any, fallback: any) => {
     try { return JSON.parse(raw); } catch { return fallback; }
 };
@@ -43,15 +43,29 @@ export default function GameInterface() {
     const [moveDirection, setMoveDirection] = useState<string | null>(null);
     const [exitIntent, setExitIntent] = useState<"ABORT" | "DEPART" | null>(null);
     const [mapZ, setMapZ] = useState<number | null>(null);
+    const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]); // V11 Combat Items
+    const [resolutionData, setResolutionData] = useState<any>(null); // V22 Visuals
     const hasStartedRoundRef = useRef(false);
     const prevPlayerZRef = useRef<number | null>(null);
+    const lastResolutionTsRef = useRef<number>(0);
     const { addToast } = useToast();
     const [confirmEmergency, setConfirmEmergency] = useState(false);
     const lastPileSizeRef = useRef(0);
     const { game, player } = gameState ?? { game: null, player: null };
-    const inventory = useMemo(() => {
-        try { return player?.inventory ? JSON.parse(player.inventory) : []; } catch { return []; }
+    // V18: Separate Loadout (Equipped) vs Backpack (Loot)
+    // Derived from single persistent inventory list
+    const allItems = useMemo(() => {
+        return player?.inventory ? JSON.parse(player.inventory) : [];
     }, [player?.inventory]);
+
+    const loadoutItems = useMemo(() => {
+        return allItems.filter((i: any) => i.isEquipped);
+    }, [allItems]);
+
+    const backpackItems = useMemo(() => {
+        return allItems.filter((i: any) => !i.isEquipped);
+    }, [allItems]);
+
     const roomInfo = useMemo(() => {
         if (!player?.MapNode) return null;
         let secret: any[] = [];
@@ -229,6 +243,29 @@ export default function GameInterface() {
         prevPlayerZRef.current = playerZ;
     }, [player?.MapNode?.z, mapZ]);
 
+    // V22: Listen for Resolution Data in Log stream
+    useEffect(() => {
+        const logs = gameState?.game?.gameLog ? parseJSON(gameState.game.gameLog, []) : [];
+        if (logs.length === 0) return;
+
+        // Check ONLY the very last log entry for a new resolution event
+        const latest = logs[logs.length - 1];
+
+        if (latest && latest.type === "RESOLUTION_DATA") {
+            // Only trigger if it's fresh (within 5s) and we haven't seen it yet
+            // Note: in a polled environment, we might see the same log multiple ties.
+            // We track by Timestamp.
+            const isFresh = Date.now() - (latest.ts || 0) < 8000; // 8s window
+            if (isFresh && lastResolutionTsRef.current !== latest.ts) {
+                const data = parseJSON(latest.message, null);
+                if (data) {
+                    setResolutionData(data);
+                    lastResolutionTsRef.current = latest.ts;
+                }
+            }
+        }
+    }, [gameState?.game?.gameLog]);
+
 
     // AI Move Detector - REMOVED (Handled by Server Response)
     useEffect(() => {
@@ -306,25 +343,16 @@ export default function GameInterface() {
     const actionTimerLabel = !inActionPhase ? "T--" : (hasActionTimer ? `T-${actionTimeLeft}s` : "READY");
     const pileOwnerIsMe = player && game?.pileOwnerId === player.characterId; // Use CharacterID for consistent ownership
 
+    const toggleItemSelection = (itemId: string) => {
+        setSelectedItemIds(prev =>
+            prev.includes(itemId) ? prev.filter(id => id !== itemId) : [...prev, itemId]
+        );
+    };
+
     const handleUseItem = async (itemId: string) => {
-        setIsActing(true);
-        try {
-            const res = await fetch('/api/game/action', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ gameId: params.id, action: "USE_ITEM", itemId })
-            });
-            const data = await res.json();
-            if (data.success) {
-                addToast(data.message || "ITEM USED", "success");
-                // Refresh? SWR handles it? Or need manual refresh?
-                // Usually router.refresh() or state update.
-                // Assuming useSWR or similar or interval key.
-            } else {
-                addToast(data.error || "ITEM FAILURE", "error");
-            }
-        } catch (e) { console.error(e); }
-        finally { setIsActing(false); }
+        // Instant use for consumables? Or just fallback.
+        // For V11, we prefer Selection.
+        toggleItemSelection(itemId);
     };
 
     const handleEmergencyEscape = async () => {
@@ -403,7 +431,8 @@ export default function GameInterface() {
                     action: "LOCK_ACTION",
                     cards: payloadCards,
                     intent: intentOverride || actionIntent || "SCAN",
-                    direction: moveDirection
+                    direction: moveDirection,
+                    items: selectedItemIds // V11 Loadout
                 })
             });
             const data = await res.json();
@@ -412,6 +441,7 @@ export default function GameInterface() {
             } else {
                 addToast(data.message || "ACTION LOCKED", "success");
                 setSelectedCardIndices([]);
+                setSelectedItemIds([]); // Clear loadout
                 setActionIntent(null);
                 setMoveDirection(null);
             }
@@ -454,7 +484,22 @@ export default function GameInterface() {
     const missionSeconds = missionTimeLeft % 60;
 
     return (
-        <div className="h-full bg-black text-white relative overflow-hidden font-mono flex flex-col">
+        <div className="h-[100dvh] w-full bg-black text-white relative overflow-hidden font-mono flex flex-col landscape:scale-90 landscape:origin-center sm:landscape:scale-100 transition-transform duration-300">
+            {/* Portrait Mode Warning Overlay */}
+            <div className="fixed inset-0 z-[200] bg-black flex flex-col items-center justify-center p-8 text-center portrait:flex hidden">
+                <div className="w-16 h-16 border-2 border-neon-cyan/50 rounded-lg flex items-center justify-center mb-4 animate-pulse">
+                    <div className="w-8 h-12 border border-white/30 rounded flex items-center justify-center">
+                        <div className="w-6 h-1 bg-white/20 rounded-full animate-[spin_3s_linear_infinite]" />
+                    </div>
+                </div>
+                <h2 className="text-xl font-bold text-neon-cyan tracking-widest mb-2">ORIENTATION ERROR</h2>
+                <p className="text-sm text-gray-400 max-w-xs leading-relaxed">
+                    Mothership interface requires landscape protocol.
+                    <br /><br />
+                    <span className="text-white font-bold">PLEASE ROTATE DEVICE</span>
+                </p>
+            </div>
+
             {/* Background Ambiance */}
             <div className="absolute inset-0 bg-[url('/bg-space.jpg')] bg-cover opacity-50 z-0" />
             <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-transparent to-black/90 z-0" />
@@ -642,7 +687,7 @@ export default function GameInterface() {
                                 <div className="relative w-12 h-12 rounded-full border border-white/10 bg-black/80 flex items-center justify-center shadow-lg backdrop-blur">
                                     <div
                                         className="absolute inset-0 flex items-center justify-center transition-transform duration-300"
-                                        style={{ transform: `rotate(${mapRotationDeg}deg)` }}
+                                        style={{ transform: `rotate(${mapRotationDeg + 45}deg)` }}
                                     >
                                         <ChevronUp className="w-8 h-8 text-neon-cyan opacity-80" />
                                         <span className="absolute -top-3 text-[9px] text-neon-cyan font-bold tracking-widest">N</span>
@@ -653,7 +698,7 @@ export default function GameInterface() {
                             <div className="w-full flex-1 min-h-0 bg-black/50 border border-white/5 relative overflow-hidden rounded">
                                 <div className="w-full h-full">
                                     {/* Removed outer rotation, passing rotation to SectorGrid */}
-                                    <SectorGrid nodes={game.MapNode || []} currentPlayerNodeId={player.nodeId} activeZ={activeDeck} playerMarkers={playerMarkers} rotation={mapRotationDeg} />
+                                    <SectorGrid nodes={game.MapNode || []} currentPlayerNodeId={player.nodeId} activeZ={activeDeck} playerMarkers={playerMarkers} rotation={mapRotationDeg} facing={player.facing} />
                                 </div>
                                 <div className="absolute bottom-1 right-1 text-[8px] font-mono text-gray-600">DECK {activeDeck}</div>
                             </div>
@@ -680,10 +725,11 @@ export default function GameInterface() {
                                             LOCATE
                                         </button>
                                     </div>
-                                </div>
-                                <div className="flex justify-between items-end">
-                                    <span className={`text-sm font-bold uppercase ${player.MapNode.type === 'START' ? 'text-green-400' : 'text-white'}`}>{player.MapNode.type} NODE</span>
-                                    <span className="text-[10px] font-mono text-gray-400 bg-gray-900 px-1 rounded">SEC {player.MapNode.x}-{player.MapNode.y}-{player.MapNode.z}</span>
+
+                                    <div className="flex justify-between items-end">
+                                        <span className={`text-sm font-bold uppercase ${player.MapNode.type === 'START' ? 'text-green-400' : 'text-white'}`}>{player.MapNode.type} NODE</span>
+                                        <span className="text-[10px] font-mono text-gray-400 bg-gray-900 px-1 rounded">SEC {player.MapNode.x}-{player.MapNode.y}-{player.MapNode.z}</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -697,53 +743,39 @@ export default function GameInterface() {
                     {/* Main Interaction Area */}
                     <div className="glass-panel p-4 border border-white/20 animate-fade-in relative overflow-hidden w-full flex-1 min-h-0 flex flex-col items-center bg-black/40 backdrop-blur-md shadow-2xl">
 
-                        {/* 1. TOP: PLAYED CARDS & SCANNER */}
-                        <div className="flex-none flex flex-col items-center justify-center gap-2 mb-4 w-full relative min-h-[160px]">
-
-                            {/* Played Cards Pile (The "Stack" - Centered Top) */}
-                            <div className="relative w-full max-w-[600px] h-32 flex justify-center items-center z-10">
-                                {gameState?.game?.currentPile && gameState.game.currentPile.length > 0 && gameState.game.currentPile.slice(-3).map((card: any, i: number) => (
-                                    <div key={i} className="absolute transform transition-all duration-500 shadow-2xl" style={{
-                                        zIndex: i,
-                                        transform: `translateY(${i * 8}px) scale(${1 - (gameState.game.currentPile.slice(-3).length - 1 - i) * 0.05})`,
-                                        opacity: 1 - (gameState.game.currentPile.slice(-3).length - 1 - i) * 0.2
-                                    }}>
-                                        <NavCard card={card} size="sm" />
-                                    </div>
-                                ))}
-                                {(!gameState?.game?.currentPile || gameState.game.currentPile.length === 0) && (
-                                    <div className="text-[10px] text-gray-700 tracking-[0.5em] uppercase font-bold border border-white/5 p-2 rounded">SUB-SPACE CHANNEL EMPTY</div>
-                                )}
-                            </div>
-
-                            {/* Room Scanner (Behind/Below Pile) */}
-                            <div className="absolute top-4 right-4 w-[160px] h-[100px] border border-white/10 rounded bg-black/50 overflow-hidden z-0 opacity-50">
+                        {/* 1. TOP: ROOM SCANNER (Large, 2/3rds) */}
+                        <div className="flex-[2] w-full flex items-center justify-center relative min-h-0 mb-4 border border-white/5 rounded-2xl bg-black/20 overflow-hidden shadow-inner">
+                            {/* Inner Scanner Container - Scale to fit */}
+                            <div className="w-full h-full p-4">
                                 <RoomScanner type={player.MapNode.type} isExplored={player.MapNode.isExplored} integrity={game.integrity} />
                             </div>
                         </div>
 
-                        {/* 2. MIDDLE: HAND (Cards) */}
-                        <div className="flex-1 min-h-0 w-full flex flex-col items-center justify-center py-2 relative">
-                            <div className="text-[9px] text-gray-500 uppercase tracking-widest mb-2">NEURAL LINK</div>
-                            <div className="flex items-center justify-center gap-4 h-40 w-full overflow-x-auto px-4 custom-scrollbar">
+                        {/* 2. MIDDLE: HAND (Spaced Out, Less Opaque) */}
+                        <div className="flex-1 w-full flex flex-col items-center justify-center relative z-20">
+                            <div className="flex items-center justify-center gap-2 h-40 w-full px-4 perspective-[1000px]">
                                 <AnimatePresence>
                                     {gameState?.player?.hand?.length > 0 ? gameState.player.hand.map((card: any, index: number) => (
                                         <motion.div
                                             key={card.id || index}
                                             layout
                                             initial={{ y: 50, opacity: 0 }}
-                                            animate={{ opacity: 1, y: 0 }}
+                                            animate={{
+                                                y: selectedCardIndices.includes(index) ? -20 : 0,
+                                                opacity: 1,
+                                                scale: selectedCardIndices.includes(index) ? 1.05 : 1
+                                            }}
                                             exit={{ y: 50, opacity: 0 }}
                                             onClick={() => toggleCardSelection(index)}
                                             className={`
-                                                relative cursor-pointer transition-all duration-200 shrink-0
-                                                ${selectedCardIndices.includes(index) ? 'translate-y-[-15px] scale-110 z-20 brightness-110' : 'hover:translate-y-[-5px] hover:scale-105 z-10'}
+                                                relative cursor-pointer transition-all duration-200 
+                                                ${selectedCardIndices.includes(index) ? 'z-40 brightness-125' : 'hover:-translate-y-4 hover:brightness-110 z-10'}
                                             `}
                                         >
                                             <NavCard card={card} selected={selectedCardIndices.includes(index)} size="md" />
                                         </motion.div>
                                     )) : (
-                                        <div className="text-xs text-center text-gray-600 border border-white/5 bg-white/5 p-4 rounded uppercase tracking-widest w-full max-w-sm">
+                                        <div className="text-xs text-center text-gray-500 border border-white/5 bg-white/5 p-4 rounded uppercase tracking-widest w-full max-w-sm">
                                             No Signal Detected
                                         </div>
                                     )}
@@ -751,101 +783,234 @@ export default function GameInterface() {
                             </div>
                         </div>
 
-                        {/* 3. BOTTOM: CONTROLS */}
-                        <div className="flex-none flex flex-row gap-6 w-full max-w-4xl mx-auto items-center justify-center pt-2 pb-6">
+                        {/* 3. BOTTOM: CONTROL CONSOLE (Retro Dashboard w/ Central Compass) */}
+                        <div className="flex-none w-full max-w-5xl mx-auto pt-2 pb-2">
 
-                            {/* Left: Action Selectors */}
-                            <div className="flex gap-2">
-                                <Button onClick={() => { setActionIntent("SCAN"); setMoveDirection(null); }} disabled={!canScan} className={`w-20 h-12 text-[10px] font-bold tracking-widest border flex flex-col gap-1 items-center justify-center ${actionIntent === "SCAN" ? "bg-green-500 text-black border-green-500" : "bg-black/50 text-green-500 border-green-900 hover:bg-green-900/30"}`}>
-                                    <Zap className="h-4 w-4" /> SCAN
-                                </Button>
-                                <Button onClick={() => { setActionIntent("ATTACK"); setMoveDirection(null); }} disabled={!canAttack} className={`w-20 h-12 text-[10px] font-bold tracking-widest border flex flex-col gap-1 items-center justify-center ${actionIntent === "ATTACK" ? "bg-red-500 text-black border-red-500" : "bg-black/50 text-red-500 border-red-900 hover:bg-red-900/30"}`}>
-                                    <Crosshair className="h-4 w-4" /> ENGAGE
-                                </Button>
-                                <Button onClick={() => { setActionIntent("SECURE"); setMoveDirection(null); }} disabled={!canSecure} className={`w-20 h-12 text-[10px] font-bold tracking-widest border flex flex-col gap-1 items-center justify-center ${actionIntent === "SECURE" ? "bg-yellow-400 text-black border-yellow-400" : "bg-black/50 text-yellow-500 border-yellow-900 hover:bg-yellow-900/30"}`}>
-                                    <Shield className="h-4 w-4" /> SECURE
-                                </Button>
-                            </div>
+                            {/* The Console Chassis */}
+                            <div className="bg-slate-900/90 border-t-4 border-slate-700 rounded-t-3xl p-4 shadow-2xl relative overflow-hidden">
+                                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-neon-cyan to-transparent opacity-50" />
 
-                            {/* Center: D-PAD & Execute */}
-                            <div className="flex flex-col items-center gap-4">
-                                <div className={`grid grid-cols-3 gap-1 p-2 bg-black/60 rounded-xl border border-white/10 relative ${actionIntent === 'MOVE' ? 'shadow-[0_0_15px_rgba(0,255,255,0.1)]' : ''}`}>
-                                    <div />
-                                    <Button onClick={() => { setActionIntent("MOVE"); setMoveDirection("FORWARD"); }} disabled={!canMoveForward} className={`h-10 w-10 ${moveDirection === "FORWARD" && actionIntent === "MOVE" ? "bg-neon-cyan text-black" : "bg-black border border-white/20 text-neon-cyan"}`}><ChevronUp className="w-4 h-4" /></Button>
-                                    <div />
-                                    <Button onClick={() => { setActionIntent("MOVE"); setMoveDirection("LEFT"); }} disabled={!canMoveLeft} className={`h-10 w-10 ${moveDirection === "LEFT" && actionIntent === "MOVE" ? "bg-neon-cyan text-black" : "bg-black border border-white/20 text-neon-cyan"}`}><ChevronLeft className="w-4 h-4" /></Button>
-                                    <Button onClick={() => { setActionIntent("MOVE"); setMoveDirection("UP"); }} disabled={!canMoveUp} className={`h-10 w-10 text-[8px] font-bold ${moveDirection === "UP" && actionIntent === "MOVE" ? "bg-neon-cyan text-black" : "bg-black border border-white/20 text-neon-cyan"}`}>UP</Button>
-                                    <Button onClick={() => { setActionIntent("MOVE"); setMoveDirection("RIGHT"); }} disabled={!canMoveRight} className={`h-10 w-10 ${moveDirection === "RIGHT" && actionIntent === "MOVE" ? "bg-neon-cyan text-black" : "bg-black border border-white/20 text-neon-cyan"}`}><ChevronRight className="w-4 h-4" /></Button>
-                                    <div />
-                                    <Button onClick={() => { setActionIntent("MOVE"); setMoveDirection("BACK"); }} disabled={!canMoveBack} className={`h-10 w-10 ${moveDirection === "BACK" && actionIntent === "MOVE" ? "bg-neon-cyan text-black" : "bg-black border border-white/20 text-neon-cyan"}`}><ChevronDown className="w-4 h-4" /></Button>
-                                    <Button onClick={() => { setActionIntent("MOVE"); setMoveDirection("DOWN"); }} disabled={!canMoveDown} className={`h-10 w-10 text-[8px] font-bold ${moveDirection === "DOWN" && actionIntent === "MOVE" ? "bg-neon-cyan text-black" : "bg-black border border-white/20 text-neon-cyan"}`}>DN</Button>
+                                {/* Console Grid */}
+                                <div className="grid grid-cols-[1fr_auto_1fr] gap-8 items-end">
+
+                                    {/* Left Panel: Primary Actions */}
+                                    <div className="flex flex-col gap-2 p-3 bg-black/40 rounded-xl border border-white/5 h-full justify-end">
+                                        <div className="text-[9px] text-gray-500 uppercase tracking-widest text-center border-b border-white/5 pb-1 mb-1">COMMAND PROTOCOLS</div>
+                                        <div className="grid grid-cols-3 gap-2">
+                                            <Button onClick={() => { setActionIntent("SCAN"); setMoveDirection(null); }} disabled={!canScan} className={`col-span-1 h-16 text-[9px] font-bold tracking-widest border flex flex-col gap-1 items-center justify-center transition-all ${actionIntent === "SCAN" ? "bg-green-500/20 text-green-400 border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.2)]" : "bg-black/50 text-gray-400 border-white/10 hover:border-green-500/50 hover:text-green-500"}`}>
+                                                <Zap className="h-5 w-5" /> SCAN
+                                            </Button>
+                                            <Button onClick={() => { setActionIntent("ATTACK"); setMoveDirection(null); }} disabled={!canAttack} className={`col-span-1 h-16 text-[9px] font-bold tracking-widest border flex flex-col gap-1 items-center justify-center transition-all ${actionIntent === "ATTACK" ? "bg-red-500/20 text-red-400 border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.2)]" : "bg-black/50 text-gray-400 border-white/10 hover:border-red-500/50 hover:text-red-500"}`}>
+                                                <Crosshair className="h-5 w-5" /> ENGAGE
+                                            </Button>
+                                            <Button onClick={() => { setActionIntent("SECURE"); setMoveDirection(null); }} disabled={!canSecure} className={`col-span-1 h-16 text-[9px] font-bold tracking-widest border flex flex-col gap-1 items-center justify-center transition-all ${actionIntent === "SECURE" ? "bg-yellow-400/20 text-yellow-400 border-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.2)]" : "bg-black/50 text-gray-400 border-white/10 hover:border-yellow-400/50 hover:text-yellow-400"}`}>
+                                                <Shield className="h-5 w-5" /> SECURE
+                                            </Button>
+                                        </div>
+                                    </div>
+
+                                    {/* Center Panel: Navigation & Compass */}
+                                    <div className="flex flex-col items-center gap-3 relative">
+
+                                        {/* THE COMPASS (Central Bubble) */}
+                                        <div className="w-24 h-24 rounded-full border-4 border-slate-600 bg-black/80 shadow-[inset_0_0_20px_rgba(0,0,0,1)] relative flex items-center justify-center mb-[-1.5rem] z-20 overflow-hidden">
+                                            {/* Compass Dial */}
+                                            <div
+                                                className="absolute inset-0 transition-transform duration-700 ease-out"
+                                                style={{ transform: `rotate(${mapRotationDeg}deg)` }}
+                                            >
+                                                <div className="absolute top-1 left-1/2 -translate-x-1/2 w-1 h-2 bg-neon-cyan/50" />
+                                                <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-2 bg-white/10" />
+                                                <div className="absolute left-1 top-1/2 -translate-y-1/2 w-2 h-1 bg-white/10" />
+                                                <div className="absolute right-1 top-1/2 -translate-y-1/2 w-2 h-1 bg-white/10" />
+                                                <div className="absolute top-4 left-1/2 -translate-x-1/2 text-[10px] font-bold text-neon-cyan">N</div>
+                                            </div>
+
+                                            {/* Static Center Marker */}
+                                            <div className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_10px_#f00] z-30" />
+                                            {/* Glass Glare */}
+                                            <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-white/10 to-transparent rounded-t-full pointer-events-none" />
+                                        </div>
+
+                                        {/* Navigation & Action Lock (Pushed down slightly) */}
+                                        <div className="flex items-end gap-2 p-3 pb-2 pt-8 bg-slate-800 rounded-3xl border border-slate-600 shadow-xl z-10 w-[240px] justify-center">
+                                            <div className="flex flex-col items-center gap-1 p-1 bg-black rounded-xl border border-gray-600">
+
+                                                {/* Deck Controls (Up/Down) */}
+                                                <div className="flex gap-2 mb-1">
+                                                    <Button onClick={() => { setActionIntent("MOVE"); setMoveDirection("UP"); }} disabled={!canMoveUp} className={`h-8 px-2 rounded-sm text-[8px] font-bold flex items-center gap-1 ${moveDirection === "UP" && actionIntent === "MOVE" ? "bg-neon-cyan text-black" : "bg-gray-800 text-gray-500 hover:bg-gray-700"}`}>
+                                                        <ChevronUp className="w-3 h-3" /> DECK UP
+                                                    </Button>
+                                                    <Button onClick={() => { setActionIntent("MOVE"); setMoveDirection("DOWN"); }} disabled={!canMoveDown} className={`h-8 px-2 rounded-sm text-[8px] font-bold flex items-center gap-1 ${moveDirection === "DOWN" && actionIntent === "MOVE" ? "bg-neon-cyan text-black" : "bg-gray-800 text-gray-500 hover:bg-gray-700"}`}>
+                                                        <ChevronDown className="w-3 h-3" /> DECK DN
+                                                    </Button>
+                                                </div>
+
+                                                {/* Directional Arrows (Inverted T) */}
+                                                <div className="grid grid-cols-3 gap-1">
+                                                    <div /> {/* Spacer */}
+                                                    <Button onClick={() => { setActionIntent("MOVE"); setMoveDirection("FORWARD"); }} disabled={!canMoveForward} className={`h-10 w-10 rounded-sm ${moveDirection === "FORWARD" && actionIntent === "MOVE" ? "bg-neon-cyan text-black" : "bg-gray-800 text-gray-500 hover:bg-gray-700"}`}><ArrowUp className="w-6 h-6" /></Button>
+                                                    <div /> {/* Spacer */}
+
+                                                    <Button onClick={() => { setActionIntent("MOVE"); setMoveDirection("LEFT"); }} disabled={!canMoveLeft} className={`h-10 w-10 rounded-sm ${moveDirection === "LEFT" && actionIntent === "MOVE" ? "bg-neon-cyan text-black" : "bg-gray-800 text-gray-500 hover:bg-gray-700"}`}><ArrowLeft className="w-6 h-6" /></Button>
+                                                    <Button onClick={() => { setActionIntent("MOVE"); setMoveDirection("BACK"); }} disabled={!canMoveBack} className={`h-10 w-10 rounded-sm ${moveDirection === "BACK" && actionIntent === "MOVE" ? "bg-neon-cyan text-black" : "bg-gray-800 text-gray-500 hover:bg-gray-700"}`}><ArrowDown className="w-6 h-6" /></Button>
+                                                    <Button onClick={() => { setActionIntent("MOVE"); setMoveDirection("RIGHT"); }} disabled={!canMoveRight} className={`h-10 w-10 rounded-sm ${moveDirection === "RIGHT" && actionIntent === "MOVE" ? "bg-neon-cyan text-black" : "bg-gray-800 text-gray-500 hover:bg-gray-700"}`}><ArrowRight className="w-6 h-6" /></Button>
+                                                </div>
+                                            </div>
+
+                                            {/* Execute Button */}
+                                            <Button
+                                                onClick={handleExecute}
+                                                disabled={(!actionIntent || actionInvalid || (selectedCardIndices.length === 0 && !canAutoMove)) || isActing || !inActionPhase || backpackItems.length > 5}
+                                                className={`
+                                                    h-20 w-24 rounded-lg font-black text-xs tracking-widest border-b-4 transition-all active:border-b-0 active:translate-y-1
+                                                    flex flex-col items-center justify-center gap-1
+                                                    ${(actionIntent && !actionInvalid && (selectedCardIndices.length > 0 || canAutoMove) && inActionPhase && backpackItems.length <= 5)
+                                                        ? 'bg-neon-cyan text-black border-cyan-700 shadow-[0_0_20px_#0ff] animate-pulse-slow hover:brightness-110'
+                                                        : backpackItems.length > 5
+                                                            ? 'bg-red-900/50 text-red-500 border-red-900 cursor-not-allowed animate-pulse'
+                                                            : 'bg-gray-800 text-gray-600 border-black cursor-not-allowed'}
+                                                `}
+                                            >
+                                                {backpackItems.length > 5 ? (
+                                                    <span className="text-[9px] leading-tight">BACKPACK<br />FULL</span>
+                                                ) : (
+                                                    <span>EXEC</span>
+                                                )}
+                                            </Button>
+                                        </div>
+                                    </div>
+
+                                    {/* Right Panel: Systems & Emergency */}
+                                    <div className="flex flex-col gap-2 p-3 bg-black/40 rounded-xl border border-white/5 h-full justify-end">
+                                        <div className="text-[9px] text-gray-500 uppercase tracking-widest text-center border-b border-white/5 pb-1 mb-1">AUX SYSTEMS</div>
+
+                                        <Button
+                                            onClick={() => setShowInventory(!showInventory)}
+                                            className={`w-full h-10 text-[9px] font-bold tracking-widest border rounded flex items-center justify-between px-3 ${showInventory ? "bg-white text-black border-white" : "bg-black/50 text-gray-300 border-white/10 hover:bg-white/10"}`}
+                                        >
+                                            <span>SUPPLIES</span>
+                                            <span>{allItems.length}</span>
+                                        </Button>
+
+                                        <div className="mt-2">
+                                            <Button
+                                                onClick={() => {
+                                                    if (confirmEmergency) {
+                                                        handleEmergencyEscape();
+                                                        setConfirmEmergency(false);
+                                                    } else {
+                                                        setConfirmEmergency(true);
+                                                        setTimeout(() => setConfirmEmergency(false), 3000);
+                                                    }
+                                                }}
+                                                disabled={!inActionPhase || isActing || !player?.MapNode?.type.includes("START")}
+                                                variant="ghost"
+                                                className={`w-full h-10 text-[9px] border rounded transition-all striped-bg ${confirmEmergency ? "bg-red-600 text-white border-red-500 animate-pulse font-bold" : "bg-black/50 text-red-500/50 border-red-900/30 hover:bg-red-900/40 hover:text-red-400"}`}
+                                            >
+                                                {confirmEmergency ? "CONFIRM EJECT" : "EMERGENCY"}
+                                            </Button>
+                                        </div>
+                                    </div>
+
                                 </div>
-                                <Button
-                                    onClick={handleExecute}
-                                    disabled={(!actionIntent || actionInvalid || (selectedCardIndices.length === 0 && !canAutoMove)) || isActing || !inActionPhase}
-                                    className={`w-40 py-2 text-xs font-bold tracking-widest rounded transition-all
-                                             ${(actionIntent && !actionInvalid && (selectedCardIndices.length > 0 || canAutoMove) && inActionPhase)
-                                            ? 'bg-neon-cyan text-black shadow-[0_0_15px_#0ff] hover:scale-105'
-                                            : 'bg-black/50 text-gray-600 border border-gray-800'}
-                                         `}
-                                >
-                                    LOCK
-                                </Button>
-                            </div>
-
-                            {/* Right: Supplies/Emerg */}
-                            <div className="flex flex-col gap-2">
-                                <Button
-                                    onClick={() => setShowInventory(!showInventory)}
-                                    className={`w-28 h-8 text-[9px] font-bold tracking-widest border ${showInventory ? "bg-white text-black border-white" : "bg-black/40 text-gray-300 border-white/10 hover:bg-white/10"}`}
-                                >
-                                    SUPPLIES {inventory.length > 0 && `(${inventory.length})`}
-                                </Button>
-                                <Button
-                                    onClick={() => {
-                                        if (confirmEmergency) {
-                                            handleEmergencyEscape();
-                                            setConfirmEmergency(false);
-                                        } else {
-                                            setConfirmEmergency(true);
-                                            setTimeout(() => setConfirmEmergency(false), 3000);
-                                        }
-                                    }}
-                                    disabled={!inActionPhase || isActing}
-                                    variant="ghost"
-                                    className={`w-28 h-8 text-[9px] border transition-colors ${confirmEmergency ? "bg-red-500 text-black border-red-500 font-bold animate-pulse" : "text-red-400 border-red-900/30 hover:bg-red-900/20"}`}
-                                >
-                                    {confirmEmergency ? "CONFIRM?" : "EMERGENCY"}
-                                </Button>
                             </div>
                         </div>
 
-
-                        {/* Inventory Overlay */}
-                        {showInventory && (
-                            <div className="absolute top-20 left-0 right-0 mx-auto w-80 bg-black/95 border border-yellow-500/50 p-4 rounded-xl backdrop-blur-xl z-50 shadow-2xl animate-in zoom-in-95">
-                                <h3 className="text-yellow-500 text-xs font-bold uppercase tracking-widest mb-4 flex justify-between">
-                                    <span>Supply Manifest</span>
-                                    <span className="cursor-pointer hover:text-white" onClick={() => setShowInventory(false)}>X</span>
-                                </h3>
-                                <div className="space-y-2 max-h-80 overflow-y-auto custom-scrollbar">
-                                    {inventory.length === 0 ? (
-                                        <div className="text-gray-500 text-[10px] text-center py-4">NO SUPPLIES DETECTED</div>
-                                    ) : (
-                                        inventory.map((item: any, idx: number) => (
-                                            <div key={idx} className="flex items-center justify-between bg-white/5 p-2 rounded border border-white/10 hover:bg-white/10 transition-colors">
-                                                <div className="flex flex-col">
-                                                    <span className="text-xs font-bold text-white">{item.name} <span className="text-[10px] text-gray-400">x{item.qty}</span></span>
-                                                    <span className="text-[9px] text-gray-500">{item.description}</span>
-                                                </div>
-                                                <Button className="h-6 text-[9px] bg-yellow-500/20 text-yellow-500 hover:bg-yellow-500 hover:text-black border border-yellow-500/30" onClick={() => handleUseItem(item.id)}>USE</Button>
-                                            </div>
-                                        ))
-                                    )}
+                        {/* Played Cards (Absolute Center - Small Visualization) */}
+                        <div className="absolute bottom-[200px] left-1/2 -translate-x-1/2 z-0 pointer-events-none opacity-50">
+                            {gameState?.game?.currentPile && gameState.game.currentPile.length > 0 && (
+                                <div className="flex items-center justify-center gap-1">
+                                    {gameState.game.currentPile.slice(-3).map((card: any, i: number) => (
+                                        <div key={i} className="transform scale-50 opacity-50">
+                                            <NavCard card={card} size="sm" />
+                                        </div>
+                                    ))}
                                 </div>
-                            </div>
+                            )}
+                        </div>
+
+                        {/* Inventory Overlay (Kept logic, just ensured z-index) */}
+                        {showInventory && (
+                            <>
+                                {/* Backdrop for Click-Outside Closure */}
+                                <div className="fixed inset-0 bg-black/50 z-[90]" onClick={() => setShowInventory(false)} />
+                                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 bg-black/95 border border-yellow-500/50 p-4 rounded-xl backdrop-blur-xl z-[100] shadow-2xl animate-in zoom-in-95">
+                                    <h3 className="text-yellow-500 text-xs font-bold uppercase tracking-widest mb-4 flex justify-between">
+                                        <span>Supply Manifest</span>
+                                        <span className="cursor-pointer hover:text-white" onClick={() => setShowInventory(false)}>X</span>
+                                    </h3>
+
+                                    <div className="space-y-4 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                                        {/* COMBAT LOADOUT Section */}
+                                        <div className="space-y-2">
+                                            <div className="text-[10px] text-neon-cyan uppercase tracking-wider font-bold border-b border-neon-cyan/20 pb-1">Combat Loadout</div>
+                                            {loadoutItems.length === 0 ? (
+                                                <div className="text-gray-500 text-[10px] italic">No Equipment Assigned</div>
+                                            ) : (
+                                                loadoutItems.map((item: any, idx: number) => {
+                                                    const hasUses = typeof item.usesMax === 'number';
+                                                    const depleted = hasUses && (item.usesRemaining ?? item.usesMax) <= 0;
+                                                    return (
+                                                        <div key={`loadout-${idx}`} className={`flex items-center justify-between p-2 rounded border transition-colors ${selectedItemIds.includes(item.id) ? "bg-neon-cyan/20 border-neon-cyan" : "bg-white/5 border-white/10 hover:bg-white/10"}`}>
+                                                            <div className="flex flex-col">
+                                                                <span className={`text-xs font-bold ${selectedItemIds.includes(item.id) ? "text-neon-cyan" : "text-white"}`}>{item.name}</span>
+                                                                <span className="text-[9px] text-gray-500">
+                                                                    {item.description}
+                                                                    {hasUses && <span className={`ml-2 font-mono ${depleted ? "text-red-500" : "text-neon-cyan"}`}>[{item.usesRemaining ?? item.usesMax}/{item.usesMax}]</span>}
+                                                                </span>
+                                                            </div>
+                                                            <Button
+                                                                className={`h-6 text-[9px] border ${selectedItemIds.includes(item.id) ? "bg-neon-cyan text-black border-neon-cyan" : "bg-gray-800 text-gray-400 border-gray-600"} ${depleted ? "opacity-50 cursor-not-allowed" : ""}`}
+                                                                onClick={() => !depleted && toggleItemSelection(item.id)}
+                                                                disabled={depleted}
+                                                            >
+                                                                {depleted ? "EMPTY" : selectedItemIds.includes(item.id) ? "ACTIVE" : "SELECT"}
+                                                            </Button>
+                                                        </div>
+                                                    );
+                                                })
+                                            )}
+                                        </div>
+
+                                        {/* BACKPACK Section */}
+                                        <div className="space-y-2">
+                                            <div className="text-[10px] text-orange-400 uppercase tracking-wider font-bold border-b border-orange-500/20 pb-1 flex justify-between">
+                                                <span>Backpack Storage</span>
+                                                <span>{backpackItems.length}/5</span>
+                                            </div>
+                                            {backpackItems.length === 0 ? (
+                                                <div className="text-gray-500 text-[10px] italic py-2">Backpack Empty</div>
+                                            ) : (
+                                                backpackItems.map((item: any, idx: number) => {
+                                                    const hasUses = typeof item.usesMax === 'number';
+                                                    const depleted = hasUses && (item.usesRemaining ?? item.usesMax) <= 0;
+                                                    return (
+                                                        <div key={`backpack-${idx}`} className={`flex items-center justify-between p-2 rounded border transition-colors ${selectedItemIds.includes(item.id) ? "bg-orange-500/20 border-orange-500" : "bg-white/5 border-white/10 hover:bg-white/10"}`}>
+                                                            <div className="flex flex-col">
+                                                                <span className={`text-xs font-bold ${selectedItemIds.includes(item.id) ? "text-orange-400" : "text-gray-300"}`}>{item.name} <span className="text-[10px] text-gray-500">x{item.qty}</span></span>
+                                                                <span className="text-[9px] text-gray-500">
+                                                                    {item.description}
+                                                                    {hasUses && <span className={`ml-2 font-mono ${depleted ? "text-red-500" : "text-orange-400"}`}>[{item.usesRemaining ?? item.usesMax}/{item.usesMax}]</span>}
+                                                                </span>
+                                                            </div>
+                                                            <Button
+                                                                className={`h-6 text-[9px] border ${selectedItemIds.includes(item.id) ? "bg-orange-500 text-black border-orange-500" : "bg-gray-800 text-gray-400 border-gray-600"} ${depleted ? "opacity-50 cursor-not-allowed" : ""}`}
+                                                                onClick={() => !depleted && toggleItemSelection(item.id)}
+                                                                disabled={depleted}
+                                                            >
+                                                                {depleted ? "EMPTY" : selectedItemIds.includes(item.id) ? "USING" : "USE"}
+                                                            </Button>
+                                                        </div>
+                                                    );
+                                                })
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </>
                         )}
-                        <div className="absolute bottom-1 right-2 text-[10px] text-neon-cyan font-bold tracking-widest z-30">
+                        <div className="absolute bottom-1 right-2 text-[10px] text-neon-cyan font-bold tracking-widest z-30 opacity-50">
                             AP {game?.sharedAp ?? 0}/{game?.sharedApMax ?? 0}
                         </div>
 
@@ -867,7 +1032,7 @@ export default function GameInterface() {
                         {/* Event Log */}
                         <div className="glass-panel p-2 border border-white/10 bg-black/80 h-24 overflow-y-auto custom-scrollbar">
                             <div className="space-y-1 text-[11px] text-gray-300">
-                                {(game?.gameLog || []).slice().reverse().slice(0, 10).map((log: any, idx: number) => (
+                                {(game?.gameLog || []).filter((l: any) => l.type !== "RESOLUTION_DATA").slice().reverse().slice(0, 10).map((log: any, idx: number) => (
                                     <div key={idx} className="border-b border-white/5 pb-0.5 flex gap-2">
                                         <span className="text-[9px] text-gray-600 font-mono shrink-0 pt-0.5">{new Date(log.ts || Date.now()).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
                                         <div className="flex-1 leading-tight">
@@ -884,6 +1049,7 @@ export default function GameInterface() {
                 </div>
 
             </main>
+            <ResolutionOverlay data={resolutionData} onClose={() => setResolutionData(null)} />
         </div>
     );
 }
@@ -903,7 +1069,7 @@ function NavCard({ card, selected, size = "md" }: { card: any, selected?: boolea
     };
 
     const theme = suitThemes[card.suit] || { color: "text-gray-400 border-gray-400", icon: "?", label: "UNKNOWN" }; // Fallback
-    const bgColor = selected ? "bg-slate-900" : "bg-black/90";
+    const bgColor = selected ? "bg-slate-900" : "bg-black/40 backdrop-blur-sm";
 
     return (
         <div className={`
