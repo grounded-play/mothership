@@ -195,6 +195,58 @@ export default function MarketInterface({ initialListings, userInventory, credit
 
     const router = useRouter();
 
+    const handleRegenerate = async () => {
+        if (!regenTarget) return;
+        setRegenConfirmOpen(false);
+        setIsGenerating(true);
+        setGenProgress(0);
+
+        try {
+            const res = await fetch('/api/items/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    itemId: regenTarget.item.id,
+                    inventoryItemId: regenTarget.id,
+                    stats: regenTarget.instanceStats,
+                    traits: regenTarget.visualTraits
+                })
+            });
+
+            if (!res.body) throw new Error("No stream");
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                const text = decoder.decode(value);
+                const lines = text.split('\n\n');
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        try {
+                            const data = JSON.parse(line.slice(6));
+                            if (data.progress) setGenProgress(data.progress);
+                            if (data.icon) {
+                                setSelectedItem((prev: any) => (prev?.id === regenTarget.id ? { ...prev, customImage: data.icon } : prev));
+                                router.refresh();
+                                addToast("Art Regeneration Complete", "success");
+                            }
+                            if (data.error) addToast(`Error: ${data.error}`, "error");
+                        } catch (e) { console.error(e); }
+                    }
+                }
+            }
+        } catch (e) {
+            console.error(e);
+            addToast("Art regeneration failed", "error");
+        } finally {
+            setIsGenerating(false);
+            setRegenTarget(null);
+        }
+    };
+
     const handleCreateListing = async () => {
         if (!selectedItem) return;
         const quantity = isStackableSale ? sellQty : 1;
@@ -249,7 +301,19 @@ export default function MarketInterface({ initialListings, userInventory, credit
     };
 
     return (
-        <div className="min-h-screen p-8 pt-24">
+        <div className="min-h-full p-8 pt-24">
+            <ConfirmDialog
+                open={regenConfirmOpen}
+                title="Regenerate Art"
+                message="Rebuild this item image using ComfyUI?"
+                confirmLabel="REGENERATE"
+                onConfirm={handleRegenerate}
+                onCancel={() => {
+                    setRegenConfirmOpen(false);
+                    setRegenTarget(null);
+                }}
+                busy={isGenerating}
+            />
             {/* Header with Hud */}
             <header className="max-w-7xl mx-auto mb-8 flex flex-col md:flex-row justify-between items-end gap-6 text-white">
                 <div>

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Filter, Shield, Zap, User, Crosshair } from "lucide-react";
+import SafeImage from "@/components/ui/SafeImage";
 
 interface Character {
     id: string;
@@ -68,17 +69,17 @@ export default function RosterInterface({ initialCharacters }: RosterInterfacePr
                     {/* Control Panel */}
                     <div className="glass-panel p-6 rounded-xl border border-white/10 flex flex-col md:flex-row gap-6 items-center justify-between">
 
-                {/* Search */}
-                <div className="relative w-full md:w-96">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 w-5 h-5" />
-                    <input
-                        type="text"
-                        placeholder="Search Personnel Database..."
-                        className="w-full bg-black/40 border border-white/10 rounded-lg pl-10 pr-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-neon-cyan transition-colors"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                </div>
+                        {/* Search */}
+                        <div className="relative w-full md:w-96">
+                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 w-5 h-5" />
+                            <input
+                                type="text"
+                                placeholder="Search Personnel Database..."
+                                className="w-full bg-black/40 border border-white/10 rounded-lg pl-10 pr-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-neon-cyan transition-colors"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                        </div>
 
                 {/* Filters */}
                 <div className="flex flex-wrap items-center gap-4">
@@ -119,7 +120,26 @@ export default function RosterInterface({ initialCharacters }: RosterInterfacePr
                                     <div className="h-64 w-full relative bg-gray-900 overflow-hidden">
                                         <div className="absolute inset-0 bg-black/90 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center p-6 text-center z-10">
                                             <div className="text-neon-cyan font-bold mb-2 tracking-widest text-sm">SERVICE RECORD</div>
+                    {/* Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                        <AnimatePresence>
+                            {filteredCharacters.map((char) => (
+                                <motion.div
+                                    key={char.id}
+                                    initial={{ opacity: 0, scale: 0.9 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    exit={{ opacity: 0, scale: 0.9 }}
+                                    layout
+                                    className="bg-black/40 border border-white/10 rounded-xl overflow-hidden hover:border-neon-cyan/50 hover:shadow-[0_0_15px_rgba(0,243,255,0.1)] transition-all group"
+                                >
+                                    {/* Portrait Area */}
+                                    <div className="h-64 w-full relative bg-gray-900 overflow-hidden">
+                                        <div className="absolute inset-0 bg-black/90 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center p-6 text-center z-10">
+                                            <div className="text-neon-cyan font-bold mb-2 tracking-widest text-sm">SERVICE RECORD</div>
 
+                                            <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-xs mb-4 w-full">
+                                                <div className="text-gray-400 text-right">CREDITS</div>
+                                                <div className="text-white text-left font-mono text-yellow-500">{char.credits || 0}</div>
                                             <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-xs mb-4 w-full">
                                                 <div className="text-gray-400 text-right">CREDITS</div>
                                                 <div className="text-white text-left font-mono text-yellow-500">{char.credits || 0}</div>
@@ -127,7 +147,35 @@ export default function RosterInterface({ initialCharacters }: RosterInterfacePr
                                                 <div className="text-gray-400 text-right">VOID TOKENS</div>
                                                 <div className="text-white text-left font-mono text-neon-magenta">{char.voidTokens || 0}</div>
                                             </div>
+                                                <div className="text-gray-400 text-right">VOID TOKENS</div>
+                                                <div className="text-white text-left font-mono text-neon-magenta">{char.voidTokens || 0}</div>
+                                            </div>
 
+                                            <div className="w-full border-t border-white/20 pt-2 grid grid-cols-3 gap-2 text-xs">
+                                                {(() => {
+                                                    try {
+                                                        // Safe parse stats if string
+                                                        const stats = typeof char.stats === 'string' ? JSON.parse(char.stats) : char.stats;
+                                                        return (
+                                                            <>
+                                                                <div>
+                                                                    <div className="text-red-400 font-bold">STR</div>
+                                                                    <div className="font-mono">{stats?.strength || stats?.str || 0}</div>
+                                                                </div>
+                                                                <div>
+                                                                    <div className="text-green-400 font-bold">SPD</div>
+                                                                    <div className="font-mono">{stats?.speed || stats?.agility || 0}</div>
+                                                                </div>
+                                                                <div>
+                                                                    <div className="text-blue-400 font-bold">INT</div>
+                                                                    <div className="font-mono">{stats?.intellect || stats?.int || 0}</div>
+                                                                </div>
+                                                            </>
+                                                        )
+                                                    } catch (e) { return null; }
+                                                })()}
+                                            </div>
+                                        </div>
                                             <div className="w-full border-t border-white/20 pt-2 grid grid-cols-3 gap-2 text-xs">
                                                 {(() => {
                                                     try {
@@ -174,7 +222,33 @@ export default function RosterInterface({ initialCharacters }: RosterInterfacePr
                                                     else if (cls.includes("android")) color = "text-blue-400";
                                                     else if (cls.includes("scientist")) color = "text-purple-400";
                                                     else if (cls.includes("teamster")) color = "text-yellow-400";
+                                        <div className="absolute bottom-4 left-4 right-4">
+                                            <h3 className="text-xl font-bold text-white uppercase tracking-wider truncate">{char.name}</h3>
+                                            <div className="flex items-center justify-between mt-1">
+                                                {(() => {
+                                                    const cls = (char.class || "").toLowerCase();
+                                                    let color = "text-white";
+                                                    if (cls.includes("marine")) color = "text-red-400";
+                                                    else if (cls.includes("android")) color = "text-blue-400";
+                                                    else if (cls.includes("scientist")) color = "text-purple-400";
+                                                    else if (cls.includes("teamster")) color = "text-yellow-400";
 
+                                                    return (
+                                                        <span className={`text-xs uppercase tracking-widest ${color}`}>
+                                                            {char.class}
+                                                        </span>
+                                                    );
+                                                })()}
+                                                <span className="text-xs font-mono text-gray-400 border border-white/10 px-1 rounded bg-black/50">
+                                                    LVL {char.level}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            ))}
+                        </AnimatePresence>
+                    </div>
                                                     return (
                                                         <span className={`text-xs uppercase tracking-widest ${color}`}>
                                                             {char.class}

@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import SafeImage from "@/components/ui/SafeImage";
 import { User, Zap, RefreshCw, Shield, Crosshair } from "lucide-react";
 import { motion } from "framer-motion";
 import SafeImage from "@/components/ui/SafeImage";
@@ -22,6 +24,8 @@ export default function CharacterProfile({ character }: CharacterProfileProps) {
     });
     const [selectedClass, setSelectedClass] = useState(character.class.toLowerCase());
     const [isEditing, setIsEditing] = useState(false);
+    const [confirmMintOpen, setConfirmMintOpen] = useState(false);
+    const { addToast } = useToast();
 
     const classes = [
         { id: "marine", icon: Crosshair, desc: "Combat Specialist" },
@@ -30,15 +34,16 @@ export default function CharacterProfile({ character }: CharacterProfileProps) {
         { id: "teamster", icon: Shield, desc: "Heavy Laborer" }
     ];
 
-    async function handleReroll() {
-        // Validation check
+    const handleReroll = () => {
         if (character.credits < 100) {
-            alert("Insufficient Credits (100 Needed)");
+            addToast("Insufficient Credits (100 Needed)", "error");
             return;
         }
+        setConfirmMintOpen(true);
+    };
 
-        if (!confirm(`Mint new ID Portrait for 100 Credits? \n(Class will be updated to ${selectedClass.toUpperCase()})`)) return;
-
+    const executeReroll = async () => {
+        setConfirmMintOpen(false);
         setGenerating(true);
         setProgress(0);
 
@@ -48,7 +53,7 @@ export default function CharacterProfile({ character }: CharacterProfileProps) {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     characterId: character.id,
-                    class: selectedClass, // Send updated class
+                    class: selectedClass,
                     features: stats.distinctions || "High detail, sci-fi portrait",
                     hair: stats.hair || "Styled",
                     eyes: stats.eyes || "Glowing"
@@ -56,7 +61,7 @@ export default function CharacterProfile({ character }: CharacterProfileProps) {
             });
 
             if (res.status === 402) {
-                alert("Insufficient Credits!");
+                addToast("Insufficient Credits", "error");
                 setGenerating(false);
                 return;
             }
@@ -80,20 +85,20 @@ export default function CharacterProfile({ character }: CharacterProfileProps) {
                             if (data.progress) setProgress(data.progress);
                             if (data.image || data.success) {
                                 router.refresh();
-                                setIsEditing(false); // Close edit mode on success
+                                setIsEditing(false);
                             }
-                            if (data.error) alert("Error: " + data.error);
+                            if (data.error) addToast(`Error: ${data.error}`, "error");
                         } catch (e) { console.error(e); }
                     }
                 }
             }
         } catch (e) {
             console.error(e);
-            alert("Connection lost");
+            addToast("Connection lost", "error");
         } finally {
             setGenerating(false);
         }
-    }
+    };
 
     return (
         <div className="relative glass-panel p-1 rounded-2xl border border-white/10 w-full max-w-sm mx-auto shadow-2xl overflow-visible">
@@ -228,6 +233,16 @@ export default function CharacterProfile({ character }: CharacterProfileProps) {
                     className="absolute bottom-0 left-0 h-1 bg-neon-cyan origin-left z-50 w-full"
                 />
             )}
+
+            <ConfirmDialog
+                open={confirmMintOpen}
+                title="Mint New Portrait"
+                message={`Mint new ID portrait for 100 credits? Class updates to ${selectedClass.toUpperCase()}.`}
+                confirmLabel="MINT"
+                onConfirm={executeReroll}
+                onCancel={() => setConfirmMintOpen(false)}
+                busy={generating}
+            />
         </div>
     );
 }

@@ -43,7 +43,7 @@ export default async function CharacterViewPage() {
     } catch (e) { }
 
     return (
-        <div className="min-h-screen p-4 md:p-8 flex flex-col items-center pt-24">
+        <div className="min-h-full p-4 md:p-8 flex flex-col items-center pt-24">
             <div className="w-full max-w-6xl">
                 <header className="flex items-center justify-between mb-8">
                     <Link href="/menu" className="flex items-center text-neon-cyan hover:text-white transition-colors">
@@ -121,7 +121,7 @@ export default async function CharacterViewPage() {
                             <h2 className="text-xl font-bold text-neon-cyan mb-6 flex items-center uppercase tracking-wider text-sm">
                                 <Box className="mr-2 w-4 h-4" /> Cargo Manifest
                             </h2>
-                            <InventoryInspect inventory={character.inventory} />
+                            <InventoryInspect inventory={displayInventory} />
                         </div>
                     </div>
                 </div>

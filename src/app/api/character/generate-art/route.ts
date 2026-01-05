@@ -3,6 +3,9 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { generateItemArt } from "@/lib/comfy";
+import { normalizePublicPath } from "@/lib/imagePath";
+
+export const runtime = "nodejs";
 
 export async function POST(req: Request) {
     const session = await getServerSession(authOptions);
@@ -31,7 +34,7 @@ export async function POST(req: Request) {
 
         // Deduct credits immediately
         // Also update class if provided and different
-        const updateData: any = { credits: { decrement: COST } };
+        const updateData: any = { credits: { decrement: COST }, portraitStatus: "GENERATING 0%" };
 
         if (charClass && charClass !== character.class) {
             updateData.class = charClass;
@@ -69,6 +72,7 @@ export async function POST(req: Request) {
                 });
 
                 if (imagePath) {
+                    const normalizedPath = normalizePublicPath(imagePath) || imagePath;
                     // Update Character Image for existing characters
                     if (!characterId.startsWith("new_char")) {
                         await prisma.character.update({
@@ -78,8 +82,14 @@ export async function POST(req: Request) {
                     }
 
                     // For now just return path, client updates state
-                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ success: true, image: imagePath })}\n\n`));
+                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ success: true, image: normalizedPath })}\n\n`));
                 } else {
+                    if (!characterId.startsWith("new_char")) {
+                        await prisma.character.update({
+                            where: { id: characterId },
+                            data: { portraitStatus: "FAILED" }
+                        });
+                    }
                     if (!characterId.startsWith("new_char")) {
                         await prisma.character.update({
                             where: { id: characterId },

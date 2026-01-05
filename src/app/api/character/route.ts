@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { normalizePublicPath } from "@/lib/imagePath";
 
 export async function POST(req: Request) {
     const session = await getServerSession(authOptions);
@@ -12,6 +13,7 @@ export async function POST(req: Request) {
 
     try {
         const { name, class: charClass, portrait } = await req.json();
+        const normalizedPortrait = normalizePublicPath(portrait);
 
         if (!name || !charClass) {
             return NextResponse.json({ error: "Missing fields" }, { status: 400 });
@@ -41,7 +43,7 @@ export async function POST(req: Request) {
             data: {
                 name,
                 class: charClass,
-                portrait,
+                portrait: normalizedPortrait || null,
                 userId: user.id,
                 stats: JSON.stringify(initialStats),
                 credits: 100 // Sign-on Bonus

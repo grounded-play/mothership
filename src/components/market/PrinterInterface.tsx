@@ -1,15 +1,30 @@
 ﻿"use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/Button";
 import SafeImage from "@/components/ui/SafeImage";
 import { motion, AnimatePresence, useAnimation } from "framer-motion";
-import { Loader2, Coins, Image as ImageIcon, Zap, ChevronUp, Wrench } from "lucide-react";
+import { Loader2, Coins, Image as ImageIcon, Zap, ChevronUp, Wrench, User } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/Toast";
+import SafeImage from "@/components/ui/SafeImage";
+
+type QueueEntry = {
+    id: string;
+    kind: "ITEM" | "CHARACTER";
+    title: string;
+    owner: string;
+    imageStatus?: string | null;
+    icon?: string | null;
+    preview?: string | null;
+    hasImage?: boolean;
+    createdAt?: string | Date;
+    updatedAt?: string | Date;
+};
 
 type PrinterProps = { credits: number; inventory: any[]; globalQueue: any[]; backpackLevel: number; lastMade?: any };
 
+export default function PrinterInterface({ credits, inventory, globalQueue, backpackLevel: initialBackpackLevel, lastMade }: PrinterProps) {
 export default function PrinterInterface({ credits, inventory, globalQueue, backpackLevel: initialBackpackLevel, lastMade }: PrinterProps) {
     const [spinning, setSpinning] = useState(false);
     const [reward, setReward] = useState<{ name: string; rarity: string; icon?: string } | null>(null);
@@ -46,6 +61,26 @@ export default function PrinterInterface({ credits, inventory, globalQueue, back
         setBackpackLevel(initialBackpackLevel);
     }, [initialBackpackLevel]);
 
+    useEffect(() => {
+        let cancelled = false;
+        const checkStatus = async () => {
+            try {
+                const res = await fetch("/api/printer/status", { cache: "no-store" });
+                const data = await res.json().catch(() => ({}));
+                if (!cancelled) setPrinterOnline(Boolean(res.ok && data?.ok));
+            } catch {
+                if (!cancelled) setPrinterOnline(false);
+            }
+        };
+
+        checkStatus();
+        const interval = setInterval(checkStatus, 15000);
+        return () => {
+            cancelled = true;
+            clearInterval(interval);
+        };
+    }, []);
+
     const backpackCapacity = backpackLevel === 2 ? 6 : backpackLevel === 3 ? 8 : 4;
     const upgradeCost = backpackLevel === 1 ? 2000 : backpackLevel === 2 ? 5000 : null;
     const scrapStack = useMemo(() => inventory.find((inv) => inv.item?.name === "Scrap Metal"), [inventory]);
@@ -57,8 +92,42 @@ export default function PrinterInterface({ credits, inventory, globalQueue, back
         return remaining < maxUses;
     }), [inventory]);
 
+    const queueEntries = useMemo(() => {
+        const toStatus = (entry: QueueEntry) => {
+            const raw = entry.imageStatus || "QUEUED";
+            const hasImage = entry.hasImage ?? Boolean(entry.preview);
+            if (!hasImage && (raw === "READY" || raw === "DONE")) return "QUEUED";
+            return raw || "QUEUED";
+        };
+        const toProgress = (status: string) => {
+            const match = status.match(/(\d+)%/);
+            return match ? Number(match[1]) : 0;
+        };
+        return (globalQueue || []).map((entry) => {
+            const status = toStatus(entry);
+            return {
+                ...entry,
+                status,
+                hasImage: entry.hasImage ?? Boolean(entry.preview),
+                progress: status.startsWith("GENERATING") ? toProgress(status) : 0
+            };
+        });
+    }, [globalQueue]);
+
     // Sync Local Queue with Global State & Auto-Refresh
     useEffect(() => {
+        if (spinning) return;
+        const hasActiveQueue = queueEntries.some((entry: any) =>
+            entry.status?.startsWith("GENERATING") ||
+            entry.status === "QUEUED" ||
+            entry.status === "FAILED" ||
+            entry.status === "ERROR"
+        );
+        if (!hasActiveQueue) return;
+
+        const hasGenerating = queueEntries.some((entry: any) => entry.status?.startsWith("GENERATING"));
+        const refreshIntervalMs = hasGenerating ? 6000 : 20000;
+
         // 1. Auto-Refresh (Keep Data Fresh)
         const interval = setInterval(() => {
             if (!queueHold) {
@@ -214,6 +283,12 @@ export default function PrinterInterface({ credits, inventory, globalQueue, back
                 setTimeout(() => setQueueHold(false), 400);
                 router.refresh();
                 addToast(`Fabrication Complete: ${data.reward.name}`, "success");
+
+                if (data.rewardInstance) {
+                    setTimeout(() => {
+                        handleGenerateArt();
+                    }, 600);
+                }
             } else {
                 addToast(data.error || "Fabrication Failed", "error");
                 setSpinning(false);
@@ -227,9 +302,9 @@ export default function PrinterInterface({ credits, inventory, globalQueue, back
         }
     };
 
-    const handleGenerateArt = async (item: any) => {
-        setGenerationQueue(prev => [...prev, item]);
-        addToast("Added to Visualization Queue", "info");
+    const handleGenerateArt = async () => {
+        addToast("Queued for Fabrication", "info");
+        router.refresh();
     };
 
     const handleUpgradeBackpack = async () => {
@@ -521,6 +596,50 @@ export default function PrinterInterface({ credits, inventory, globalQueue, back
                                         {lastMade.completedAt ? new Date(lastMade.completedAt).toLocaleString() : "READY"}
                                     </div>
                                 </div>
+                            )}
+                        </div>
+
+                        <div className="flex-1 min-h-0 flex flex-col">
+                            <div className="text-[10px] text-gray-500 uppercase tracking-widest mb-2">Queue List</div>
+                            <div className="space-y-2 flex-1 min-h-0 max-h-[320px] overflow-y-auto pr-1">
+                                {queueSummary.queued.map((entry: any, idx: number) => {
+                                    const isActiveGenerating = queueSummary.generating?.id === entry.id;
+                                    const displayStatus = entry.status?.startsWith("GENERATING") && !isActiveGenerating
+                                        ? "QUEUED"
+                                        : entry.status === "READY"
+                                            ? "QUEUED"
+                                            : entry.status;
+                                    const statusTone = displayStatus === "FAILED" || displayStatus === "ERROR" ? "text-red-400" :
+                                        displayStatus === "QUEUED" ? "text-gray-400" : "text-neon-cyan";
+                                    return (
+                                        <div key={`${entry.kind}-${entry.id}`} className="bg-black/40 border border-white/5 rounded-lg px-3 py-2 flex items-center gap-3">
+                                            <div className="text-[10px] text-gray-500 font-mono w-8 text-center">#{idx + 1}</div>
+                                            <div className="w-8 h-8 bg-gray-900 rounded flex items-center justify-center overflow-hidden border border-white/5">
+                                                {entry.hasImage && (entry.preview || entry.icon) ? (
+                                                    <SafeImage
+                                                        src={(entry.preview || entry.icon) as string}
+                                                        alt={entry.title}
+                                                        className="w-full h-full object-cover"
+                                                        fallback={entry.kind === "CHARACTER" ? <User className="w-4 h-4 text-gray-500" /> : <ImageIcon className="w-4 h-4 text-gray-500" />}
+                                                    />
+                                                ) : (
+                                                    entry.kind === "CHARACTER" ? <User className="w-4 h-4 text-gray-500" /> : <ImageIcon className="w-4 h-4 text-gray-500" />
+                                                )}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="text-sm text-white truncate">{entry.title}</div>
+                                                <div className="text-[10px] text-neon-cyan/70 truncate">{entry.owner}</div>
+                                            </div>
+                                            <div className="text-[9px] uppercase text-gray-400">{entry.kind}</div>
+                                            <div className={`text-[10px] ${statusTone}`}>{displayStatus}</div>
+                                        </div>
+                                    );
+                                })}
+                                {queueSummary.queued.length === 0 && (
+                                    <div className="text-gray-500 text-sm text-center py-4 bg-black/30 border border-white/5 rounded-lg">
+                                        Queue empty. Systems standby.
+                                    </div>
+                                )}
                             </div>
                         ) : (
                             <div className="text-gray-500 text-sm">No completed fabrications yet.</div>

@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
+const NO_PRINT_ITEM_NAMES = ["Scrap Metal", "Nutrient Paste"];
+
 export async function GET() {
     const listings = await prisma.marketListing.findMany({
         include: {
@@ -72,6 +74,25 @@ export async function POST(req: Request) {
             }
 
             // Create market listing
+            const isNoPrintItem = NO_PRINT_ITEM_NAMES.some((name) => name.toLowerCase() === inventoryItem.item?.name?.toLowerCase());
+            let listingImage = inventoryItem.customImage;
+
+            if (isNoPrintItem) {
+                const pool = await tx.inventoryItem.findMany({
+                    where: {
+                        customImage: { not: null },
+                        NOT: { customImage: "" }
+                    },
+                    select: { customImage: true },
+                    take: 200
+                });
+                const poolImages = pool.map((p: any) => p.customImage).filter(Boolean);
+                const randomImage = poolImages.length > 0
+                    ? poolImages[Math.floor(Math.random() * poolImages.length)]
+                    : null;
+                listingImage = randomImage || inventoryItem.customImage || inventoryItem.item?.icon || null;
+            }
+
             const listing = await tx.marketListing.create({
                 data: {
                     sellerId: character.id,
@@ -82,7 +103,7 @@ export async function POST(req: Request) {
                     // Copy Unique Stats
                     instanceStats: inventoryItem.instanceStats,
                     visualTraits: inventoryItem.visualTraits,
-                    customImage: inventoryItem.customImage
+                    customImage: listingImage
                 }
             });
 

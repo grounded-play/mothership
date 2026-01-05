@@ -28,7 +28,7 @@ export default async function MarketplacePage() {
     });
 
     return (
-        <div className="min-h-screen bg-space-void">
+        <div className="min-h-full bg-space-void">
             <div className="fixed top-6 left-8 z-50">
                 <Link href="/menu" className="flex items-center text-neon-cyan hover:text-white transition-colors glass-panel px-4 py-2 rounded-full">
                     <ArrowLeft className="mr-2 h-4 w-4" /> Back to Bridge

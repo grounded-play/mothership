@@ -4,6 +4,9 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { generateItemArt } from "@/lib/comfy";
 import { ensurePrinterWorker } from "@/lib/printerWorker";
+import { normalizePublicPath } from "@/lib/imagePath";
+
+export const runtime = "nodejs";
 
 ensurePrinterWorker();
 
@@ -25,7 +28,8 @@ export async function POST(req: Request) {
         });
 
         if (!invItem) return NextResponse.json({ error: "Item not found" }, { status: 404 });
-        if (invItem.customImage) {
+        const hasCustomImage = Boolean(invItem.customImage && invItem.customImage.trim() !== "");
+        if (hasCustomImage) {
             return NextResponse.json({ success: true, icon: invItem.customImage });
         }
         if (invItem.imageStatus?.startsWith("GENERATING")) {
@@ -66,7 +70,7 @@ export async function POST(req: Request) {
                     const locked = await prisma.inventoryItem.updateMany({
                         where: {
                             id: targetId,
-                            customImage: null,
+                            OR: [{ customImage: null }, { customImage: "" }],
                             NOT: { imageStatus: { startsWith: "GENERATING" } }
                         },
                         data: { imageStatus: "GENERATING 0%" }
@@ -105,6 +109,7 @@ export async function POST(req: Request) {
                 });
 
                 if (iconPath) {
+                    const normalizedIconPath = normalizePublicPath(iconPath) || iconPath;
                     if (isInstance) {
                         await prisma.inventoryItem.update({
                             where: { id: targetId },
@@ -113,10 +118,10 @@ export async function POST(req: Request) {
                     } else {
                         await prisma.item.update({
                             where: { id: itemId },
-                            data: { icon: iconPath }
+                            data: { icon: normalizedIconPath }
                         });
                     }
-                    safeEnqueue(`data: ${JSON.stringify({ success: true, icon: iconPath })}\n\n`);
+                    safeEnqueue(`data: ${JSON.stringify({ success: true, icon: normalizedIconPath })}\n\n`);
                 } else {
                     if (isInstance) {
                         await prisma.inventoryItem.update({ where: { id: targetId }, data: { imageStatus: "FAILED" } });

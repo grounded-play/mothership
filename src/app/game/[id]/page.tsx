@@ -9,6 +9,7 @@ import SectorGrid from "@/components/game/SectorGrid";
 import RoomScanner from "@/components/game/RoomScanner";
 import MissionLog from "@/components/game/MissionLog";
 import { useToast } from "@/components/ui/Toast";
+import SafeImage from "@/components/ui/SafeImage";
 
 type Facing = "NORTH" | "EAST" | "SOUTH" | "WEST";
 
@@ -108,7 +109,7 @@ export default function GameInterface() {
 
                 if (data.error) {
                     if (res.status === 410 || data.error.includes("Corrupted")) {
-                        alert(data.error);
+                        addToast(data.error, "error");
                         router.push("/lobby/browse");
                         return;
                     }
@@ -255,8 +256,8 @@ export default function GameInterface() {
         addToast("DOUBLES MUST MATCH RANK", "error");
     };
 
-    if (loading) return <div className="min-h-screen flex items-center justify-center text-neon-cyan">Loading Game Protocol...</div>;
-    if (!gameState) return <div className="min-h-screen flex items-center justify-center text-red-500">Game Not Found</div>;
+    if (loading) return <div className="min-h-full flex items-center justify-center text-neon-cyan">Loading Game Protocol...</div>;
+    if (!gameState) return <div className="min-h-full flex items-center justify-center text-red-500">Game Not Found</div>;
 
     const inActionPhase = game?.roundPhase === "ACTION";
     const facing = (player?.facing || "NORTH") as Facing;
@@ -585,8 +586,10 @@ export default function GameInterface() {
 
             {/* Main Grid Layout */}
             <main className="flex-1 min-h-0 grid grid-cols-12 gap-2 p-2 z-20 relative overflow-hidden w-full">
+            <main className="flex-1 min-h-0 grid grid-cols-12 gap-2 p-2 z-20 relative overflow-hidden w-full">
 
                 {/* LEFT PANEL: Map & Info (Col Span 3) - Mobile Order 3 */}
+                <div className="flex col-span-3 flex-col gap-2 h-full min-h-0 relative overflow-hidden">
                 <div className="flex col-span-3 flex-col gap-2 h-full min-h-0 relative overflow-hidden">
 
                     {/* Mission Log (Top - Fixed Height) */}
@@ -715,10 +718,10 @@ export default function GameInterface() {
                 <div className="flex col-span-6 flex-col items-center gap-2 h-full min-h-0 relative">
 
                     {/* Navigation HUD */}
-                    <div className="glass-panel p-4 md:p-6 border border-white/20 text-center animate-fade-in relative overflow-hidden w-full max-w-lg mb-4 bg-black/40 backdrop-blur-md shadow-2xl">
+                    <div className="glass-panel p-3 border border-white/20 text-center animate-fade-in relative overflow-hidden w-full max-w-lg mb-2 bg-black/40 backdrop-blur-md shadow-2xl">
                         {/* Scanner */}
-                        <div className="mb-4 flex justify-center">
-                            <div className="w-[180px] h-[120px] md:w-[240px] md:h-[160px] border border-gray-800 rounded bg-black relative shadow-inner overflow-hidden">
+                        <div className="mb-3 flex justify-center">
+                            <div className="w-[180px] h-[120px] border border-gray-800 rounded bg-black relative shadow-inner overflow-hidden">
                                 <RoomScanner type={player.MapNode.type} isExplored={player.MapNode.isExplored} integrity={game.integrity} />
                             </div>
                         </div>
@@ -750,7 +753,7 @@ export default function GameInterface() {
                         )}
 
                         {/* Controls (Unified Command) */}
-                        <div className="flex flex-col items-center gap-4 mt-2">
+                        <div className="flex flex-col items-center gap-3 mt-2">
                             {/* Directional Pad */}
                             <div className={`grid grid-cols-3 gap-2 p-4 bg-black/60 rounded-full border border-white/10 relative transition-opacity duration-300 ${actionIntent === 'MOVE' ? 'opacity-100 ring-2 ring-neon-cyan' : 'opacity-60'}`}>
                                 <div />
@@ -832,7 +835,24 @@ export default function GameInterface() {
                                     SECURE
                                 </Button>
                             </div>
-                            <div className="mt-2">
+                            <div className="mt-1">
+                                <Button
+                                    onClick={handleExecute}
+                                    disabled={(!actionIntent || actionInvalid || (selectedCardIndices.length === 0 && !canAutoMove)) || isActing || !inActionPhase}
+                                    className={`w-60 py-3 text-[11px] font-bold tracking-widest transition-all duration-300 rounded-xl border-2
+                                        ${(actionIntent && !actionInvalid && (selectedCardIndices.length > 0 || canAutoMove) && inActionPhase)
+                                            ? "bg-neon-cyan text-black border-neon-cyan shadow-[0_0_20px_#0ff] hover:bg-white hover:scale-105"
+                                            : "bg-black/50 text-gray-600 border-gray-800"}
+                                    `}
+                                >
+                                    {!inActionPhase ? "WAITING FOR DRAW" :
+                                        !actionIntent ? "SELECT PROTOCOL" :
+                                            (selectedCardIndices.length === 0 && !canAutoMove) ? "SELECT CARD" :
+                                                (selectedCardIndices.length === 0 && canAutoMove) ? "LOCK MOVE (AUTO)" :
+                                                    `LOCK ${actionIntent}`}
+                                </Button>
+                            </div>
+                            <div className="mt-1">
                                 <Button
                                     onClick={() => setShowInventory(!showInventory)}
                                     className={`w-28 h-8 text-[10px] font-bold tracking-widest border transition-all ${showInventory ? "bg-white text-black border-white" : "bg-black/40 text-gray-300 border-white/10 hover:bg-white/10"}`}
@@ -896,7 +916,7 @@ export default function GameInterface() {
                     </div>
 
                     {/* Skip Turn (Remains Bottom) */}
-                    <div className="mt-2">
+                    <div className="mt-1">
                         <Button
                             onClick={() => lockAction("SCAN", [], true)}
                             disabled={isAirlock || !inActionPhase}
@@ -967,8 +987,8 @@ export default function GameInterface() {
                     </div>
                 </div>
 
-            </main >
-        </div >
+            </main>
+        </div>
     );
 }
 
