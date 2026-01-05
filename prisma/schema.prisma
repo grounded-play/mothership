@@ -23,13 +23,14 @@ model Character {
   class         String
   level         Int             @default(1)
   portrait      String?
-  portraitStatus String         @default("READY")
+  portraitStatus String?       @default("READY")
   backpackLevel Int             @default(1)
   credits       Int             @default(1000)
   voidTokens    Int             @default(0)
   stats         String          @default("{}")
   deathCount    Int             @default(0)
   runsCompleted Int             @default(0)
+  runsFailed    Int             @default(0)
   deepestLevel  Int             @default(0)
   userId        String
   createdAt     DateTime        @default(now())
@@ -38,6 +39,7 @@ model Character {
   GameLobby     GameLobby[]
   GamePlayer    GamePlayer[]
   inventory     InventoryItem[]
+  gameRuns      GameRun[]
   lobbyMembers  LobbyMember[]
   listings      MarketListing[]
   marketTransactionsSold MarketTransaction[] @relation("Seller")
@@ -81,8 +83,24 @@ model InventoryItem {
   updatedAt     DateTime  @default(now())
   item          Item      @relation(fields: [itemId], references: [id])
   character     Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+}
 
-  @@unique([characterId, itemId])
+model GameRun {
+  id               String    @id @default(cuid())
+  gameId           String
+  characterId      String
+  difficulty       String
+  outcome          String
+  rank             String
+  score            Int
+  creditsEarned    Int
+  bossDefeated     Boolean   @default(false)
+  extracted        Boolean   @default(false)
+  timeRemainingSec Int       @default(0)
+  turns            Int       @default(0)
+  startedAt        DateTime
+  endedAt          DateTime  @default(now())
+  character        Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
 }
 
 model MarketListing {

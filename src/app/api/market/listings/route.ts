@@ -54,18 +54,22 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "Item not owned" }, { status: 403 });
         }
 
-        if (inventoryItem.quantity < quantity) {
+        const isStackableSale = inventoryItem.item.type === "Material" || inventoryItem.item.type === "Consumable";
+        const requestedQty = Number.isFinite(Number(quantity)) ? Number(quantity) : 1;
+        const normalizedQty = isStackableSale ? Math.max(1, Math.min(requestedQty, inventoryItem.quantity)) : 1;
+
+        if (inventoryItem.quantity < normalizedQty) {
             return NextResponse.json({ error: "Insufficient quantity" }, { status: 400 });
         }
 
         const result = await prisma.$transaction(async (tx) => {
             // Remove from inventory
-            if (inventoryItem.quantity === quantity) {
+            if (inventoryItem.quantity === normalizedQty) {
                 await tx.inventoryItem.delete({ where: { id: inventoryItem.id } });
             } else {
                 await tx.inventoryItem.update({
                     where: { id: inventoryItem.id },
-                    data: { quantity: { decrement: quantity } }
+                    data: { quantity: { decrement: normalizedQty } }
                 });
             }
 
@@ -93,7 +97,7 @@ export async function POST(req: Request) {
                 data: {
                     sellerId: character.id,
                     itemId: inventoryItem.itemId,
-                    quantity,
+                    quantity: normalizedQty,
                     price,
                     currency,
                     // Copy Unique Stats

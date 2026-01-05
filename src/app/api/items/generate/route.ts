@@ -113,7 +113,7 @@ export async function POST(req: Request) {
                     if (isInstance) {
                         await prisma.inventoryItem.update({
                             where: { id: targetId },
-                            data: { customImage: normalizedIconPath, imageStatus: "READY" }
+                            data: { customImage: iconPath, imageStatus: "READY", updatedAt: new Date() }
                         });
                     } else {
                         await prisma.item.update({

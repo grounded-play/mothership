@@ -8,6 +8,7 @@ import SafeImage from "@/components/ui/SafeImage";
 import { Users, Shield, Play, LogOut } from "lucide-react";
 import { getBackpackCapacity } from "@/lib/game/backpack";
 
+
 export default function LobbyRoom() {
     const { id } = useParams();
     const router = useRouter();
@@ -86,7 +87,7 @@ export default function LobbyRoom() {
         if (item?.equipSlot) return item.equipSlot.toUpperCase();
         const type = (item?.type || "").toLowerCase();
         if (type === "weapon") return "WEAPON";
-        if (type === "armor") return "ARMOR";
+        if (type === "armor" || type.includes("suit")) return "ARMOR";
         return null;
     };
     const weaponItems = inventory.filter((inv: any) => getItemSlot(inv.item) === "WEAPON");
@@ -140,12 +141,16 @@ export default function LobbyRoom() {
                     >
                         <div className="flex items-center gap-4">
                             <div className={`w-12 h-12 rounded-full flex items-center justify-center border overflow-hidden ${member.isReady ? 'border-green-500 bg-green-900/40 text-green-400' : 'border-gray-600 bg-gray-800 text-gray-400'}`}>
-                                <SafeImage
-                                    src={member.character.portrait}
-                                    alt={member.character.name}
-                                    className="w-full h-full object-cover"
-                                    fallback={<span>{member.character.class[0]}</span>}
-                                />
+                                {member.character.portrait ? (
+                                    <SafeImage
+                                        src={member.character.portrait}
+                                        alt={member.character.name}
+                                        className="w-full h-full object-cover"
+                                        fallback={<span>{member.character.class[0]}</span>}
+                                    />
+                                ) : (
+                                    member.character.class[0]
+                                )}
                             </div>
                             <div>
                                 <div className="font-bold text-white">{member.character.name}</div>
@@ -185,7 +190,7 @@ export default function LobbyRoom() {
                                     </div>
                                 )}
                             </div>
-                            <div className="space-y-2 max-h-40 overflow-y-auto">
+                            <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
                                 {weaponItems.map((inv: any) => {
                                     const uses = formatUses(inv);
                                     const disabled = !!(uses && uses.startsWith("0/"));
@@ -220,7 +225,7 @@ export default function LobbyRoom() {
                                     </div>
                                 )}
                             </div>
-                            <div className="space-y-2 max-h-40 overflow-y-auto">
+                            <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
                                 {armorItems.map((inv: any) => {
                                     const uses = formatUses(inv);
                                     const disabled = !!(uses && uses.startsWith("0/"));

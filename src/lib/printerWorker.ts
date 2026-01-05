@@ -4,12 +4,15 @@ import { normalizePublicPath } from "@/lib/imagePath";
 
 const POLL_MS = 5000;
 const PROGRESS_STEP = 10;
-const COMFY_API = "http://127.0.0.1:8188";
-const COMFY_TIMEOUT_MS = 1500;
-const COMFY_STATUS_TTL_MS = 15000;
-const STALE_GENERATING_MS = 2 * 60 * 1000;
+const STALE_MS = 10 * 60 * 1000;
+const GENERATION_TIMEOUT_MS = 2 * 60 * 1000;
+
+const COMFY_API = "http://127.0.0.1:8188/";
+const COMFY_STATUS_TTL_MS = 30000;
+const COMFY_TIMEOUT_MS = 5000;
 const STALE_RESET_INTERVAL_MS = 60000;
-const NO_PRINT_ITEM_NAMES = ["Scrap Metal", "Nutrient Paste"];
+const STALE_GENERATING_MS = 5 * 60 * 1000;
+const NO_PRINT_ITEM_NAMES: string[] = ["Scrap Metal", "Nutrient Paste"];
 
 type WorkerState = {
     started: boolean;
@@ -102,28 +105,40 @@ const lockItem = async (invItemId: string) => {
     return result.count > 0;
 };
 
+const normalizeQueue = async () => {
+    const staleBefore = new Date(Date.now() - STALE_MS);
+    await prisma.inventoryItem.updateMany({
+        where: {
+            customImage: null,
+            imageStatus: { startsWith: "GENERATING" },
+            updatedAt: { lt: staleBefore }
+        },
+        data: { imageStatus: "FAILED" }
+    });
+    await prisma.inventoryItem.updateMany({
+        where: {
+            customImage: null,
+            OR: [
+                { imageStatus: "READY" },
+                { imageStatus: "" }
+            ]
+        },
+        data: { imageStatus: "QUEUED" }
+    });
+};
+
 const processNextItem = async (state: WorkerState) => {
+    await normalizeQueue();
+
     const next = await prisma.inventoryItem.findFirst({
         where: {
-            AND: [
-                {
-                    OR: [
-                        { customImage: null },
-                        { customImage: "" }
-                    ]
-                },
-                {
-                    OR: [
-                        { imageStatus: "" },
-                        { imageStatus: "QUEUED" },
-                        { imageStatus: "FAILED" },
-                        { imageStatus: "ERROR" },
-                        { imageStatus: "READY" }
-                    ]
-                },
-                {
-                    item: { name: { notIn: NO_PRINT_ITEM_NAMES } }
-                }
+            customImage: null,
+            instanceStats: { not: null },
+            NOT: [{ instanceStats: "{}" }, { instanceStats: "" }],
+            OR: [
+                { imageStatus: "QUEUED" },
+                { imageStatus: "FAILED" },
+                { imageStatus: "ERROR" }
             ]
         },
         include: { item: true },
@@ -139,22 +154,27 @@ const processNextItem = async (state: WorkerState) => {
     try {
         state.currentItemId = next.id;
         const prompt = buildPrompt(next);
-        const iconPath = await generateItemArt(prompt, next.id, "item", async (p) => {
-            const percentage = Math.round((p.value / p.max) * 100);
-            if (percentage - lastProgress >= PROGRESS_STEP || percentage === 100) {
-                lastProgress = percentage;
-                await prisma.inventoryItem.update({
-                    where: { id: next.id },
-                    data: { imageStatus: `GENERATING ${percentage}%` }
-                });
-            }
-        });
+        const iconPath = await Promise.race([
+            generateItemArt(prompt, next.id, "item", async (p) => {
+                const percentage = Math.round((p.value / p.max) * 100);
+                if (percentage - lastProgress >= PROGRESS_STEP || percentage === 100) {
+                    lastProgress = percentage;
+                    await prisma.inventoryItem.update({
+                        where: { id: next.id },
+                        data: { imageStatus: `GENERATING ${percentage}%` }
+                    });
+                }
+            }),
+            new Promise<null>((_, reject) => {
+                setTimeout(() => reject(new Error("Generation timeout")), GENERATION_TIMEOUT_MS);
+            })
+        ]);
 
         if (iconPath) {
             const normalizedIconPath = normalizePublicPath(iconPath) || iconPath;
             await prisma.inventoryItem.update({
                 where: { id: next.id },
-                data: { customImage: normalizedIconPath, imageStatus: "READY" }
+                data: { customImage: iconPath, imageStatus: "READY", updatedAt: new Date() }
             });
         } else {
             await prisma.inventoryItem.update({

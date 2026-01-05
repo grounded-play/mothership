@@ -53,6 +53,12 @@ export async function POST(req: Request) {
         async start(controller) {
             try {
                 let lastProgress = 0;
+                if (!characterId.startsWith("new_char")) {
+                    await prisma.character.update({
+                        where: { id: characterId },
+                        data: { portraitStatus: "QUEUED" }
+                    });
+                }
                 const imagePath = await generateItemArt(prompt, characterId, 'character', (p) => {
                     const percentage = Math.round((p.value / p.max) * 100);
                     controller.enqueue(encoder.encode(`data: ${JSON.stringify({ progress: percentage })}\n\n`));
@@ -61,7 +67,7 @@ export async function POST(req: Request) {
                         void prisma.character.update({
                             where: { id: characterId },
                             data: { portraitStatus: `GENERATING ${percentage}%` }
-                        }).catch(() => {});
+                        }).catch(() => { });
                     }
                 });
 
@@ -71,13 +77,19 @@ export async function POST(req: Request) {
                     if (!characterId.startsWith("new_char")) {
                         await prisma.character.update({
                             where: { id: characterId },
-                            data: { portrait: normalizedPath, portraitStatus: "READY" }
+                            data: { portrait: imagePath, portraitStatus: "READY" }
                         });
                     }
 
                     // For now just return path, client updates state
                     controller.enqueue(encoder.encode(`data: ${JSON.stringify({ success: true, image: normalizedPath })}\n\n`));
                 } else {
+                    if (!characterId.startsWith("new_char")) {
+                        await prisma.character.update({
+                            where: { id: characterId },
+                            data: { portraitStatus: "FAILED" }
+                        });
+                    }
                     if (!characterId.startsWith("new_char")) {
                         await prisma.character.update({
                             where: { id: characterId },
@@ -91,7 +103,7 @@ export async function POST(req: Request) {
                     await prisma.character.update({
                         where: { id: characterId },
                         data: { portraitStatus: "ERROR" }
-                    });
+                    }).catch(() => { });
                 }
                 controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: e.message })}\n\n`));
             } finally {

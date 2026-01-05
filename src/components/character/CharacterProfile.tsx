@@ -4,10 +4,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import { useToast } from "@/components/ui/Toast";
 import SafeImage from "@/components/ui/SafeImage";
 import { User, Zap, RefreshCw, Shield, Crosshair } from "lucide-react";
 import { motion } from "framer-motion";
-import { useToast } from "@/components/ui/Toast";
+
 
 interface CharacterProfileProps {
     character: any; // Type accurately if possible
@@ -161,17 +162,24 @@ export default function CharacterProfile({ character }: CharacterProfileProps) {
                     </div>
                 ) : (
                     <>
-                        <SafeImage
-                            src={character.portrait}
-                            alt={character.name}
-                            className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
-                            fallback={
-                                <div className="flex flex-col items-center justify-center h-full text-gray-600">
-                                    <User className="h-20 w-20 mb-4 opacity-50" />
-                                    <p className="text-xs uppercase tracking-widest">No Visual Record</p>
-                                </div>
-                            }
-                        />
+                        {character.portrait ? (
+                            <SafeImage
+                                src={character.portrait}
+                                alt={character.name}
+                                className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
+                                fallback={
+                                    <div className="flex flex-col items-center justify-center h-full text-gray-600">
+                                        <User className="h-20 w-20 mb-4 opacity-50" />
+                                        <p className="text-xs uppercase tracking-widest">No Visual Record</p>
+                                    </div>
+                                }
+                            />
+                        ) : (
+                            <div className="flex flex-col items-center justify-center h-full text-gray-600">
+                                <User className="h-20 w-20 mb-4 opacity-50" />
+                                <p className="text-xs uppercase tracking-widest">No Visual Record</p>
+                            </div>
+                        )}
                     </>
                 )}
 

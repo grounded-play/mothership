@@ -1,41 +1,29 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useState } from "react";
 import { normalizePublicPath } from "@/lib/imagePath";
 
 type SafeImageProps = {
     src?: string | null;
-    fallbackSrc?: string | null;
-    alt?: string;
+    alt: string;
     className?: string;
-    fallback?: ReactNode;
+    fallback?: React.ReactNode;
 };
 
-export default function SafeImage({ src, fallbackSrc, alt, className, fallback }: SafeImageProps) {
-    const normalizedSrc = normalizePublicPath(src);
-    const normalizedFallback = normalizePublicPath(fallbackSrc);
-    const [currentSrc, setCurrentSrc] = useState<string | null>(normalizedSrc || normalizedFallback);
+export default function SafeImage({ src, alt, className, fallback }: SafeImageProps) {
+    const [failed, setFailed] = useState(false);
+    const normalized = normalizePublicPath(src);
 
-    useEffect(() => {
-        setCurrentSrc(normalizedSrc || normalizedFallback);
-    }, [normalizedSrc, normalizedFallback]);
-
-    if (!currentSrc) {
-        return <>{fallback ?? null}</>;
+    if (!normalized || failed) {
+        return <>{fallback ?? <span className="text-xs text-gray-500">NO IMG</span>}</>;
     }
 
     return (
         <img
-            src={currentSrc}
-            alt={alt || ""}
+            src={normalized}
+            alt={alt}
             className={className}
-            onError={() => {
-                if (currentSrc !== normalizedFallback && normalizedFallback) {
-                    setCurrentSrc(normalizedFallback);
-                } else {
-                    setCurrentSrc(null);
-                }
-            }}
+            onError={() => setFailed(true)}
         />
     );
 }

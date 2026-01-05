@@ -32,19 +32,8 @@ export default async function CharacterViewPage() {
     }
 
     const character = user.characters[0];
-    const inventory = character.inventory || [];
-    const resourceNames = new Set(["Scrap Metal", "Nutrient Paste"]);
-    const resourceCounts = inventory.reduce(
-        (acc: { scrap: number; paste: number }, entry: any) => {
-            const name = entry?.item?.name;
-            const qty = entry?.quantity ?? 1;
-            if (name === "Scrap Metal") acc.scrap += qty;
-            if (name === "Nutrient Paste") acc.paste += qty;
-            return acc;
-        },
-        { scrap: 0, paste: 0 }
-    );
-    const displayInventory = inventory.filter((entry: any) => !resourceNames.has(entry?.item?.name));
+    const scrapCount = character.inventory?.find((inv: any) => inv.item?.name === "Scrap Metal")?.quantity ?? 0;
+    const pasteCount = character.inventory?.find((inv: any) => inv.item?.name === "Nutrient Paste")?.quantity ?? 0;
     const runsFailed = (character as any).runsFailed ?? 0;
 
     // Parse stats
@@ -61,12 +50,7 @@ export default async function CharacterViewPage() {
                         <ArrowLeft className="mr-2 h-5 w-5" /> Back to Bridge
                     </Link>
                     <div className="flex items-center gap-4">
-                        <CurrencyDisplay
-                            credits={character.credits}
-                            voidTokens={character.voidTokens}
-                            scrap={resourceCounts.scrap}
-                            paste={resourceCounts.paste}
-                        />
+                        <CurrencyDisplay credits={character.credits} voidTokens={character.voidTokens} scrap={scrapCount} paste={pasteCount} />
                     </div>
                 </header>
 
@@ -85,21 +69,21 @@ export default async function CharacterViewPage() {
                                 <div className="flex justify-between items-center bg-black/30 p-2 px-3 rounded text-xs uppercase ">
                                     <span className="text-gray-400">Strength</span>
                                     <div className="h-1.5 w-24 bg-gray-800 rounded-full overflow-hidden">
-                                        <div style={{ width: `${stats.str * 5}%` }} className="h-full bg-red-500" />
+                                        <div style={{ "--w": `${stats.str * 5}%` } as React.CSSProperties} className="h-full bg-red-500 w-[var(--w)]" />
                                     </div>
                                     <span className="font-mono text-white">{stats.str}</span>
                                 </div>
                                 <div className="flex justify-between items-center bg-black/30 p-2 px-3 rounded text-xs uppercase ">
                                     <span className="text-gray-400">Agility</span>
                                     <div className="h-1.5 w-24 bg-gray-800 rounded-full overflow-hidden">
-                                        <div style={{ width: `${stats.agi * 5}%` }} className="h-full bg-green-500" />
+                                        <div style={{ "--w": `${stats.agi * 5}%` } as React.CSSProperties} className="h-full bg-green-500 w-[var(--w)]" />
                                     </div>
                                     <span className="font-mono text-white">{stats.agi}</span>
                                 </div>
                                 <div className="flex justify-between items-center bg-black/30 p-2 px-3 rounded text-xs uppercase ">
                                     <span className="text-gray-400">Intellect</span>
                                     <div className="h-1.5 w-24 bg-gray-800 rounded-full overflow-hidden">
-                                        <div style={{ width: `${stats.int * 5}%` }} className="h-full bg-blue-500" />
+                                        <div style={{ "--w": `${stats.int * 5}%` } as React.CSSProperties} className="h-full bg-blue-500 w-[var(--w)]" />
                                     </div>
                                     <span className="font-mono text-white">{stats.int}</span>
                                 </div>
@@ -137,7 +121,7 @@ export default async function CharacterViewPage() {
                             <h2 className="text-xl font-bold text-neon-cyan mb-6 flex items-center uppercase tracking-wider text-sm">
                                 <Box className="mr-2 w-4 h-4" /> Cargo Manifest
                             </h2>
-                            <InventoryInspect inventory={displayInventory} />
+                            <InventoryInspect inventory={character.inventory} />
                         </div>
                     </div>
                 </div>

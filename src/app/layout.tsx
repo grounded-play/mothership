@@ -3,7 +3,8 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "../components/auth/AuthProvider";
 import { ToastProvider } from "@/components/ui/Toast";
-import ResponsiveShell from "@/components/layout/ResponsiveShell";
+import AppFrame from "@/components/ui/AppFrame";
+import { ensurePrinterWorker } from "@/lib/printerWorker";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -17,12 +18,13 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  ensurePrinterWorker();
   return (
     <html lang="en">
-      <body className={`${inter.className} bg-black text-white overflow-hidden h-[100dvh]`}>
+      <body className={`${inter.className} bg-black text-white h-full w-full overflow-hidden`}>
         <AuthProvider>
           <ToastProvider>
-            <ResponsiveShell>{children}</ResponsiveShell>
+            <AppFrame>{children}</AppFrame>
           </ToastProvider>
         </AuthProvider>
       </body>

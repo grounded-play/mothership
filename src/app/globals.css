@@ -17,6 +17,7 @@
   
   --foreground: #ededed;
   --background: var(--space-black);
+  --app-scale: 1;
 }
 
 @theme inline {
@@ -47,6 +48,48 @@ body,
 body {
   background: var(--background);
   color: var(--foreground);
+}
+
+html, body {
+  height: 100%;
+  width: 100%;
+}
+
+
+.app-frame {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  overflow-x: hidden;
+  position: relative;
+  /* Void background texture can go here or be simple */
+  background: var(--space-void);
+}
+
+
+/* Subtle scrollbars */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 243, 255, 0.35) transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(0, 243, 255, 0.35);
+  border-radius: 999px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 243, 255, 0.55);
 }
 
 /* Glassmorphism Utility */

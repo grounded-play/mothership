@@ -280,8 +280,7 @@ async function autoProgress(gameState: any) {
                         mainObjective.current = Math.max(0, target - nextIntegrity);
                         mainObjective.isComplete = nextIntegrity <= 0;
                         if (mainObjective.isComplete) {
-                            phaseOverride = "VICTORY";
-                            logs.push({ ts: nowTs, type: "MAIN", message: "Core neutralized. Mission complete." });
+                            logs.push({ ts: nowTs, type: "MAIN", message: "Core neutralized. Return to airlock for extraction." });
                         }
                     }
                 } else {
@@ -291,38 +290,63 @@ async function autoProgress(gameState: any) {
                 logs.push({ ts: nowTs, type: "ATTACK", message: `${playerName} attack faltered: NO EFFECT` });
             }
         } else if (action.intent === "MOVE") {
-            const direction = action.direction || "FORWARD";
-            if (!node.scanned && node.type !== "START") {
+            const emergencyMove = Boolean(action.emergency);
+            const facing = (player.facing || "NORTH") as Facing;
+            const nodeConnections = parseJSON(node.connections || "[]", []);
+            const candidateDirections = emergencyMove ? ["BACK", "LEFT", "RIGHT", "FORWARD"] : [action.direction || "FORWARD"];
+            let moveResult: { target: any; newFacing: Facing; direction: string } | null = null;
+
+            if (!emergencyMove && !node.scanned && node.type !== "START") {
                 logs.push({ ts: nowTs, type: "MOVE", message: `${playerName} attempted to move but the room is unscanned.` });
                 continue;
             }
 
-            const facing = (player.facing || "NORTH") as Facing;
-            const { dx, dy, dz, newFacing } = resolveMove(direction, facing);
-            const absDir = vectorToDirection(dx, dy, dz);
-            const nodeConnections = parseJSON(node.connections || "[]", []);
-            if (absDir && !nodeConnections.includes(absDir)) {
-                logs.push({ ts: nowTs, type: "MOVE", message: `${playerName} found no hatch in that direction.` });
+            for (const dir of candidateDirections) {
+                const { dx, dy, dz, newFacing } = resolveMove(dir, facing);
+                const absDir = vectorToDirection(dx, dy, dz);
+                if (absDir && !nodeConnections.includes(absDir)) continue;
+
+                const target = await (prisma as any).mapNode.findFirst({
+                    where: { gameId: gameState.id, x: node.x + dx, y: node.y + dy, z: node.z + dz }
+                });
+                if (!target) continue;
+                if (emergencyMove && !target.scanned && target.type !== "START") continue;
+
+                moveResult = { target, newFacing, direction: dir };
+                break;
+            }
+
+            if (!moveResult) {
+                logs.push({ ts: nowTs, type: "MOVE", message: `${playerName} could not find a safe escape route.` });
                 continue;
             }
 
-            const target = await (prisma as any).mapNode.findFirst({
-                where: { gameId: gameState.id, x: node.x + dx, y: node.y + dy, z: node.z + dz }
-            });
-            if (!target) {
-                logs.push({ ts: nowTs, type: "MOVE", message: `${playerName} aborted move: hull breach detected.` });
-                continue;
+            if (emergencyMove) {
+                const nextHp = Math.max(0, (player.hp ?? 0) - 1);
+                updates.push((prisma as any).gamePlayer.update({ where: { id: player.id }, data: { hp: nextHp } }));
+                player.hp = nextHp;
+                logs.push({ ts: nowTs, type: "MOVE", message: `${playerName} triggered emergency escape: -1 HP.` });
+            }
+
+            if ((node.security ?? 0) < 1) {
+                const nextStress = Math.max(0, (player.stress ?? 0) - 1);
+                updates.push((prisma as any).gamePlayer.update({ where: { id: player.id }, data: { stress: nextStress } }));
+                player.stress = nextStress;
+                logs.push({ ts: nowTs, type: "MOVE", message: `${playerName} left an unsecured room: -1 energy.` });
             }
 
             updates.push((prisma as any).mapNode.update({
-                where: { id: target.id },
+                where: { id: moveResult.target.id },
                 data: { isExplored: true }
             }));
             updates.push((prisma as any).gamePlayer.update({
                 where: { id: player.id },
-                data: { nodeId: target.id, facing: newFacing }
+                data: { nodeId: moveResult.target.id, facing: moveResult.newFacing }
             }));
-            logs.push({ ts: nowTs, type: "MOVE", message: `${playerName} moved ${direction}.` });
+            player.MapNode = moveResult.target;
+            player.nodeId = moveResult.target.id;
+            player.facing = moveResult.newFacing;
+            logs.push({ ts: nowTs, type: "MOVE", message: `${playerName} moved ${moveResult.direction}.` });
 
             if (!gameState.deadline && !startedDeadline) {
                 const diff = lobbyDifficulty || "NORMAL";
@@ -333,6 +357,11 @@ async function autoProgress(gameState: any) {
     }
 
     await Promise.all(updates);
+
+    if (mainObjective?.isComplete && players.every((p: any) => p.MapNode?.type === "START")) {
+        phaseOverride = "VICTORY";
+        logs.push({ ts: nowTs, type: "MAIN", message: "Squad extracted. Mission complete." });
+    }
 
     const basePool = computeBasePool(players.length);
     await (prisma as any).gameState.update({

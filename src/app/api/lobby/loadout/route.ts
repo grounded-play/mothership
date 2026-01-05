@@ -14,7 +14,8 @@ const normalizeSlot = (slot?: string | null) => {
 const getItemSlot = (item: any) => {
     if (item.equipSlot) return item.equipSlot.toUpperCase();
     if ((item.type || "").toLowerCase() === "weapon") return "WEAPON";
-    if ((item.type || "").toLowerCase() === "armor") return "ARMOR";
+    const type = (item.type || "").toLowerCase();
+    if (type === "armor" || type.includes("suit")) return "ARMOR";
     return null;
 };
 

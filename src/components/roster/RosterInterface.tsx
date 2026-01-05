@@ -15,6 +15,7 @@ interface Character {
     voidTokens?: number;
     stats?: string | any;
     runsCompleted?: number;
+    runsFailed?: number;
     deathCount?: number;
     deepestLevel?: number;
 }
@@ -42,17 +43,28 @@ export default function RosterInterface({ initialCharacters }: RosterInterfacePr
         { id: "teamster", icon: Shield }
     ];
 
-    const rankedCharacters = [...initialCharacters].sort((a, b) => {
-        const runsDiff = (b.runsCompleted || 0) - (a.runsCompleted || 0);
-        if (runsDiff !== 0) return runsDiff;
-        const depthDiff = (b.deepestLevel || 0) - (a.deepestLevel || 0);
-        if (depthDiff !== 0) return depthDiff;
-        return (a.deathCount || 0) - (b.deathCount || 0);
-    });
+    const seasonLabel = "Season 0";
+    const ranked = [...initialCharacters].sort((a, b) => {
+        const aRuns = a.runsCompleted ?? 0;
+        const bRuns = b.runsCompleted ?? 0;
+        if (bRuns !== aRuns) return bRuns - aRuns;
+        const aDepth = a.deepestLevel ?? 0;
+        const bDepth = b.deepestLevel ?? 0;
+        if (bDepth !== aDepth) return bDepth - aDepth;
+        if (b.level !== a.level) return b.level - a.level;
+        return a.name.localeCompare(b.name);
+    }).slice(0, 10);
+
+    const rosterTotals = initialCharacters.reduce((acc, char) => {
+        acc.runs += char.runsCompleted ?? 0;
+        acc.fails += char.runsFailed ?? 0;
+        acc.deaths += char.deathCount ?? 0;
+        return acc;
+    }, { runs: 0, fails: 0, deaths: 0 });
 
     return (
         <div className="w-full max-w-7xl mx-auto">
-            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-6">
+            <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px] gap-8">
                 <div className="space-y-8">
                     {/* Control Panel */}
                     <div className="glass-panel p-6 rounded-xl border border-white/10 flex flex-col md:flex-row gap-6 items-center justify-between">
@@ -92,73 +104,41 @@ export default function RosterInterface({ initialCharacters }: RosterInterfacePr
                         </div>
                     </div>
 
-                    {/* Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                        <AnimatePresence>
-                            {filteredCharacters.map((char) => (
-                                <motion.div
-                                    key={char.id}
-                                    initial={{ opacity: 0, scale: 0.9 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    exit={{ opacity: 0, scale: 0.9 }}
-                                    layout
-                                    className="bg-black/40 border border-white/10 rounded-xl overflow-hidden hover:border-neon-cyan/50 hover:shadow-[0_0_15px_rgba(0,243,255,0.1)] transition-all group"
-                                >
-                                    {/* Portrait Area */}
-                                    <div className="h-64 w-full relative bg-gray-900 overflow-hidden">
-                                        <div className="absolute inset-0 bg-black/90 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center p-6 text-center z-10">
-                                            <div className="text-neon-cyan font-bold mb-2 tracking-widest text-sm">SERVICE RECORD</div>
-
-                                            <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-xs mb-4 w-full">
-                                                <div className="text-gray-400 text-right">CREDITS</div>
-                                                <div className="text-white text-left font-mono text-yellow-500">{char.credits || 0}</div>
-
-                                                <div className="text-gray-400 text-right">VOID TOKENS</div>
-                                                <div className="text-white text-left font-mono text-neon-magenta">{char.voidTokens || 0}</div>
+                    {/* Grid Container with Scroll */}
+                    <div className="h-[calc(100vh-240px)] overflow-y-auto custom-scrollbar pr-2">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                            <AnimatePresence>
+                                {filteredCharacters.map((char) => (
+                                    <motion.div
+                                        key={char.id}
+                                        initial={{ opacity: 0, scale: 0.9 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        exit={{ opacity: 0, scale: 0.9 }}
+                                        layout
+                                        className="relative group h-80 rounded-xl overflow-hidden border border-white/10 bg-black cursor-pointer shadow-lg hover:shadow-[0_0_25px_rgba(0,243,255,0.2)] transition-all duration-500"
+                                    >
+                                        {/* Full Size Background Image */}
+                                        {char.portrait ? (
+                                            <div className="absolute inset-0 z-0">
+                                                <SafeImage
+                                                    src={char.portrait}
+                                                    alt={char.name}
+                                                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 group-hover:grayscale-0 grayscale-[0.3]"
+                                                />
                                             </div>
-
-                                            <div className="w-full border-t border-white/20 pt-2 grid grid-cols-3 gap-2 text-xs">
-                                                {(() => {
-                                                    try {
-                                                        // Safe parse stats if string
-                                                        const stats = typeof char.stats === 'string' ? JSON.parse(char.stats) : char.stats;
-                                                        return (
-                                                            <>
-                                                                <div>
-                                                                    <div className="text-red-400 font-bold">STR</div>
-                                                                    <div className="font-mono">{stats?.strength || stats?.str || 0}</div>
-                                                                </div>
-                                                                <div>
-                                                                    <div className="text-green-400 font-bold">SPD</div>
-                                                                    <div className="font-mono">{stats?.speed || stats?.agility || 0}</div>
-                                                                </div>
-                                                                <div>
-                                                                    <div className="text-blue-400 font-bold">INT</div>
-                                                                    <div className="font-mono">{stats?.intellect || stats?.int || 0}</div>
-                                                                </div>
-                                                            </>
-                                                        )
-                                                    } catch (e) { return null; }
-                                                })()}
+                                        ) : (
+                                            <div className="absolute inset-0 z-0 flex items-center justify-center bg-gray-900">
+                                                <User className="w-24 h-24 text-gray-700 opacity-20" />
                                             </div>
-                                        </div>
+                                        )}
 
-                                        {/* Portrait Image */}
-                                        <SafeImage
-                                            src={char.portrait}
-                                            alt={char.name}
-                                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                                            fallback={
-                                                <div className="flex items-center justify-center h-full text-gray-700">
-                                                    <User className="w-16 h-16 opacity-20" />
-                                                </div>
-                                            }
-                                        />
-                                        <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-80" />
+                                        {/* Gradient Gradient for Text Readability */}
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent opacity-80 z-10" />
 
-                                        <div className="absolute bottom-4 left-4 right-4">
-                                            <h3 className="text-xl font-bold text-white uppercase tracking-wider truncate">{char.name}</h3>
-                                            <div className="flex items-center justify-between mt-1">
+                                        {/* Always Visible: Name & Class (Bottom) */}
+                                        <div className="absolute bottom-0 left-0 right-0 p-4 z-20 transform transition-transform duration-300 group-hover:-translate-y-2">
+                                            <h3 className="text-2xl font-black text-white uppercase tracking-tighter truncate drop-shadow-md">{char.name}</h3>
+                                            <div className="flex items-center gap-2">
                                                 {(() => {
                                                     const cls = (char.class || "").toLowerCase();
                                                     let color = "text-white";
@@ -168,52 +148,114 @@ export default function RosterInterface({ initialCharacters }: RosterInterfacePr
                                                     else if (cls.includes("teamster")) color = "text-yellow-400";
 
                                                     return (
-                                                        <span className={`text-xs uppercase tracking-widest ${color}`}>
+                                                        <span className={`text-xs font-bold uppercase tracking-widest ${color}`}>
                                                             {char.class}
                                                         </span>
                                                     );
                                                 })()}
-                                                <span className="text-xs font-mono text-gray-400 border border-white/10 px-1 rounded bg-black/50">
-                                                    LVL {char.level}
-                                                </span>
+                                                <span className="w-1 h-1 bg-white/50 rounded-full" />
+                                                <span className="text-xs text-gray-300 font-mono">LVL {char.level}</span>
                                             </div>
                                         </div>
-                                    </div>
-                                </motion.div>
-                            ))}
-                        </AnimatePresence>
-                    </div>
 
-                    {filteredCharacters.length === 0 && (
-                        <div className="text-center py-20 opacity-50">
-                            <p className="text-xl text-gray-500 uppercase tracking-widest">No Personnel Found</p>
+                                        {/* Hidden Details Overlay (Appears on Hover) */}
+                                        <div className="absolute inset-0 bg-black/80 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-30 flex flex-col items-center justify-center p-6 text-center">
+                                            <div className="text-neon-cyan font-bold mb-4 tracking-[0.2em] text-xs border-b border-neon-cyan/30 pb-2 w-full">SERVICE RECORD</div>
+
+                                            <div className="grid grid-cols-2 gap-x-8 gap-y-4 text-xs mb-6 w-full">
+                                                <div className="text-gray-400 text-right">CREDITS</div>
+                                                <div className="text-neon-cyan text-left font-mono">{char.credits || 0} CR</div>
+
+                                                <div className="text-gray-400 text-right">TOKENS</div>
+                                                <div className="text-neon-magenta text-left font-mono">{char.voidTokens || 0} VT</div>
+
+                                                <div className="text-gray-400 text-right">RUNS</div>
+                                                <div className="text-white text-left font-mono">{char.runsCompleted || 0}</div>
+                                            </div>
+
+                                            <div className="w-full grid grid-cols-3 gap-2 text-xs">
+                                                {(() => {
+                                                    try {
+                                                        const stats = typeof char.stats === 'string' ? JSON.parse(char.stats) : char.stats;
+                                                        return (
+                                                            <>
+                                                                <div className="bg-white/5 rounded p-2 border border-white/10">
+                                                                    <div className="text-red-400 font-bold mb-1">STR</div>
+                                                                    <div className="font-mono text-white text-lg">{stats?.strength || stats?.str || 0}</div>
+                                                                </div>
+                                                                <div className="bg-white/5 rounded p-2 border border-white/10">
+                                                                    <div className="text-green-400 font-bold mb-1">SPD</div>
+                                                                    <div className="font-mono text-white text-lg">{stats?.speed || stats?.agility || 0}</div>
+                                                                </div>
+                                                                <div className="bg-white/5 rounded p-2 border border-white/10">
+                                                                    <div className="text-blue-400 font-bold mb-1">INT</div>
+                                                                    <div className="font-mono text-white text-lg">{stats?.intellect || stats?.int || 0}</div>
+                                                                </div>
+                                                            </>
+                                                        )
+                                                    } catch (e) { return null; }
+                                                })()}
+                                            </div>
+                                        </div>
+                                    </motion.div>
+                                ))}
+                            </AnimatePresence>
                         </div>
-                    )}
+
+                        {filteredCharacters.length === 0 && (
+                            <div className="text-center py-20 opacity-50">
+                                <p className="text-xl text-gray-500 uppercase tracking-widest">No Personnel Found</p>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
-                <aside className="glass-panel border border-white/10 rounded-xl p-4 h-fit lg:sticky lg:top-24">
-                    <div className="flex items-center justify-between">
-                        <div className="text-xs uppercase tracking-widest text-neon-cyan font-bold">Season 0 Rankings</div>
-                        <div className="text-[10px] text-gray-500">DEV</div>
+                <aside className="glass-panel p-6 rounded-xl border border-white/10 h-[calc(100vh-140px)] flex flex-col">
+                    <div className="flex-none">
+                        <div className="text-[10px] text-gray-500 uppercase tracking-widest">Season Rankings</div>
+                        <div className="text-xl font-bold text-white mt-1 mb-4">{seasonLabel}</div>
                     </div>
-                    <div className="mt-4 space-y-2">
-                        {rankedCharacters.map((char, idx) => (
-                            <div key={char.id} className="flex items-center justify-between bg-black/40 border border-white/5 rounded px-3 py-2">
-                                <div className="flex flex-col min-w-0">
-                                    <div className="text-xs text-gray-500">#{idx + 1}</div>
-                                    <div className="text-sm text-white font-semibold truncate">{char.name}</div>
-                                    <div className="text-[10px] text-gray-500 uppercase tracking-widest">{char.class}</div>
+
+                    <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-3 min-h-0">
+                        {ranked.map((char, idx) => (
+                            <div key={char.id} className="flex items-center justify-between bg-black/40 border border-white/5 rounded-lg px-3 py-2 hover:bg-white/5 transition-colors">
+                                <div className="flex items-center gap-3 min-w-0">
+                                    <div className={`text-[10px] font-mono w-6 text-center font-bold ${idx < 3 ? "text-neon-cyan" : "text-gray-600"}`}>#{idx + 1}</div>
+                                    <div className="min-w-0">
+                                        <div className="text-sm text-white font-bold truncate">{char.name}</div>
+                                        <div className="text-[10px] text-gray-500 uppercase tracking-widest truncate">{char.class}</div>
+                                    </div>
                                 </div>
-                                <div className="flex flex-col text-[10px] text-gray-300 text-right">
-                                    <span className="text-neon-cyan">Runs {char.runsCompleted || 0}</span>
-                                    <span className="text-gray-400">Depth {char.deepestLevel || 0}</span>
-                                    <span className="text-red-400">Deaths {char.deathCount || 0}</span>
+                                <div className="text-right text-[10px] text-gray-400">
+                                    <div className="text-white font-mono">{char.deepestLevel ?? 0}m</div>
                                 </div>
                             </div>
                         ))}
+                        {ranked.length === 0 && (
+                            <div className="text-xs text-gray-500 text-center py-4">No roster data yet.</div>
+                        )}
+                    </div>
+
+                    <div className="flex-none mt-6 border-t border-white/10 pt-4">
+                        <div className="text-[10px] text-gray-500 uppercase tracking-widest">Roster Stats</div>
+                        <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                            <div className="bg-black/40 border border-white/5 rounded p-2 text-center">
+                                <div className="text-gray-500 text-[9px]">RUNS</div>
+                                <div className="text-white font-bold">{rosterTotals.runs}</div>
+                            </div>
+                            <div className="bg-black/40 border border-white/5 rounded p-2 text-center">
+                                <div className="text-gray-500 text-[9px]">FAILS</div>
+                                <div className="text-white font-bold">{rosterTotals.fails}</div>
+                            </div>
+                            <div className="bg-black/40 border border-white/5 rounded p-2 text-center">
+                                <div className="text-gray-500 text-[9px]">DEATHS</div>
+                                <div className="text-white font-bold">{rosterTotals.deaths}</div>
+                            </div>
+                        </div>
                     </div>
                 </aside>
             </div>
         </div>
     );
 }
+

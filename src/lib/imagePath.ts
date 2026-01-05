@@ -1,16 +1,21 @@
-export const normalizePublicPath = (input?: string | null) => {
-    if (!input) return null;
-    const trimmed = String(input).trim();
+export const normalizePublicPath = (value?: string | null) => {
+    if (!value) return null;
+    const trimmed = String(value).trim();
     if (!trimmed) return null;
     if (trimmed.startsWith("data:") || /^https?:\/\//i.test(trimmed)) return trimmed;
 
     let normalized = trimmed.replace(/\\/g, "/");
-    const publicMatch = normalized.match(/(?:^|\/)public\/(.+)/);
-    if (publicMatch?.[1]) {
-        normalized = `/${publicMatch[1]}`;
+    const lower = normalized.toLowerCase();
+    const publicIndex = lower.lastIndexOf("/public/");
+    if (publicIndex !== -1) {
+        normalized = normalized.slice(publicIndex + "/public".length);
+    } else if (lower.startsWith("public/")) {
+        normalized = normalized.slice("public".length);
     }
+
     if (!normalized.startsWith("/")) {
         normalized = `/${normalized}`;
     }
+
     return normalized;
 };

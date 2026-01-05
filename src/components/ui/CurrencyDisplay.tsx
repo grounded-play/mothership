@@ -1,13 +1,16 @@
-import { Coins, Hexagon, Box, Droplet } from "lucide-react";
+import { Coins, Hexagon, Wrench, Droplet } from "lucide-react";
 
-type CurrencyDisplayProps = {
+export default function CurrencyDisplay({
+    credits,
+    voidTokens,
+    scrap,
+    paste
+}: {
     credits: number;
     voidTokens: number;
     scrap?: number;
     paste?: number;
-};
-
-export default function CurrencyDisplay({ credits, voidTokens, scrap, paste }: CurrencyDisplayProps) {
+}) {
     return (
         <div className="flex gap-4">
             <div className="flex items-center gap-2 bg-black/40 px-3 py-1 rounded border border-neon-cyan/30 text-neon-cyan">
@@ -19,8 +22,8 @@ export default function CurrencyDisplay({ credits, voidTokens, scrap, paste }: C
                 <span className="font-mono text-sm">{voidTokens.toLocaleString()}</span>
             </div>
             {typeof scrap === "number" && (
-                <div className="flex items-center gap-2 bg-black/40 px-3 py-1 rounded border border-amber-500/30 text-amber-400">
-                    <Box className="w-4 h-4" />
+                <div className="flex items-center gap-2 bg-black/40 px-3 py-1 rounded border border-yellow-500/30 text-yellow-400">
+                    <Wrench className="w-4 h-4" />
                     <span className="font-mono text-sm">{scrap.toLocaleString()}</span>
                 </div>
             )}

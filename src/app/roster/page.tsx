@@ -21,6 +21,7 @@ export default async function RosterPage() {
             voidTokens: true,
             stats: true,
             runsCompleted: true,
+            runsFailed: true,
             deathCount: true,
             deepestLevel: true,
         },
