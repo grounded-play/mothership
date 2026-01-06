@@ -3,6 +3,10 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
+function parseJSON(raw: any, fallback: any) {
+    try { return JSON.parse(raw); } catch { return fallback; }
+}
+
 export async function POST(req: Request) {
     const session = await getServerSession(authOptions);
     if (!session?.user?.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -71,11 +75,45 @@ export async function POST(req: Request) {
                 data: { status: "ENDED" }
             });
         } else {
-            // Player leaving breaks the circle. Abort unless victory is already achieved.
-            await (prisma as any).gameState.update({
-                where: { id: gameId },
-                data: { phase: isVictory ? "VICTORY" : "ABORTED" }
+            // Player leaving: Remove from game logic instead of aborting.
+            // 1. Delete GamePlayer entry
+            await (prisma as any).gamePlayer.deleteMany({
+                where: {
+                    gameId: gameId,
+                    characterId: character.id
+                }
             });
+
+            // 2. Clean up GameState (turnOrder, pendingActions)
+            const latestGame = await (prisma as any).gameState.findUnique({ where: { id: gameId } });
+            if (latestGame) {
+                const turnOrder = parseJSON((latestGame as any).turnOrder || "[]", []).filter((id: string) => id !== character.id);
+                const pending = parseJSON((latestGame as any).pendingActions || "[]", []).filter((p: any) => p.playerId !== character.id);
+
+                const remainingPlayersCount = await (prisma as any).gamePlayer.count({ where: { gameId } });
+
+                if (remainingPlayersCount === 0) {
+                    // Empty game, abort
+                    await (prisma as any).gameState.update({
+                        where: { id: gameId },
+                        data: { phase: "ABORTED" }
+                    });
+                } else {
+                    // Check if we should trigger immediate resolution (everyone else is ready)
+                    // If pending >= remaining, trigger via deadline hack (set to now)
+                    // (autoProgress in state/route will pick it up)
+                    const allReady = pending.length >= remainingPlayersCount;
+
+                    await (prisma as any).gameState.update({
+                        where: { id: gameId },
+                        data: {
+                            turnOrder: JSON.stringify(turnOrder),
+                            pendingActions: JSON.stringify(pending),
+                            actionDeadline: allReady ? new Date() : latestGame.actionDeadline
+                        }
+                    });
+                }
+            }
         }
 
         return NextResponse.json({

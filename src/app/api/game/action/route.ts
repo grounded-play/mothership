@@ -439,7 +439,7 @@ async function resolveReaction(gameState: any, players: any[], pending: PendingA
                 } else {
                     // V22: Detailed Log
                     const detailMsg = `[Base ${breakdown.base}${breakdown.weapon ? `+Wpn` : ''}${breakdown.roomMod ? `${breakdown.roomMod > 0 ? '+' : ''}Rm` : ''}]`;
-                    logs.push({ ts: now, type: "ATTACK", message: `${playerName} neutralized hostiles: ${strength} vs ${nodePower} ${detailMsg}` });
+                    logs.push({ ts: now, type: "ATTACK", message: `⚔️ ${playerName} vs HOSTILES: ${strength} > ${nodePower}. TARGET NEUTRALIZED. ${detailMsg}` });
 
                     // V22: Visual Data Payload
                     logs.push({
@@ -466,7 +466,7 @@ async function resolveReaction(gameState: any, players: any[], pending: PendingA
             } else {
                 // V22: Detailed Log
                 const detailMsg = `[Base ${breakdown.base}${breakdown.weapon ? `+Wpn` : ''}${breakdown.roomMod ? `${breakdown.roomMod > 0 ? '+' : ''}Rm` : ''}]`;
-                logs.push({ ts: now, type: "ATTACK", message: `${playerName} attack faltered (Str ${strength} < P${nodePower}): NO EFFECT ${detailMsg}` });
+                logs.push({ ts: now, type: "ATTACK", message: `⚠️ ${playerName} vs HOSTILES: ${strength} < ${nodePower}. ATTACK FAILED. ${detailMsg}` });
 
                 // V22: Visual Data Payload
                 logs.push({

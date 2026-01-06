@@ -36,9 +36,9 @@ export default function PrinterInterface({ credits, inventory, globalQueue, back
     const [repairingId, setRepairingId] = useState<string | null>(null);
     const [queueHold, setQueueHold] = useState(false);
 
-    // Queue State
-    const [generationQueue, setGenerationQueue] = useState<any[]>([]);
-    const [isProcessing, setIsProcessing] = useState(false);
+    // Queue State - Removed (Handled by Background Worker)
+    // const [generationQueue, setGenerationQueue] = useState<any[]>([]);
+    // const [isProcessing, setIsProcessing] = useState(false);
 
     // Slot Machine State
     const [rollStrip, setRollStrip] = useState<string[]>([]);
@@ -127,83 +127,19 @@ export default function PrinterInterface({ credits, inventory, globalQueue, back
         if (!hasActiveQueue) return;
 
         const hasGenerating = queueEntries.some((entry: any) => entry.status?.startsWith("GENERATING"));
-        const refreshIntervalMs = hasGenerating ? 6000 : 20000;
 
-        // 1. Auto-Refresh (Keep Data Fresh)
+        // Auto-Refresh (Keep Data Fresh)
         const interval = setInterval(() => {
             if (!queueHold) {
                 router.refresh();
             }
-        }, 3000);
-
-        // 2. Sync Logic: Resume "Stuck" items or items from previous session
-        if (globalQueue && globalQueue.length > 0) {
-            const myPending = globalQueue.filter(gItem =>
-                // Is Mine?
-                inventory.some(myInv => myInv.id === gItem.id) &&
-                // Is Pending? (Null status, QUEUED, stuck GENERATING, or Broken READY)
-                (!gItem.imageStatus || gItem.imageStatus === "QUEUED" || gItem.imageStatus.startsWith("GENERATING") || gItem.imageStatus === "READY")
-            );
-
-            if (myPending.length > 0) {
-                setGenerationQueue(prev => {
-                    // Prevent Duplicates
-                    const newItems = myPending.filter(p => !prev.some(q => q.id === p.id));
-                    if (newItems.length > 0) {
-                        console.log("Resuming Pending Items:", newItems.length);
-                        return [...prev, ...newItems];
-                    }
-                    return prev;
-                });
-            }
-        }
+        }, hasGenerating ? 3000 : 10000); // Poll slower if just queued
 
         return () => clearInterval(interval);
-    }, [router, globalQueue, inventory, queueHold]);
+    }, [router, queueHold, spinning, queueEntries]); // Added queueEntries dep
 
-    // Queue Processing Effect
-    const processingRef = useRef(false);
+    // REMOVED: Processing Effect (Handled by Server Worker)
 
-    useEffect(() => {
-        const processNext = async () => {
-            if (generationQueue.length === 0 || isProcessing || processingRef.current) return;
-
-            processingRef.current = true;
-            setIsProcessing(true);
-            const item = generationQueue[0];
-
-            try {
-                const res = await fetch('/api/items/generate', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        itemId: item.itemId,
-                        inventoryItemId: item.id,
-                        stats: item.instanceStats,
-                        traits: item.visualTraits
-                    })
-                });
-
-                if (res.ok && res.body) {
-                    const reader = res.body.getReader();
-                    while (true) {
-                        const { done } = await reader.read();
-                        if (done) break;
-                    }
-                }
-                router.refresh();
-            } catch (e) {
-                console.error(e);
-                addToast("Visualization Failed", "error");
-            } finally {
-                setGenerationQueue(prev => prev.slice(1));
-                setIsProcessing(false);
-                processingRef.current = false;
-            }
-        };
-
-        processNext();
-    }, [generationQueue, isProcessing, router, addToast]);
 
     const spinCost = 100;
 

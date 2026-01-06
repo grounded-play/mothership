@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { ArrowDownUp, Box, X } from "lucide-react";
 import SafeImage from "@/components/ui/SafeImage";
 import { normalizePublicPath } from "@/lib/imagePath";
+import { getSuitBadge } from "@/lib/suits";
 
 const parseJSON = (raw: any, fallback: any) => {
     try { return JSON.parse(raw); } catch { return fallback; }
@@ -19,6 +20,7 @@ const getRarityClass = (rarity?: string) => {
 export default function InventoryInspect({ inventory }: { inventory: any[] }) {
     const [selected, setSelected] = useState<any | null>(null);
     const [activeTab, setActiveTab] = useState("ALL");
+    const [activeSuit, setActiveSuit] = useState("ALL");
     const [sortKey, setSortKey] = useState("RARITY");
     const [sortDir, setSortDir] = useState<"ASC" | "DESC">("DESC");
     const selectedStats = useMemo(() => parseJSON(selected?.instanceStats || "{}", {}), [selected?.instanceStats]);
@@ -58,9 +60,13 @@ export default function InventoryInspect({ inventory }: { inventory: any[] }) {
     }, [displayInventory]);
 
     const filteredInventory = useMemo(() => {
-        const filtered = activeTab === "ALL"
+        let filtered = activeTab === "ALL"
             ? displayInventory
             : displayInventory.filter((entry) => getCategory(entry) === activeTab);
+
+        if (activeSuit !== "ALL") {
+            filtered = filtered.filter((entry) => entry.item?.suit === activeSuit);
+        }
 
         const direction = sortDir === "ASC" ? 1 : -1;
         const sorted = [...filtered].sort((a, b) => {
@@ -101,8 +107,8 @@ export default function InventoryInspect({ inventory }: { inventory: any[] }) {
                                 type="button"
                                 onClick={() => setActiveTab(tab.id)}
                                 className={`px-2 py-1 rounded border transition ${activeTab === tab.id
-                                        ? "border-neon-cyan text-neon-cyan bg-black/40"
-                                        : "border-white/10 text-gray-500 hover:border-white/30"
+                                    ? "border-neon-cyan text-neon-cyan bg-black/40"
+                                    : "border-white/10 text-gray-500 hover:border-white/30"
                                     }`}
                             >
                                 {tab.label} <span className="text-[9px] text-gray-500">({tab.count})</span>
@@ -131,47 +137,73 @@ export default function InventoryInspect({ inventory }: { inventory: any[] }) {
                             <ArrowDownUp className="h-3 w-3" />
                         </button>
                     </div>
+
+                    {/* Suit Filter */}
+                    <div className="flex items-center gap-2 text-xs">
+                        <label className="text-[10px] uppercase tracking-widest text-gray-500">Suit</label>
+                        <select
+                            value={activeSuit}
+                            onChange={(event) => setActiveSuit(event.target.value)}
+                            aria-label="Filter by suit"
+                            className="bg-black/40 border border-white/10 rounded px-2 py-1 text-xs text-white"
+                        >
+                            <option value="ALL">All</option>
+                            <option value="COMMAND">Command</option>
+                            <option value="PLASMA">Plasma</option>
+                            <option value="BIOTECH">Biotech</option>
+                            <option value="VOID">Void</option>
+                        </select>
+                    </div>
                 </div>
 
                 {filteredInventory.length > 0 ? (
                     <div className="max-h-[520px] overflow-y-auto custom-scrollbar pr-1">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            {filteredInventory.map((entry) => (
-                                <button
-                                    key={entry.id}
-                                    type="button"
-                                    onClick={() => setSelected(entry)}
-                                    className="flex items-center gap-3 p-3 bg-black/40 border border-white/5 rounded-lg hover:bg-white/5 transition-colors group text-left"
-                                >
-                                    <div className="w-12 h-12 bg-black/60 rounded flex items-center justify-center shrink-0 border border-white/10 overflow-hidden relative">
-                                        {normalizePublicPath(entry.customImage || entry.item.icon) ? (
-                                            <SafeImage
-                                                src={entry.customImage || entry.item.icon}
-                                                alt={entry.item.name}
-                                                className="w-full h-full object-cover"
-                                                fallback={<span className="text-xl font-bold text-gray-600">{entry.item.name[0]}</span>}
-                                            />
-                                        ) : (
-                                            <span className="text-xl font-bold text-gray-600">{entry.item.name[0]}</span>
-                                        )}
-                                    </div>
+                            {filteredInventory.map((entry) => {
+                                const suitBadge = getSuitBadge(entry.item.suit, true);
+                                return (
+                                    <button
+                                        key={entry.id}
+                                        type="button"
+                                        onClick={() => setSelected(entry)}
+                                        className="flex items-center gap-3 p-3 bg-black/40 border border-white/5 rounded-lg hover:bg-white/5 transition-colors group text-left"
+                                    >
+                                        <div className="w-12 h-12 bg-black/60 rounded flex items-center justify-center shrink-0 border border-white/10 overflow-hidden relative">
 
-                                    <div className="flex-1 min-w-0">
-                                        <div className={`font-medium truncate ${getRarityClass(entry.item.rarity)}`}>
-                                            {entry.item.name}
+                                            {normalizePublicPath(entry.customImage || entry.item.icon) ? (
+                                                <SafeImage
+                                                    src={entry.customImage || entry.item.icon}
+                                                    alt={entry.item.name}
+                                                    className="w-full h-full object-cover"
+                                                    fallback={<span className="text-xl font-bold text-gray-600">{entry.item.name[0]}</span>}
+                                                />
+                                            ) : (
+                                                <span className="text-xl font-bold text-gray-600">{entry.item.name[0]}</span>
+                                            )}
                                         </div>
-                                        <div className="text-[10px] text-gray-400 truncate uppercase mt-0.5">
-                                            {entry.visualTraits || entry.item.type}
+
+                                        <div className="flex-1 min-w-0">
+                                            <div className={`font-medium truncate ${getRarityClass(entry.item.rarity)}`}>
+                                                {entry.item.name}
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <div className="text-[10px] text-gray-400 truncate uppercase mt-0.5">
+                                                    {entry.visualTraits || entry.item.type}
+                                                </div>
+                                                {suitBadge && (
+                                                    <span className={suitBadge.className}>{suitBadge.label}</span>
+                                                )}
+                                            </div>
+                                            <div className="text-[10px] text-neon-cyan/70 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                Inspect
+                                            </div>
                                         </div>
-                                        <div className="text-[10px] text-neon-cyan/70 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            Inspect
+                                        <div className="text-sm font-mono text-gray-500 bg-black/80 px-2 py-1 rounded border border-white/5">
+                                            x{entry.quantity}
                                         </div>
-                                    </div>
-                                    <div className="text-sm font-mono text-gray-500 bg-black/80 px-2 py-1 rounded border border-white/5">
-                                        x{entry.quantity}
-                                    </div>
-                                </button>
-                            ))}
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
                 ) : (
@@ -190,8 +222,11 @@ export default function InventoryInspect({ inventory }: { inventory: any[] }) {
                                 <div className={`text-lg font-bold ${getRarityClass(selected.item?.rarity)}`}>
                                     {selected.item?.name}
                                 </div>
-                                <div className="text-xs text-gray-400 uppercase tracking-widest">
-                                    {selected.item?.type} {selected.item?.rarity ? `| ${selected.item?.rarity}` : ""}
+                                <div className="text-xs text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                                    <span>{selected.item?.type} {selected.item?.rarity ? `| ${selected.item?.rarity}` : ""}</span>
+                                    {getSuitBadge(selected.item?.suit) && (
+                                        <span className={getSuitBadge(selected.item?.suit)?.className}>{getSuitBadge(selected.item?.suit)?.label}</span>
+                                    )}
                                 </div>
                             </div>
                             <button
