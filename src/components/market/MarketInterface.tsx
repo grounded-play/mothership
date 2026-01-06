@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/Toast";
 import SafeImage from "@/components/ui/SafeImage";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import { getSuitBadge } from "@/lib/suits";
 
 // Gamba Logic moved to PrinterInterface
 
@@ -87,6 +88,7 @@ export default function MarketInterface({ initialListings, userInventory, credit
     const [activeTab, setActiveTab] = useState("market"); // market, sell, printer
     const [listings, setListings] = useState(initialListings || []);
     const [marketFilterTab, setMarketFilterTab] = useState("ALL");
+    const [marketFilterSuit, setMarketFilterSuit] = useState("ALL");
     const [marketSortKey, setMarketSortKey] = useState("RARITY");
     const [marketSortDir, setMarketSortDir] = useState<"ASC" | "DESC">("DESC");
     const [sellFilterTab, setSellFilterTab] = useState("ALL");
@@ -153,9 +155,13 @@ export default function MarketInterface({ initialListings, userInventory, credit
         return counts;
     }, [groupedInventory]);
     const filteredListings = useMemo(() => {
-        const filtered = marketFilterTab === "ALL"
+        let filtered = marketFilterTab === "ALL"
             ? listings
             : listings.filter((listing: any) => getListingCategory(listing) === marketFilterTab);
+
+        if (marketFilterSuit !== "ALL") {
+            filtered = filtered.filter((listing: any) => listing.item?.suit === marketFilterSuit);
+        }
         const direction = marketSortDir === "ASC" ? 1 : -1;
         return [...filtered].sort((a, b) => {
             const aName = a?.item?.name || "";
@@ -176,7 +182,7 @@ export default function MarketInterface({ initialListings, userInventory, credit
             if (marketSortKey === "RARITY") return (aRarity - bRarity) * direction;
             return aName.localeCompare(bName) * direction;
         });
-    }, [listings, marketFilterTab, marketSortDir, marketSortKey]);
+    }, [listings, marketFilterTab, marketSortDir, marketSortKey, marketFilterSuit]);
     const filteredGroupedInventory = useMemo(() => {
         const filtered = sellFilterTab === "ALL"
             ? groupedInventory
@@ -369,6 +375,23 @@ export default function MarketInterface({ initialListings, userInventory, credit
                                     ))}
                                 </div>
                                 <div className="flex items-center gap-2 text-xs">
+                                    {/* Suit Filter */}
+                                    <div className="flex items-center gap-1">
+                                        <label htmlFor="market-suit" className="text-[10px] uppercase tracking-widest text-gray-500">Suit</label>
+                                        <select
+                                            id="market-suit"
+                                            value={marketFilterSuit}
+                                            onChange={(event) => setMarketFilterSuit(event.target.value)}
+                                            className="bg-black/40 border border-white/10 rounded px-2 py-1 text-xs text-white"
+                                        >
+                                            <option value="ALL">All</option>
+                                            <option value="COMMAND">Cmd</option>
+                                            <option value="PLASMA">Plasma</option>
+                                            <option value="BIOTECH">Bio</option>
+                                            <option value="VOID">Void</option>
+                                        </select>
+                                    </div>
+                                    <div className="w-px h-4 bg-white/10 mx-1" />
                                     <label htmlFor="market-sort" className="text-[10px] uppercase tracking-widest text-gray-500">Sort</label>
                                     <select
                                         id="market-sort"
@@ -404,6 +427,9 @@ export default function MarketInterface({ initialListings, userInventory, credit
                                         >
                                             <div className={`text-sm font-bold mb-2 ${listing.item.rarity === 'Legendary' ? 'text-neon-magenta' : 'text-neon-cyan'}`}>
                                                 {listing.item.rarity}
+                                                {getSuitBadge(listing.item.suit) && (
+                                                    <span className={`ml-2 ${getSuitBadge(listing.item.suit)?.className}`}>{getSuitBadge(listing.item.suit)?.label}</span>
+                                                )}
                                             </div>
 
                                             <div className="relative group w-24 h-24 mb-2">
@@ -522,6 +548,9 @@ export default function MarketInterface({ initialListings, userInventory, credit
                                                 <div className="flex items-center gap-2">
                                                     <span className="font-bold text-sm text-white">{group.item.name}</span>
                                                     <span className="text-[10px] text-gray-500 uppercase">{group.item.rarity}</span>
+                                                    {getSuitBadge(group.item.suit) && (
+                                                        <span className={getSuitBadge(group.item.suit)?.className}>{getSuitBadge(group.item.suit)?.label}</span>
+                                                    )}
                                                 </div>
                                                 <span className="text-xs text-gray-400">x{group.totalQty}</span>
                                             </button>
@@ -549,7 +578,12 @@ export default function MarketInterface({ initialListings, userInventory, credit
                                                             />
                                                             <div className="flex-1">
                                                                 <div className="text-xs font-bold text-white">{inv.item.name}</div>
-                                                                <div className="text-[10px] text-gray-500">{inv.visualTraits || inv.item.type}</div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className="text-[10px] text-gray-500">{inv.visualTraits || inv.item.type}</div>
+                                                                    {getSuitBadge(inv.item.suit) && (
+                                                                        <span className={getSuitBadge(inv.item.suit)?.className}>{getSuitBadge(inv.item.suit)?.label}</span>
+                                                                    )}
+                                                                </div>
                                                             </div>
                                                             <div className="text-[10px] text-gray-400">x{inv.quantity}</div>
                                                         </button>
@@ -634,6 +668,7 @@ export default function MarketInterface({ initialListings, userInventory, credit
                 )}
 
             </div>
+
         </div>
     );
 }

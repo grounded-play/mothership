@@ -178,9 +178,9 @@ export default function SectorGrid({ nodes, currentPlayerNodeId, activeZ, rotati
                                 if (isCurrent) statusColor = "bg-neon-cyan/20 border-neon-cyan shadow-[0_0_15px_rgba(0,255,255,0.3)] z-50";
                                 else if (isBoss) statusColor = "bg-red-900/40 border-red-500/50";
                                 else if (scanned && scanFailed) statusColor = "bg-gray-900/60 border-gray-700";
-                                else if (scanned && secured) statusColor = `bg-black/60 ${suitStyle.border}`;
-                                else if (scanned) statusColor = "bg-gray-700/40 border-gray-500";
-                                else if (node?.isExplored) statusColor = "bg-gray-700/30 border-gray-600";
+                                else if (scanned && secured) statusColor = `bg-black/80 ${suitStyle.border}`;
+                                else if (scanned) statusColor = "bg-gray-800/60 border-gray-500";
+                                else if (node?.isExplored) statusColor = "bg-gray-900/40 border-gray-700 border-dashed";
 
                                 // Fog of War: Check if visible OR if it's a neighbor (Door/Hatch)
                                 // Neighbor distance (Manhattan) = 1 (across X, Y, Z)
@@ -243,7 +243,7 @@ export default function SectorGrid({ nodes, currentPlayerNodeId, activeZ, rotati
                                                         );
                                                     }
                                                     return (
-                                                        <div key={`${marker.id}-${idx}`} className="w-2 h-2 rounded-full bg-white/70 mx-[1px]" />
+                                                        <div key={`${marker.id}-${idx}`} className="w-3 h-3 rounded-full bg-yellow-400 border border-black shadow-sm mx-[1px]" title="Squadmate" />
                                                     );
                                                 })}
                                             </div>
@@ -254,7 +254,7 @@ export default function SectorGrid({ nodes, currentPlayerNodeId, activeZ, rotati
                                                 {node?.roomPower ?? "?"}
                                             </div>
                                         )}
-                                        {scanned && secured && suitAbbr && (
+                                        {scanned && suitAbbr && (
                                             <div className={`absolute top-0.5 left-0.5 text-[8px] font-bold ${suitStyle.text}`}>
                                                 {suitAbbr}
                                             </div>

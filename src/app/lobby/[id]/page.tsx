@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import SafeImage from "@/components/ui/SafeImage";
 import { Users, Shield, Play, LogOut } from "lucide-react";
 import { getBackpackCapacity } from "@/lib/game/backpack";
+import { normalizePublicPath } from "@/lib/imagePath";
 
 
 export default function LobbyRoom() {
@@ -110,6 +111,24 @@ export default function LobbyRoom() {
         fetchLobby();
     };
 
+    const getSuitForClass = (cls: string) => {
+        const c = cls.toLowerCase();
+        if (c === "marine") return { name: "COMMAND", color: "text-green-500", border: "border-green-500/50", bg: "bg-green-500/10" };
+        if (c === "engineer") return { name: "PLASMA", color: "text-orange-500", border: "border-orange-500/50", bg: "bg-orange-500/10" };
+        if (c === "scientist") return { name: "BIOTECH", color: "text-red-500", border: "border-red-500/50", bg: "bg-red-500/10" };
+        if (c === "scout") return { name: "VOID", color: "text-purple-500", border: "border-purple-500/50", bg: "bg-purple-500/10" };
+        return { name: "UNKNOWN", color: "text-gray-500", border: "border-gray-500", bg: "bg-gray-500/10" };
+    };
+
+    const getSuitForItem = (item: any) => {
+        const s = (item?.suit || "").toUpperCase();
+        if (s === "COMMAND") return { name: "CMD", color: "text-green-400", border: "border-green-500/30", bg: "bg-green-900/20" };
+        if (s === "PLASMA") return { name: "PLSM", color: "text-orange-400", border: "border-orange-500/30", bg: "bg-orange-900/20" };
+        if (s === "BIOTECH") return { name: "BIO", color: "text-red-400", border: "border-red-500/30", bg: "bg-red-900/20" };
+        if (s === "VOID") return { name: "VOID", color: "text-purple-400", border: "border-purple-500/30", bg: "bg-purple-900/20" };
+        return null;
+    };
+
     return (
         <div className="min-h-full p-8 pt-24 max-w-4xl mx-auto space-y-8">
             {/* Header */}
@@ -132,42 +151,50 @@ export default function LobbyRoom() {
 
             {/* Roster */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {lobby.members.map((member: any) => (
-                    <motion.div
-                        key={member.id}
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className={`glass-panel p-4 rounded-xl flex items-center justify-between ${member.isReady ? 'border-green-500/50 bg-green-950/20' : 'border-white/10'}`}
-                    >
-                        <div className="flex items-center gap-4">
-                            <div className={`w-12 h-12 rounded-full flex items-center justify-center border overflow-hidden ${member.isReady ? 'border-green-500 bg-green-900/40 text-green-400' : 'border-gray-600 bg-gray-800 text-gray-400'}`}>
-                                {member.character.portrait ? (
-                                    <SafeImage
-                                        src={member.character.portrait}
-                                        alt={member.character.name}
-                                        className="w-full h-full object-cover"
-                                        fallback={<span>{member.character.class[0]}</span>}
-                                    />
-                                ) : (
-                                    member.character.class[0]
-                                )}
-                            </div>
-                            <div>
-                                <div className="font-bold text-white">{member.character.name}</div>
-                                <div className="text-xs text-gray-400 mb-0.5">{member.character.class} | Lvl {member.character.level}</div>
-                                <div className="flex gap-3 text-[10px] font-mono">
-                                    <span className="text-yellow-500 font-bold">CR: {member.character.credits}</span>
-                                    <span className="text-purple-400 font-bold">VOID: {member.character.voidTokens}</span>
+                {lobby.members.map((member: any) => {
+                    const suit = getSuitForClass(member.character.class);
+                    return (
+                        <motion.div
+                            key={member.id}
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className={`glass-panel p-4 rounded-xl flex items-center justify-between ${member.isReady ? 'border-green-500/50 bg-green-950/20' : 'border-white/10'}`}
+                        >
+                            <div className="flex items-center gap-4">
+                                <div className={`w-12 h-12 rounded-full flex items-center justify-center border overflow-hidden ${member.isReady ? 'border-green-500 bg-green-900/40 text-green-400' : 'border-gray-600 bg-gray-800 text-gray-400'}`}>
+                                    {member.character.portrait ? (
+                                        <SafeImage
+                                            src={member.character.portrait}
+                                            alt={member.character.name}
+                                            className="w-full h-full object-cover"
+                                            fallback={<span>{member.character.class[0]}</span>}
+                                        />
+                                    ) : (
+                                        member.character.class[0]
+                                    )}
+                                </div>
+                                <div>
+                                    <div className="font-bold text-white">{member.character.name}</div>
+                                    <div className="text-xs text-gray-400 mb-0.5 flex items-center gap-2">
+                                        <span>{member.character.class} | Lvl {member.character.level}</span>
+                                        <span className={`text-[9px] px-1.5 py-0.5 rounded border ${suit.border} ${suit.color} ${suit.bg} font-mono`}>
+                                            {suit.name}
+                                        </span>
+                                    </div>
+                                    <div className="flex gap-3 text-[10px] font-mono">
+                                        <span className="text-yellow-500 font-bold">CR: {member.character.credits}</span>
+                                        <span className="text-purple-400 font-bold">VOID: {member.character.voidTokens}</span>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                        {member.isReady ? (
-                            <span className="text-green-500 font-bold text-sm tracking-wide">READY</span>
-                        ) : (
-                            <span className="text-gray-600 text-sm font-mono tracking-wide">PREPARING...</span>
-                        )}
-                    </motion.div>
-                ))}
+                            {member.isReady ? (
+                                <span className="text-green-500 font-bold text-sm tracking-wide">READY</span>
+                            ) : (
+                                <span className="text-gray-600 text-sm font-mono tracking-wide">PREPARING...</span>
+                            )}
+                        </motion.div>
+                    );
+                })}
                 {Array.from({ length: 4 - lobby.members.length }).map((_, i) => (
                     <div key={i} className="glass-panel p-4 rounded-xl flex items-center justify-center text-gray-700 border-dashed border-gray-800">
                         <Users className="w-6 h-6 mr-2 opacity-50" /> EMPTY SLOT
@@ -181,73 +208,141 @@ export default function LobbyRoom() {
                     <div className="text-xs text-gray-400 uppercase tracking-widest mb-4">Loadout</div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="space-y-3">
-                            <div className="text-[10px] text-gray-500 uppercase tracking-widest">Weapon</div>
-                            <div className="bg-black/40 border border-white/10 rounded p-3 text-sm">
-                                <div className="text-white font-bold">{equippedWeapon?.item?.name || "None Equipped"}</div>
+                            <div className="text-[10px] text-gray-500 uppercase tracking-widest flex justify-between items-center">
+                                <span>Weapon</span>
                                 {equippedWeapon && (
-                                    <div className="text-[10px] text-gray-500 mt-1">
-                                        Uses: {formatUses(equippedWeapon) || "?"}
-                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleEquip("WEAPON", null)}
+                                        className="text-[9px] text-red-400 hover:text-red-300 border border-red-900/50 rounded px-2 py-0.5 bg-red-950/20"
+                                    >
+                                        UNEQUIP
+                                    </button>
                                 )}
                             </div>
+                            <div className="bg-black/40 border border-white/10 rounded p-3 text-sm flex gap-3 items-center">
+                                <div className="w-10 h-10 bg-black/60 rounded border border-white/10 shrink-0 overflow-hidden flex items-center justify-center">
+                                    {equippedWeapon && normalizePublicPath(equippedWeapon.customImage || equippedWeapon.item.icon) ? (
+                                        <SafeImage
+                                            src={equippedWeapon.customImage || equippedWeapon.item.icon}
+                                            alt={equippedWeapon.item.name}
+                                            className="w-full h-full object-cover"
+                                        />
+                                    ) : (
+                                        <div className="text-xs text-gray-600 font-bold">{equippedWeapon?.item?.name?.[0] || "-"}</div>
+                                    )}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2">
+                                        <div className="text-white font-bold truncate">{equippedWeapon?.item?.name || "None Equipped"}</div>
+                                        {(() => {
+                                            const s = equippedWeapon ? getSuitForItem(equippedWeapon.item) : null;
+                                            return s ? (
+                                                <span className={`text-[8px] px-1 rounded border leading-none pt-0.5 pb-0.5 ${s.border} ${s.color} ${s.bg}`}>
+                                                    {s.name}
+                                                </span>
+                                            ) : null;
+                                        })()}
+                                    </div>
+                                    {equippedWeapon && (
+                                        <div className="text-[10px] text-gray-500 mt-1">
+                                            Uses: {formatUses(equippedWeapon) || "∞"}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
                             <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
-                                {weaponItems.map((inv: any) => {
+                                {weaponItems.filter((inv: any) => {
                                     const uses = formatUses(inv);
-                                    const disabled = !!(uses && uses.startsWith("0/"));
+                                    return !(uses && uses.startsWith("0/"));
+                                }).map((inv: any) => {
+                                    const uses = formatUses(inv);
+                                    const s = getSuitForItem(inv.item);
                                     return (
                                         <button
                                             key={inv.id}
                                             type="button"
                                             onClick={() => handleEquip("WEAPON", inv.id)}
-                                            disabled={disabled}
-                                            className={`w-full text-left text-xs px-3 py-2 rounded border transition ${inv.isEquipped ? "border-neon-cyan text-neon-cyan" : "border-white/10 text-gray-300 hover:border-white/30"} ${disabled ? "opacity-40 cursor-not-allowed" : ""}`}
+                                            className={`w-full text-left text-xs px-3 py-2 rounded border transition flex items-center gap-2 ${inv.isEquipped ? "border-neon-cyan text-neon-cyan bg-neon-cyan/5" : "border-white/10 text-gray-300 hover:border-white/30"}`}
                                         >
-                                            {inv.item.name}
-                                            {uses ? <span className="ml-2 text-[10px] text-gray-500">({uses})</span> : null}
+                                            <span className="truncate flex-1 flex items-center gap-2">
+                                                {inv.item.name}
+                                                {s && <span className={`text-[8px] px-1 rounded border leading-none pt-0.5 pb-0.5 opacity-80 ${s.border} ${s.color} ${s.bg}`}>{s.name}</span>}
+                                            </span>
+                                            {uses ? <span className="ml-2 text-[10px] text-gray-500 shrink-0">({uses})</span> : null}
                                         </button>
                                     );
                                 })}
                                 {weaponItems.length === 0 && <div className="text-[10px] text-gray-600">No weapons in inventory.</div>}
-                                {equippedWeapon && (
-                                    <button type="button" onClick={() => handleEquip("WEAPON", null)} className="w-full text-left text-[10px] text-red-400 border border-red-900/50 rounded px-3 py-1 hover:bg-red-950/30">
-                                        Unequip
-                                    </button>
-                                )}
                             </div>
                         </div>
                         <div className="space-y-3">
-                            <div className="text-[10px] text-gray-500 uppercase tracking-widest">Armor</div>
-                            <div className="bg-black/40 border border-white/10 rounded p-3 text-sm">
-                                <div className="text-white font-bold">{equippedArmor?.item?.name || "None Equipped"}</div>
+                            <div className="text-[10px] text-gray-500 uppercase tracking-widest flex justify-between items-center">
+                                <span>Armor</span>
                                 {equippedArmor && (
-                                    <div className="text-[10px] text-gray-500 mt-1">
-                                        Uses: {formatUses(equippedArmor) || "?"}
-                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleEquip("ARMOR", null)}
+                                        className="text-[9px] text-red-400 hover:text-red-300 border border-red-900/50 rounded px-2 py-0.5 bg-red-950/20"
+                                    >
+                                        UNEQUIP
+                                    </button>
                                 )}
                             </div>
+                            <div className="bg-black/40 border border-white/10 rounded p-3 text-sm flex gap-3 items-center">
+                                <div className="w-10 h-10 bg-black/60 rounded border border-white/10 shrink-0 overflow-hidden flex items-center justify-center">
+                                    {equippedArmor && normalizePublicPath(equippedArmor.customImage || equippedArmor.item.icon) ? (
+                                        <SafeImage
+                                            src={equippedArmor.customImage || equippedArmor.item.icon}
+                                            alt={equippedArmor.item.name}
+                                            className="w-full h-full object-cover"
+                                        />
+                                    ) : (
+                                        <div className="text-xs text-gray-600 font-bold">{equippedArmor?.item?.name?.[0] || "-"}</div>
+                                    )}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2">
+                                        <div className="text-white font-bold truncate">{equippedArmor?.item?.name || "None Equipped"}</div>
+                                        {(() => {
+                                            const s = equippedArmor ? getSuitForItem(equippedArmor.item) : null;
+                                            return s ? (
+                                                <span className={`text-[8px] px-1 rounded border leading-none pt-0.5 pb-0.5 ${s.border} ${s.color} ${s.bg}`}>
+                                                    {s.name}
+                                                </span>
+                                            ) : null;
+                                        })()}
+                                    </div>
+                                    {equippedArmor && (
+                                        <div className="text-[10px] text-gray-500 mt-1">
+                                            Uses: {formatUses(equippedArmor) || "∞"}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
                             <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
-                                {armorItems.map((inv: any) => {
+                                {armorItems.filter((inv: any) => {
                                     const uses = formatUses(inv);
-                                    const disabled = !!(uses && uses.startsWith("0/"));
+                                    return !(uses && uses.startsWith("0/"));
+                                }).map((inv: any) => {
+                                    const uses = formatUses(inv);
+                                    const s = getSuitForItem(inv.item);
                                     return (
                                         <button
                                             key={inv.id}
                                             type="button"
                                             onClick={() => handleEquip("ARMOR", inv.id)}
-                                            disabled={disabled}
-                                            className={`w-full text-left text-xs px-3 py-2 rounded border transition ${inv.isEquipped ? "border-neon-cyan text-neon-cyan" : "border-white/10 text-gray-300 hover:border-white/30"} ${disabled ? "opacity-40 cursor-not-allowed" : ""}`}
+                                            className={`w-full text-left text-xs px-3 py-2 rounded border transition flex items-center gap-2 ${inv.isEquipped ? "border-neon-cyan text-neon-cyan bg-neon-cyan/5" : "border-white/10 text-gray-300 hover:border-white/30"}`}
                                         >
-                                            {inv.item.name}
-                                            {uses ? <span className="ml-2 text-[10px] text-gray-500">({uses})</span> : null}
+                                            <span className="truncate flex-1 flex items-center gap-2">
+                                                {inv.item.name}
+                                                {s && <span className={`text-[8px] px-1 rounded border leading-none pt-0.5 pb-0.5 opacity-80 ${s.border} ${s.color} ${s.bg}`}>{s.name}</span>}
+                                            </span>
+                                            {uses ? <span className="ml-2 text-[10px] text-gray-500 shrink-0">({uses})</span> : null}
                                         </button>
                                     );
                                 })}
                                 {armorItems.length === 0 && <div className="text-[10px] text-gray-600">No armor in inventory.</div>}
-                                {equippedArmor && (
-                                    <button type="button" onClick={() => handleEquip("ARMOR", null)} className="w-full text-left text-[10px] text-red-400 border border-red-900/50 rounded px-3 py-1 hover:bg-red-950/30">
-                                        Unequip
-                                    </button>
-                                )}
                             </div>
                         </div>
                         <div className="space-y-3">

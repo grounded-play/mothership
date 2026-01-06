@@ -115,6 +115,10 @@ export default function GameInterface() {
         return markers;
     }, [player?.MapNode, player?.characterId, gameState?.otherPlayers]);
 
+    // Hoisted Logic for Hooks
+    const inActionPhase = game?.roundPhase === "ACTION";
+    const hasActionTimer = !!game?.actionDeadline;
+
     // Fetch Game State
     useEffect(() => {
         const fetchGameState = async () => {
@@ -191,21 +195,28 @@ export default function GameInterface() {
 
     // Action Timer Logic
     useEffect(() => {
-        const target = gameState?.game?.actionDeadline;
+        const target = gameState?.game?.actionDeadline; // Timestamp like 1712391293022
         if (!target) {
             setActionTimeLeft(0);
             return;
         }
         const updateTimer = () => {
             const now = Date.now();
-            const end = new Date(target).getTime();
-            const diff = Math.max(0, Math.floor((end - now) / 1000));
+            // If target is a number (timestamp)
+            const end = typeof target === 'number' ? target : new Date(target).getTime();
+            const diff = Math.max(0, Math.ceil((end - now) / 1000));
             setActionTimeLeft(diff);
+
+            // Client-side auto-play trigger for visual effect or last-ditch attempt
+            // Usually server handles this, but we can animate "LOCKED"
+            if (diff <= 0 && !isActing && !actionIntent && inActionPhase) {
+                // Time's up!
+            }
         };
         updateTimer();
-        const interval = setInterval(updateTimer, 1000);
+        const interval = setInterval(updateTimer, 500); // 0.5s for smoother countdown if we show ms
         return () => clearInterval(interval);
-    }, [gameState?.game?.actionDeadline]);
+    }, [gameState?.game?.actionDeadline, inActionPhase, isActing, actionIntent]);
 
     // Mission Timer Logic
     useEffect(() => {
@@ -294,17 +305,91 @@ export default function GameInterface() {
         addToast("DOUBLES MUST MATCH RANK", "error");
     };
 
-    if (loading) return <div className="min-h-full flex items-center justify-center text-neon-cyan">Loading Game Protocol...</div>;
-    if (!gameState) return <div className="min-h-full flex items-center justify-center text-red-500">Game Not Found</div>;
 
-    const inActionPhase = game?.roundPhase === "ACTION";
+
+
     const facing = (player?.facing || "NORTH") as Facing;
     const mapRotationDeg = facing === "EAST" ? 270 : facing === "SOUTH" ? 180 : facing === "WEST" ? 90 : 0;
     const isRoomScanned = !!player?.MapNode?.scanned;
     const isBossRoom = player?.MapNode?.type === "BOSS";
     const isVictory = game?.phase === "VICTORY" || game?.roundPhase === "VICTORY";
     const activeDeck = mapZ ?? (player?.MapNode?.z ?? 0);
-    const hasActionTimer = !!game?.actionDeadline;
+
+    // V23: Connection & Window Calculation
+
+
+
+
+    // V23: Auto-Select SCAN for unscanned rooms (Moved to top level)
+    useEffect(() => {
+        if (inActionPhase && !isAirlock && !isRoomScanned && !actionIntent && !isActing) {
+            setActionIntent("SCAN");
+        }
+    }, [inActionPhase, isAirlock, isRoomScanned, actionIntent, isActing]);
+
+    const { scannedConnections, windows } = useMemo(() => {
+        if (!player?.MapNode || !game?.MapNode) return { scannedConnections: [], windows: [] };
+        const n = player.MapNode;
+        const allNodes = game.MapNode;
+        const relConns: string[] = [];
+        const winList: string[] = [];
+
+        const toRel = (abs: string) => {
+            const dirs = ["NORTH", "EAST", "SOUTH", "WEST"];
+            const idx = dirs.indexOf(abs);
+            const fIdx = dirs.indexOf(facing);
+            if (idx === -1) return abs; // UP/DOWN
+            const diff = (idx - fIdx + 4) % 4;
+            return ["FORWARD", "RIGHT", "BACK", "LEFT"][diff];
+        };
+
+        const getVec = (abs: string) => {
+            if (abs === "NORTH") return { x: 0, y: 1 }; // Cartesian: North is Up (+Y)
+            if (abs === "SOUTH") return { x: 0, y: -1 };
+            if (abs === "EAST") return { x: 1, y: 0 };
+            if (abs === "WEST") return { x: -1, y: 0 };
+            return { x: 0, y: 0 };
+        };
+
+        // 1. Process Connections (Trust DB to prevent missing doors)
+        (connections || []).forEach((abs: string) => {
+            if (abs === "UP" || abs === "DOWN") relConns.push(abs);
+            else relConns.push(toRel(abs));
+        });
+
+        // 2. Process Windows (Skip for Airlock/Start room)
+        if (n.type !== "START") {
+            ["NORTH", "EAST", "SOUTH", "WEST"].forEach(abs => {
+                // If it's a connection (Door), skip window
+                if ((connections || []).includes(abs)) return;
+
+                const v = getVec(abs);
+                // Check if Neighbor exists using strict casing
+                // Note: We used Y-1 for North previously. If map uses standard coords, North might be Y+1. 
+                // We'll use the getVec logic (Y-1) but if it fails, it just adds a window.
+                const tx = Number(n.x) + v.x;
+                const ty = Number(n.y) + v.y;
+                const tz = Number(n.z);
+
+                const neighbor = allNodes.find((x: any) =>
+                    Number(x.x) === tx &&
+                    Number(x.y) === ty &&
+                    Number(x.z) === tz
+                );
+
+                // Window Logic:
+                // Only show window if there is strictly NO ROOM (Void) or EMPTY type.
+                // If a neighbor exists (Wall), do NOT show window. 
+                // Using corrected vectors (North=Y+1) ensures this checks the correct side.
+                if (!neighbor || neighbor.type === "EMPTY") {
+                    winList.push(toRel(abs));
+                }
+            });
+        }
+
+        return { scannedConnections: relConns, windows: winList };
+    }, [player?.MapNode, game?.MapNode, facing, connections]);
+
     const canMoveDir = (dir: string) => {
         if (!inActionPhase || !player?.MapNode) return false;
         if (isAirlock) return dir === "FORWARD";
@@ -318,6 +403,10 @@ export default function GameInterface() {
     const canMoveRight = canMoveDir("RIGHT");
     const canMoveUp = canMoveDir("UP");
     const canMoveDown = canMoveDir("DOWN");
+
+    if (loading) return <div className="min-h-full flex items-center justify-center text-neon-cyan">Loading Game Protocol...</div>;
+    if (!gameState) return <div className="min-h-full flex items-center justify-center text-red-500">Game Not Found</div>;
+
     const canScan = inActionPhase && !isAirlock && !isRoomScanned;
     const canSecure = inActionPhase && !isAirlock && isRoomScanned;
     const canAttack = inActionPhase && !isAirlock && (hasEnemies || isBossRoom);
@@ -340,7 +429,7 @@ export default function GameInterface() {
             : isAirlock
                 ? "AIRLOCK READY"
                 : "WAITING FOR READY";
-    const actionTimerLabel = !inActionPhase ? "T--" : (hasActionTimer ? `T-${actionTimeLeft}s` : "READY");
+    const actionTimerLabel = !inActionPhase ? "WAITING..." : (hasActionTimer ? `ACTION CLOSING IN ${actionTimeLeft}s` : "READY");
     const pileOwnerIsMe = player && game?.pileOwnerId === player.characterId; // Use CharacterID for consistent ownership
 
     const toggleItemSelection = (itemId: string) => {
@@ -432,7 +521,12 @@ export default function GameInterface() {
                     cards: payloadCards,
                     intent: intentOverride || actionIntent || "SCAN",
                     direction: moveDirection,
-                    items: selectedItemIds // V11 Loadout
+                    items: selectedItemIds.filter(id => {
+                        const item = allItems.find((i: any) => i.id === id);
+                        if (!item) return false;
+                        if (typeof item.usesMax !== 'number') return true; // Infinite uses
+                        return (item.usesRemaining ?? item.usesMax) > 0;
+                    })
                 })
             });
             const data = await res.json();
@@ -479,6 +573,8 @@ export default function GameInterface() {
     const handleMove = async () => { };
 
 
+
+
     // Format Timers
     const missionMinutes = Math.floor(missionTimeLeft / 60);
     const missionSeconds = missionTimeLeft % 60;
@@ -523,7 +619,23 @@ export default function GameInterface() {
                             )}
                         </div>
                         <div className="flex flex-col items-center">
-                            <div className="text-xs md:text-sm font-bold text-neon-cyan uppercase tracking-widest leading-none">{player.character.name}</div>
+                            <div className="text-xs md:text-sm font-bold text-neon-cyan uppercase tracking-widest leading-none flex items-center gap-2">
+                                {player.character.name}
+                                {(() => {
+                                    const cls = player.character.class?.toLowerCase();
+                                    let suit = { name: "UNKNOWN", color: "text-gray-500", border: "border-gray-500", bg: "bg-gray-500/10" };
+                                    if (cls === "marine") suit = { name: "COMMAND", color: "text-green-500", border: "border-green-500/50", bg: "bg-green-500/10" };
+                                    if (cls === "engineer") suit = { name: "PLASMA", color: "text-orange-500", border: "border-orange-500/50", bg: "bg-orange-500/10" };
+                                    if (cls === "scientist") suit = { name: "BIOTECH", color: "text-red-500", border: "border-red-500/50", bg: "bg-red-500/10" };
+                                    if (cls === "scout") suit = { name: "VOID", color: "text-purple-500", border: "border-purple-500/50", bg: "bg-purple-500/10" };
+
+                                    return (
+                                        <span className={`text-[8px] px-1.5 py-0.5 rounded border ${suit.border} ${suit.color} ${suit.bg} font-mono`}>
+                                            {suit.name}
+                                        </span>
+                                    );
+                                })()}
+                            </div>
                             <div className="flex gap-2 text-[9px] text-gray-400 font-bold">
                                 <span className="flex items-center text-red-400"><Heart className="w-3 h-3 mr-1" /> {player.hp}/{player.maxHp}</span>
                                 <span className="flex items-center text-yellow-400"><Zap className="w-3 h-3 mr-1" /> {player.ap}</span>
@@ -686,7 +798,7 @@ export default function GameInterface() {
                             <div className="absolute top-2 right-2 z-10 flex flex-col items-center">
                                 <div className="relative w-12 h-12 rounded-full border border-white/10 bg-black/80 flex items-center justify-center shadow-lg backdrop-blur">
                                     <div
-                                        className="absolute inset-0 flex items-center justify-center transition-transform duration-300"
+                                        className="absolute inset-0 flex items-center justify-center transition-transform duration-700 ease-out"
                                         style={{ transform: `rotate(${mapRotationDeg + 45}deg)` }}
                                     >
                                         <ChevronUp className="w-8 h-8 text-neon-cyan opacity-80" />
@@ -747,7 +859,19 @@ export default function GameInterface() {
                         <div className="flex-[2] w-full flex items-center justify-center relative min-h-0 mb-4 border border-white/5 rounded-2xl bg-black/20 overflow-hidden shadow-inner">
                             {/* Inner Scanner Container - Scale to fit */}
                             <div className="w-full h-full p-4">
-                                <RoomScanner type={player.MapNode.type} isExplored={player.MapNode.isExplored} integrity={game.integrity} />
+                                <RoomScanner
+                                    key={player.facing} // Force redraw on turn
+                                    type={player.MapNode.type}
+                                    isExplored={player.MapNode.isExplored}
+                                    integrity={game.integrity}
+                                    suit={isRoomScanned ? roomInfo?.suit : undefined}
+                                    suitColor={isRoomScanned ? roomSuitMeta?.color : undefined}
+                                    connections={scannedConnections}
+                                    windows={windows}
+                                    scanned={isRoomScanned}
+                                    facing={player.facing}
+                                    relativeNorth={["FORWARD", "RIGHT", "BACK", "LEFT"][(4 - ["NORTH", "EAST", "SOUTH", "WEST"].indexOf(player.facing || "NORTH")) % 4]}
+                                />
                             </div>
                         </div>
 
@@ -768,7 +892,7 @@ export default function GameInterface() {
                                             exit={{ y: 50, opacity: 0 }}
                                             onClick={() => toggleCardSelection(index)}
                                             className={`
-                                                relative cursor-pointer transition-all duration-200 
+                                                relative cursor-pointer transition-all duration-200
                                                 ${selectedCardIndices.includes(index) ? 'z-40 brightness-125' : 'hover:-translate-y-4 hover:brightness-110 z-10'}
                                             `}
                                         >
@@ -794,20 +918,71 @@ export default function GameInterface() {
                                 <div className="grid grid-cols-[1fr_auto_1fr] gap-8 items-end">
 
                                     {/* Left Panel: Primary Actions */}
-                                    <div className="flex flex-col gap-2 p-3 bg-black/40 rounded-xl border border-white/5 h-full justify-end">
-                                        <div className="text-[9px] text-gray-500 uppercase tracking-widest text-center border-b border-white/5 pb-1 mb-1">COMMAND PROTOCOLS</div>
-                                        <div className="grid grid-cols-3 gap-2">
-                                            <Button onClick={() => { setActionIntent("SCAN"); setMoveDirection(null); }} disabled={!canScan} className={`col-span-1 h-16 text-[9px] font-bold tracking-widest border flex flex-col gap-1 items-center justify-center transition-all ${actionIntent === "SCAN" ? "bg-green-500/20 text-green-400 border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.2)]" : "bg-black/50 text-gray-400 border-white/10 hover:border-green-500/50 hover:text-green-500"}`}>
-                                                <Zap className="h-5 w-5" /> SCAN
-                                            </Button>
-                                            <Button onClick={() => { setActionIntent("ATTACK"); setMoveDirection(null); }} disabled={!canAttack} className={`col-span-1 h-16 text-[9px] font-bold tracking-widest border flex flex-col gap-1 items-center justify-center transition-all ${actionIntent === "ATTACK" ? "bg-red-500/20 text-red-400 border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.2)]" : "bg-black/50 text-gray-400 border-white/10 hover:border-red-500/50 hover:text-red-500"}`}>
-                                                <Crosshair className="h-5 w-5" /> ENGAGE
-                                            </Button>
-                                            <Button onClick={() => { setActionIntent("SECURE"); setMoveDirection(null); }} disabled={!canSecure} className={`col-span-1 h-16 text-[9px] font-bold tracking-widest border flex flex-col gap-1 items-center justify-center transition-all ${actionIntent === "SECURE" ? "bg-yellow-400/20 text-yellow-400 border-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.2)]" : "bg-black/50 text-gray-400 border-white/10 hover:border-yellow-400/50 hover:text-yellow-400"}`}>
-                                                <Shield className="h-5 w-5" /> SECURE
-                                            </Button>
+                                    <div className="flex flex-col gap-2 p-3 bg-black/40 rounded-xl border border-white/5 h-full justify-between">
+
+                                        {/* LOADOUT DISPLAY (Above Actions) */}
+                                        <div className="flex flex-col gap-1 w-full">
+                                            <div className="text-[9px] text-gray-500 uppercase tracking-widest text-center border-b border-white/5 pb-1">LOADOUT</div>
+                                            <div className="flex gap-2 justify-center">
+                                                {loadoutItems.length > 0 ? loadoutItems.map((item: any, idx: number) => {
+                                                    const isWeapon = item.type === "WEAPON" || item.slot === "WEAPON";
+                                                    // Determine click action
+                                                    const handleClick = () => {
+                                                        if (isWeapon) {
+                                                            setActionIntent("ATTACK");
+                                                            setMoveDirection(null);
+                                                        } else {
+                                                            // Maybe just show info or select?
+                                                            // For now, no-op or info toast?
+                                                        }
+                                                    };
+
+                                                    return (
+                                                        <Button
+                                                            key={`loadout-${idx}`}
+                                                            onClick={handleClick}
+                                                            className={`
+                                                                flex-1 h-12 text-[8px] font-bold border flex flex-col items-center justify-center gap-0.5 transition-all
+                                                                ${isWeapon && actionIntent === "ATTACK" ? "bg-red-500/20 border-red-500 text-red-500" : "bg-white/5 border-white/10 text-gray-400 hover:bg-white/10"}
+                                                            `}
+                                                        >
+                                                            {/* Suit Badge Small */}
+                                                            {item.suit && (
+                                                                <span className={`text-[6px] px-1 rounded border opacity-70 mb-0.5
+                                                                    ${item.suit === "COMMAND" ? "text-green-500 border-green-500" : ""}
+                                                                    ${item.suit === "PLASMA" ? "text-orange-500 border-orange-500" : ""}
+                                                                    ${item.suit === "BIOTECH" ? "text-red-500 border-red-500" : ""}
+                                                                    ${item.suit === "VOID" ? "text-purple-500 border-purple-500" : ""}
+                                                                `}>
+                                                                    {item.suit.slice(0, 3)}
+                                                                </span>
+                                                            )}
+                                                            <span className="leading-none">{item.name}</span>
+                                                        </Button>
+                                                    );
+                                                }) : (
+                                                    <div className="text-[9px] text-gray-700 py-2">NO EQUIPPED ITEMS</div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div className="flex flex-col gap-2">
+                                            <div className="text-[9px] text-gray-500 uppercase tracking-widest text-center border-b border-white/5 pb-1 mb-1">COMMAND PROTOCOLS</div>
+                                            <div className="grid grid-cols-3 gap-2">
+                                                {/* FORCE SCAN LOGIC: Disable others if unscanned */}
+                                                <Button onClick={() => { setActionIntent("SCAN"); setMoveDirection(null); }} disabled={!canScan} className={`col-span-1 h-16 text-[9px] font-bold tracking-widest border flex flex-col gap-1 items-center justify-center transition-all ${actionIntent === "SCAN" ? "bg-green-500/20 text-green-400 border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.2)]" : "bg-black/50 text-gray-400 border-white/10 hover:border-green-500/50 hover:text-green-500"} ${!player.MapNode.isExplored ? "animate-pulse border-green-500 text-green-500" : ""}`}>
+                                                    <Zap className="h-5 w-5" /> SCAN
+                                                </Button>
+                                                <Button onClick={() => { setActionIntent("ATTACK"); setMoveDirection(null); }} disabled={!canAttack || !player.MapNode.isExplored} className={`col-span-1 h-16 text-[9px] font-bold tracking-widest border flex flex-col gap-1 items-center justify-center transition-all ${actionIntent === "ATTACK" ? "bg-red-500/20 text-red-400 border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.2)]" : "bg-black/50 text-gray-400 border-white/10 hover:border-red-500/50 hover:text-red-500"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}>
+                                                    <Crosshair className="h-5 w-5" /> ENGAGE
+                                                </Button>
+                                                <Button onClick={() => { setActionIntent("SECURE"); setMoveDirection(null); }} disabled={!canSecure || !player.MapNode.isExplored} className={`col-span-1 h-16 text-[9px] font-bold tracking-widest border flex flex-col gap-1 items-center justify-center transition-all ${actionIntent === "SECURE" ? "bg-yellow-400/20 text-yellow-400 border-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.2)]" : "bg-black/50 text-gray-400 border-white/10 hover:border-yellow-400/50 hover:text-yellow-400"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}>
+                                                    <Shield className="h-5 w-5" /> SECURE
+                                                </Button>
+                                            </div>
                                         </div>
                                     </div>
+
 
                                     {/* Center Panel: Navigation & Compass */}
                                     <div className="flex flex-col items-center gap-3 relative">
@@ -817,7 +992,7 @@ export default function GameInterface() {
                                             {/* Compass Dial */}
                                             <div
                                                 className="absolute inset-0 transition-transform duration-700 ease-out"
-                                                style={{ transform: `rotate(${mapRotationDeg}deg)` }}
+                                                style={{ transform: `rotate(${mapRotationDeg + 45}deg)` }}
                                             >
                                                 <div className="absolute top-1 left-1/2 -translate-x-1/2 w-1 h-2 bg-neon-cyan/50" />
                                                 <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-2 bg-white/10" />
@@ -825,6 +1000,15 @@ export default function GameInterface() {
                                                 <div className="absolute right-1 top-1/2 -translate-y-1/2 w-2 h-1 bg-white/10" />
                                                 <div className="absolute top-4 left-1/2 -translate-x-1/2 text-[10px] font-bold text-neon-cyan">N</div>
                                             </div>
+
+                                            {/* Action Timer Overlay */}
+                                            {hasActionTimer && inActionPhase && (
+                                                <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/60 rounded-full animate-pulse">
+                                                    <div className="text-xl font-bold text-red-500 font-mono tracking-tighter">
+                                                        {actionTimeLeft}
+                                                    </div>
+                                                </div>
+                                            )}
 
                                             {/* Static Center Marker */}
                                             <div className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_10px_#f00] z-30" />
@@ -838,10 +1022,10 @@ export default function GameInterface() {
 
                                                 {/* Deck Controls (Up/Down) */}
                                                 <div className="flex gap-2 mb-1">
-                                                    <Button onClick={() => { setActionIntent("MOVE"); setMoveDirection("UP"); }} disabled={!canMoveUp} className={`h-8 px-2 rounded-sm text-[8px] font-bold flex items-center gap-1 ${moveDirection === "UP" && actionIntent === "MOVE" ? "bg-neon-cyan text-black" : "bg-gray-800 text-gray-500 hover:bg-gray-700"}`}>
+                                                    <Button onClick={() => { setActionIntent("MOVE"); setMoveDirection("UP"); }} disabled={!canMoveUp || !player.MapNode.isExplored} className={`h-8 px-2 rounded-sm text-[8px] font-bold flex items-center gap-1 ${moveDirection === "UP" && actionIntent === "MOVE" ? "bg-neon-cyan text-black" : "bg-gray-800 text-gray-500 hover:bg-gray-700"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}>
                                                         <ChevronUp className="w-3 h-3" /> DECK UP
                                                     </Button>
-                                                    <Button onClick={() => { setActionIntent("MOVE"); setMoveDirection("DOWN"); }} disabled={!canMoveDown} className={`h-8 px-2 rounded-sm text-[8px] font-bold flex items-center gap-1 ${moveDirection === "DOWN" && actionIntent === "MOVE" ? "bg-neon-cyan text-black" : "bg-gray-800 text-gray-500 hover:bg-gray-700"}`}>
+                                                    <Button onClick={() => { setActionIntent("MOVE"); setMoveDirection("DOWN"); }} disabled={!canMoveDown || !player.MapNode.isExplored} className={`h-8 px-2 rounded-sm text-[8px] font-bold flex items-center gap-1 ${moveDirection === "DOWN" && actionIntent === "MOVE" ? "bg-neon-cyan text-black" : "bg-gray-800 text-gray-500 hover:bg-gray-700"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}>
                                                         <ChevronDown className="w-3 h-3" /> DECK DN
                                                     </Button>
                                                 </div>
@@ -849,35 +1033,41 @@ export default function GameInterface() {
                                                 {/* Directional Arrows (Inverted T) */}
                                                 <div className="grid grid-cols-3 gap-1">
                                                     <div /> {/* Spacer */}
-                                                    <Button onClick={() => { setActionIntent("MOVE"); setMoveDirection("FORWARD"); }} disabled={!canMoveForward} className={`h-10 w-10 rounded-sm ${moveDirection === "FORWARD" && actionIntent === "MOVE" ? "bg-neon-cyan text-black" : "bg-gray-800 text-gray-500 hover:bg-gray-700"}`}><ArrowUp className="w-6 h-6" /></Button>
+                                                    <Button onClick={() => { setActionIntent("MOVE"); setMoveDirection("FORWARD"); }} disabled={!canMoveForward || !player.MapNode.isExplored} className={`h-10 w-10 rounded-sm ${moveDirection === "FORWARD" && actionIntent === "MOVE" ? "bg-neon-cyan text-black" : "bg-gray-800 text-gray-500 hover:bg-gray-700"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}><ArrowUp className="w-6 h-6" /></Button>
                                                     <div /> {/* Spacer */}
 
-                                                    <Button onClick={() => { setActionIntent("MOVE"); setMoveDirection("LEFT"); }} disabled={!canMoveLeft} className={`h-10 w-10 rounded-sm ${moveDirection === "LEFT" && actionIntent === "MOVE" ? "bg-neon-cyan text-black" : "bg-gray-800 text-gray-500 hover:bg-gray-700"}`}><ArrowLeft className="w-6 h-6" /></Button>
-                                                    <Button onClick={() => { setActionIntent("MOVE"); setMoveDirection("BACK"); }} disabled={!canMoveBack} className={`h-10 w-10 rounded-sm ${moveDirection === "BACK" && actionIntent === "MOVE" ? "bg-neon-cyan text-black" : "bg-gray-800 text-gray-500 hover:bg-gray-700"}`}><ArrowDown className="w-6 h-6" /></Button>
-                                                    <Button onClick={() => { setActionIntent("MOVE"); setMoveDirection("RIGHT"); }} disabled={!canMoveRight} className={`h-10 w-10 rounded-sm ${moveDirection === "RIGHT" && actionIntent === "MOVE" ? "bg-neon-cyan text-black" : "bg-gray-800 text-gray-500 hover:bg-gray-700"}`}><ArrowRight className="w-6 h-6" /></Button>
+                                                    <Button onClick={() => { setActionIntent("MOVE"); setMoveDirection("LEFT"); }} disabled={!canMoveLeft || !player.MapNode.isExplored} className={`h-10 w-10 rounded-sm ${moveDirection === "LEFT" && actionIntent === "MOVE" ? "bg-neon-cyan text-black" : "bg-gray-800 text-gray-500 hover:bg-gray-700"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}><ArrowLeft className="w-6 h-6" /></Button>
+                                                    <Button onClick={() => { setActionIntent("MOVE"); setMoveDirection("BACK"); }} disabled={!canMoveBack || !player.MapNode.isExplored} className={`h-10 w-10 rounded-sm ${moveDirection === "BACK" && actionIntent === "MOVE" ? "bg-neon-cyan text-black" : "bg-gray-800 text-gray-500 hover:bg-gray-700"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}><ArrowDown className="w-6 h-6" /></Button>
+                                                    <Button onClick={() => { setActionIntent("MOVE"); setMoveDirection("RIGHT"); }} disabled={!canMoveRight || !player.MapNode.isExplored} className={`h-10 w-10 rounded-sm ${moveDirection === "RIGHT" && actionIntent === "MOVE" ? "bg-neon-cyan text-black" : "bg-gray-800 text-gray-500 hover:bg-gray-700"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}><ArrowRight className="w-6 h-6" /></Button>
                                                 </div>
                                             </div>
 
                                             {/* Execute Button */}
-                                            <Button
-                                                onClick={handleExecute}
-                                                disabled={(!actionIntent || actionInvalid || (selectedCardIndices.length === 0 && !canAutoMove)) || isActing || !inActionPhase || backpackItems.length > 5}
-                                                className={`
-                                                    h-20 w-24 rounded-lg font-black text-xs tracking-widest border-b-4 transition-all active:border-b-0 active:translate-y-1
-                                                    flex flex-col items-center justify-center gap-1
-                                                    ${(actionIntent && !actionInvalid && (selectedCardIndices.length > 0 || canAutoMove) && inActionPhase && backpackItems.length <= 5)
-                                                        ? 'bg-neon-cyan text-black border-cyan-700 shadow-[0_0_20px_#0ff] animate-pulse-slow hover:brightness-110'
-                                                        : backpackItems.length > 5
-                                                            ? 'bg-red-900/50 text-red-500 border-red-900 cursor-not-allowed animate-pulse'
-                                                            : 'bg-gray-800 text-gray-600 border-black cursor-not-allowed'}
-                                                `}
-                                            >
-                                                {backpackItems.length > 5 ? (
-                                                    <span className="text-[9px] leading-tight">BACKPACK<br />FULL</span>
-                                                ) : (
-                                                    <span>EXEC</span>
-                                                )}
-                                            </Button>
+                                            <div className="flex flex-col gap-1 items-center">
+                                                <div className="flex gap-1">
+                                                    <div className={`w-8 h-1 rounded-full transition-colors ${actionIntent ? "bg-neon-cyan shadow-[0_0_5px_#0ff]" : "bg-gray-700"}`} title="Action Selected" />
+                                                    <div className={`w-8 h-1 rounded-full transition-colors ${(selectedCardIndices.length > 0 || (actionIntent === 'MOVE' && moveDirection)) ? "bg-neon-cyan shadow-[0_0_5px_#0ff]" : "bg-gray-700"}`} title="Card/Direction Selected" />
+                                                </div>
+                                                <Button
+                                                    onClick={handleExecute}
+                                                    disabled={(!actionIntent || actionInvalid || (selectedCardIndices.length === 0 && !canAutoMove)) || isActing || !inActionPhase || backpackItems.length > 5}
+                                                    className={`
+                                                        h-20 w-24 rounded-lg font-black text-xs tracking-widest border-b-4 transition-all active:border-b-0 active:translate-y-1
+                                                        flex flex-col items-center justify-center gap-1
+                                                        ${(actionIntent && !actionInvalid && (selectedCardIndices.length > 0 || canAutoMove) && inActionPhase && backpackItems.length <= 5)
+                                                            ? 'bg-neon-cyan text-black border-cyan-700 shadow-[0_0_20px_#0ff] animate-pulse-slow hover:brightness-110'
+                                                            : backpackItems.length > 5
+                                                                ? 'bg-red-900/50 text-red-500 border-red-900 cursor-not-allowed animate-pulse'
+                                                                : 'bg-gray-800 text-gray-600 border-black cursor-not-allowed'}
+                                                    `}
+                                                >
+                                                    {backpackItems.length > 5 ? (
+                                                        <span className="text-[9px] leading-tight">BACKPACK<br />FULL</span>
+                                                    ) : (
+                                                        <span>EXEC</span>
+                                                    )}
+                                                </Button>
+                                            </div>
                                         </div>
                                     </div>
 
@@ -988,7 +1178,19 @@ export default function GameInterface() {
                                                     return (
                                                         <div key={`backpack-${idx}`} className={`flex items-center justify-between p-2 rounded border transition-colors ${selectedItemIds.includes(item.id) ? "bg-orange-500/20 border-orange-500" : "bg-white/5 border-white/10 hover:bg-white/10"}`}>
                                                             <div className="flex flex-col">
-                                                                <span className={`text-xs font-bold ${selectedItemIds.includes(item.id) ? "text-orange-400" : "text-gray-300"}`}>{item.name} <span className="text-[10px] text-gray-500">x{item.qty}</span></span>
+                                                                <span className={`text-xs font-bold flex items-center gap-2 ${selectedItemIds.includes(item.id) ? "text-orange-400" : "text-gray-300"}`}>
+                                                                    {item.name}
+                                                                    <span className="text-[10px] text-gray-500">x{item.qty}</span>
+                                                                    {item.suit && (() => {
+                                                                        const s = item.suit.toUpperCase();
+                                                                        let color = "text-gray-500 border-gray-500";
+                                                                        if (s === "COMMAND") color = "text-green-500 border-green-500";
+                                                                        if (s === "PLASMA") color = "text-orange-500 border-orange-500";
+                                                                        if (s === "BIOTECH") color = "text-red-500 border-red-500";
+                                                                        if (s === "VOID") color = "text-purple-500 border-purple-500";
+                                                                        return <span className={`text-[8px] px-1 rounded border ${color} opacity-70`}>{s.slice(0, 3)}</span>;
+                                                                    })()}
+                                                                </span>
                                                                 <span className="text-[9px] text-gray-500">
                                                                     {item.description}
                                                                     {hasUses && <span className={`ml-2 font-mono ${depleted ? "text-red-500" : "text-orange-400"}`}>[{item.usesRemaining ?? item.usesMax}/{item.usesMax}]</span>}
@@ -1048,9 +1250,9 @@ export default function GameInterface() {
 
                 </div>
 
-            </main>
+            </main >
             <ResolutionOverlay data={resolutionData} onClose={() => setResolutionData(null)} />
-        </div>
+        </div >
     );
 }
 
@@ -1085,12 +1287,12 @@ function NavCard({ card, selected, size = "md" }: { card: any, selected?: boolea
             <div className="w-full text-left font-black text-xs opacity-80">{card.rank}</div>
 
             {/* Icon (Center) */}
-            <div className={`flex items-center justify-center opacity-80 ${isSm ? "w-6 h-6" : "w-10 h-10"}`}>
+            <div className={`flex flex-col items-center justify-center opacity-80 gap-1 ${isSm ? "w-6 h-6" : "w-10 h-10"}`}>
                 {theme.icon}
+                {!isSm && <span className="text-[6px] font-bold tracking-widest">{theme.label}</span>}
             </div>
 
-            {/* Rank (Bottom Right) */}
-            <div className="w-full text-right font-black text-xs opacity-80 rotate-180">{card.rank}</div>
+
         </div>
     );
 }

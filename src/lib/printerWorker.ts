@@ -5,7 +5,7 @@ import { normalizePublicPath } from "@/lib/imagePath";
 const POLL_MS = 5000;
 const PROGRESS_STEP = 10;
 const STALE_MS = 10 * 60 * 1000;
-const GENERATION_TIMEOUT_MS = 2 * 60 * 1000;
+const GENERATION_TIMEOUT_MS = 5 * 60 * 1000;
 
 const COMFY_API = "http://127.0.0.1:8188/";
 const COMFY_STATUS_TTL_MS = 30000;
@@ -60,6 +60,8 @@ const resetStaleGenerating = async (state: WorkerState) => {
     state.lastStaleReset = now;
     const cutoff = new Date(now - STALE_GENERATING_MS);
     const excludeActive = state.currentItemId ? { NOT: { id: state.currentItemId } } : {};
+
+    // Reset Items
     await prisma.inventoryItem.updateMany({
         where: {
             imageStatus: { startsWith: "GENERATING" },
@@ -67,6 +69,16 @@ const resetStaleGenerating = async (state: WorkerState) => {
             ...excludeActive
         },
         data: { imageStatus: "QUEUED" }
+    });
+
+    // Reset Characters (V23)
+    await prisma.character.updateMany({
+        where: {
+            portraitStatus: { startsWith: "GENERATING" },
+            updatedAt: { lt: cutoff },
+            ...excludeActive
+        },
+        data: { portraitStatus: "QUEUED" }
     });
 };
 
@@ -90,107 +102,145 @@ const buildPrompt = (invItem: any) => {
     return `${traitText} ${invItem.item?.name || "Unknown Item"}, ${statBits} ${itemType}, ${invItem.item?.description || ""}`.trim();
 };
 
-const lockItem = async (invItemId: string) => {
-    const result = await prisma.inventoryItem.updateMany({
-        where: {
-            id: invItemId,
-            OR: [
-                { customImage: null },
-                { customImage: "" }
-            ],
-            NOT: { imageStatus: { startsWith: "GENERATING" } }
-        },
-        data: { imageStatus: "GENERATING 0%" }
-    });
-    return result.count > 0;
+const lockItem = async (id: string, type: 'item' | 'character') => {
+    if (type === 'item') {
+        const result = await prisma.inventoryItem.updateMany({
+            where: {
+                id: id,
+                OR: [{ customImage: null }, { customImage: "" }],
+                NOT: { imageStatus: { startsWith: "GENERATING" } }
+            },
+            data: { imageStatus: "GENERATING 0%" }
+        });
+        return result.count > 0;
+    } else {
+        const result = await prisma.character.updateMany({
+            where: {
+                id: id,
+                NOT: { portraitStatus: { startsWith: "GENERATING" } }
+            },
+            data: { portraitStatus: "GENERATING 0%" }
+        });
+        return result.count > 0;
+    }
 };
 
 const normalizeQueue = async () => {
     const staleBefore = new Date(Date.now() - STALE_MS);
+
+    // Items
     await prisma.inventoryItem.updateMany({
-        where: {
-            customImage: null,
-            imageStatus: { startsWith: "GENERATING" },
-            updatedAt: { lt: staleBefore }
-        },
+        where: { customImage: null, imageStatus: { startsWith: "GENERATING" }, updatedAt: { lt: staleBefore } },
         data: { imageStatus: "FAILED" }
     });
     await prisma.inventoryItem.updateMany({
-        where: {
-            customImage: null,
-            OR: [
-                { imageStatus: "READY" },
-                { imageStatus: "" }
-            ]
-        },
+        where: { customImage: null, OR: [{ imageStatus: "READY" }, { imageStatus: "" }] },
         data: { imageStatus: "QUEUED" }
     });
+
+    // Characters (V23)
+    await prisma.character.updateMany({
+        where: { portrait: null, portraitStatus: { startsWith: "GENERATING" }, updatedAt: { lt: staleBefore } },
+        data: { portraitStatus: "FAILED" }
+    });
+};
+
+const runGeneration = async (state: WorkerState, id: string, type: 'item' | 'character', prompt: string) => {
+    let lastProgress = 0;
+    try {
+        state.currentItemId = id;
+        const iconPath = await Promise.race([
+            generateItemArt(prompt, id, type, async (p) => {
+                const percentage = Math.round((p.value / p.max) * 100);
+                if (percentage - lastProgress >= PROGRESS_STEP || percentage === 100) {
+                    lastProgress = percentage;
+                    const status = `GENERATING ${percentage}%`;
+                    if (type === 'item') {
+                        await prisma.inventoryItem.update({ where: { id }, data: { imageStatus: status } });
+                    } else {
+                        await prisma.character.update({ where: { id }, data: { portraitStatus: status } });
+                    }
+                }
+            }),
+            new Promise<string | null>((_, reject) => {
+                setTimeout(() => reject(new Error("Generation timeout")), GENERATION_TIMEOUT_MS);
+            })
+        ]);
+
+        if (iconPath) {
+            const normalizedPath = normalizePublicPath(iconPath) || iconPath;
+            if (type === 'item') {
+                await prisma.inventoryItem.update({
+                    where: { id },
+                    data: { customImage: normalizedPath, imageStatus: "READY", updatedAt: new Date() }
+                });
+            } else {
+                await prisma.character.update({
+                    where: { id },
+                    data: { portrait: normalizedPath, portraitStatus: "READY", updatedAt: new Date() }
+                });
+            }
+        } else {
+            const status = "FAILED";
+            if (type === 'item') await prisma.inventoryItem.update({ where: { id }, data: { imageStatus: status } });
+            else await prisma.character.update({ where: { id }, data: { portraitStatus: status } });
+        }
+    } catch (e) {
+        console.error("Printer worker failed:", e);
+        const status = "ERROR";
+        if (type === 'item') await prisma.inventoryItem.update({ where: { id }, data: { imageStatus: status } });
+        else await prisma.character.update({ where: { id }, data: { portraitStatus: status } });
+    } finally {
+        if (state.currentItemId === id) {
+            state.currentItemId = undefined;
+        }
+    }
 };
 
 const processNextItem = async (state: WorkerState) => {
     await normalizeQueue();
 
-    const next = await prisma.inventoryItem.findFirst({
+    // 1. Check Characters First (Priority?)
+    const nextChar = await prisma.character.findFirst({
+        where: {
+            OR: [
+                { portraitStatus: "QUEUED" },
+                { portraitStatus: "FAILED" },
+                // Don't retry ERROR automatically to prevent loop
+            ]
+        },
+        orderBy: { updatedAt: "asc" }
+    });
+
+    if (nextChar) {
+        const locked = await lockItem(nextChar.id, 'character');
+        if (locked) {
+            await runGeneration(state, nextChar.id, 'character', nextChar.name + " " + nextChar.class);
+            return;
+        }
+    }
+
+    // 2. Check Items
+    const nextItem = await prisma.inventoryItem.findFirst({
         where: {
             customImage: null,
             instanceStats: { not: null },
             NOT: [{ instanceStats: "{}" }, { instanceStats: "" }],
             OR: [
                 { imageStatus: "QUEUED" },
-                { imageStatus: "FAILED" },
-                { imageStatus: "ERROR" }
+                { imageStatus: "FAILED" }
             ]
         },
         include: { item: true },
         orderBy: { createdAt: "asc" }
     });
 
-    if (!next) return;
-
-    const locked = await lockItem(next.id);
-    if (!locked) return;
-
-    let lastProgress = 0;
-    try {
-        state.currentItemId = next.id;
-        const prompt = buildPrompt(next);
-        const iconPath = await Promise.race([
-            generateItemArt(prompt, next.id, "item", async (p) => {
-                const percentage = Math.round((p.value / p.max) * 100);
-                if (percentage - lastProgress >= PROGRESS_STEP || percentage === 100) {
-                    lastProgress = percentage;
-                    await prisma.inventoryItem.update({
-                        where: { id: next.id },
-                        data: { imageStatus: `GENERATING ${percentage}%` }
-                    });
-                }
-            }),
-            new Promise<null>((_, reject) => {
-                setTimeout(() => reject(new Error("Generation timeout")), GENERATION_TIMEOUT_MS);
-            })
-        ]);
-
-        if (iconPath) {
-            const normalizedIconPath = normalizePublicPath(iconPath) || iconPath;
-            await prisma.inventoryItem.update({
-                where: { id: next.id },
-                data: { customImage: iconPath, imageStatus: "READY", updatedAt: new Date() }
-            });
-        } else {
-            await prisma.inventoryItem.update({
-                where: { id: next.id },
-                data: { imageStatus: "FAILED" }
-            });
-        }
-    } catch (e) {
-        console.error("Printer worker failed:", e);
-        await prisma.inventoryItem.update({
-            where: { id: next.id },
-            data: { imageStatus: "ERROR" }
-        });
-    } finally {
-        if (state.currentItemId === next.id) {
-            state.currentItemId = undefined;
+    if (nextItem) {
+        const locked = await lockItem(nextItem.id, 'item');
+        if (locked) {
+            const prompt = buildPrompt(nextItem);
+            await runGeneration(state, nextItem.id, 'item', prompt);
+            return;
         }
     }
 };

@@ -46,7 +46,7 @@ export default function CharacterProfile({ character }: CharacterProfileProps) {
     const executeReroll = async () => {
         setConfirmMintOpen(false);
         setGenerating(true);
-        setProgress(0);
+        // setProgress(0); // No realtime progress on client side for background job
 
         try {
             const res = await fetch("/api/character/generate-art", {
@@ -61,37 +61,20 @@ export default function CharacterProfile({ character }: CharacterProfileProps) {
                 }),
             });
 
+            const data = await res.json().catch(() => ({}));
+
             if (res.status === 402) {
                 addToast("Insufficient Credits", "error");
                 setGenerating(false);
                 return;
             }
 
-            if (!res.body) throw new Error("No stream");
-
-            const reader = res.body.getReader();
-            const decoder = new TextDecoder();
-
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-
-                const text = decoder.decode(value);
-                const lines = text.split('\n\n');
-
-                for (const line of lines) {
-                    if (line.startsWith('data: ')) {
-                        try {
-                            const data = JSON.parse(line.slice(6));
-                            if (data.progress) setProgress(data.progress);
-                            if (data.image || data.success) {
-                                router.refresh();
-                                setIsEditing(false);
-                            }
-                            if (data.error) addToast(`Error: ${data.error}`, "error");
-                        } catch (e) { console.error(e); }
-                    }
-                }
+            if (res.ok && data.status === "QUEUED") {
+                addToast("Portrait Request Queued at 3D Printer", "success");
+                // Navigate to Printer to see queue
+                router.push("/printer");
+            } else {
+                addToast(data.error || "Request failed", "error");
             }
         } catch (e) {
             console.error(e);

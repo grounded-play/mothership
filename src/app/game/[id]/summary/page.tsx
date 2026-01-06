@@ -10,15 +10,12 @@ export default function SummaryPage({ params }: { params: Promise<{ id: string }
     const [stats, setStats] = useState<any>(null);
     const [loading, setLoading] = useState(true);
 
+    // Animation States (Must be declared before conditional return)
+    const [displayScore, setDisplayScore] = useState(0);
+    const [showRank, setShowRank] = useState(false);
+    const [showStats, setShowStats] = useState(false);
+
     useEffect(() => {
-        // Fetch Final Stats - We reuse 'quit' API or a new 'summary' API?
-        // Actually, we can just fetch 'state' logic but we need 'Quit' result if it was just quit.
-        // Let's assume the user just navigated here.
-        // We'll query GET /api/game/state maybe? Or generic summary.
-        // Better: Query a new endpoint or just 'state' and process it.
-        // Simpler: Just rely on Query Params? No, insecure.
-        // Let's create a quick valid fetch.
-        // Re-using 'state' is safe.
         fetch(`/api/game/state?gameId=${id}`)
             .then(res => res.json())
             .then(data => {
@@ -27,8 +24,6 @@ export default function SummaryPage({ params }: { params: Promise<{ id: string }
             })
             .catch(e => console.error(e));
     }, [id]);
-
-    if (loading) return <div className="min-h-full bg-black text-neon-cyan flex items-center justify-center font-mono animate-pulse">TRANSMITTING MISSION DATA...</div>;
 
     const game = stats?.game;
     const player = stats?.player;
@@ -48,6 +43,7 @@ export default function SummaryPage({ params }: { params: Promise<{ id: string }
     let status = "MISSION ABORTED";
     let color = "text-yellow-500";
 
+    // Helper for color determination
     if (isVictory) {
         if (!run?.rank) rank = "S";
         status = "MISSION ACCOMPLISHED";
@@ -62,6 +58,37 @@ export default function SummaryPage({ params }: { params: Promise<{ id: string }
             color = "text-red-500";
         }
     }
+
+    const finalScore = run?.score || (isVictory ? 2000 : 500);
+
+    // Sequence Effect
+    useEffect(() => {
+        if (loading || !stats) return;
+
+        // 1. Reveal Stats List
+        setTimeout(() => setShowStats(true), 500);
+
+        // 2. Tally Score (0 -> Final)
+        let start = 0;
+        const duration = 2000;
+        const startTime = Date.now();
+
+        const timer = setInterval(() => {
+            const now = Date.now();
+            const progress = Math.min(1, (now - startTime) / duration);
+            const ease = 1 - Math.pow(1 - progress, 4);
+
+            const current = Math.floor(start + (finalScore - start) * ease);
+            setDisplayScore(current);
+
+            if (progress >= 1) {
+                clearInterval(timer);
+                setTimeout(() => setShowRank(true), 500);
+            }
+        }, 16);
+
+        return () => clearInterval(timer);
+    }, [loading, stats, finalScore]);
 
     return (
         <div className="min-h-full bg-black text-white font-mono flex flex-col items-center justify-center p-4 relative overflow-hidden">
@@ -82,39 +109,57 @@ export default function SummaryPage({ params }: { params: Promise<{ id: string }
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
                     {/* Rank Card */}
-                    <div className="flex flex-col items-center justify-center bg-white/5  p-6 rounded-2xl border border-white/10">
-                        <div className="text-xs text-gray-400 uppercase tracking-widest mb-4">Performance Rank</div>
-                        <div className={`text-8xl font-black ${color} drop-shadow-[0_0_30px_rgba(255,255,255,0.2)]`}>{rank}</div>
+                    <div className="flex flex-col items-center justify-center bg-white/5  p-6 rounded-2xl border border-white/10 relative overflow-hidden h-64">
+                        <div className="text-xs text-gray-400 uppercase tracking-widest mb-4 z-10">Performance Rank</div>
+
+                        {/* Rank Reveal Animation */}
+                        {showRank ? (
+                            <div className={`text-9xl font-black ${color} drop-shadow-[0_0_30px_currentColor] scale-in-center animate-in zoom-in-50 duration-300 z-10`}>
+                                {rank}
+                            </div>
+                        ) : (
+                            <div className="text-6xl text-gray-800 font-black animate-pulse z-10">?</div>
+                        )}
+
+                        {/* Score Tally */}
+                        <div className="absolute bottom-4 left-0 w-full text-center">
+                            <div className="text-xs text-gray-500 uppercase">Total Score</div>
+                            <div className="text-2xl font-mono text-white">{displayScore.toLocaleString()}</div>
+                        </div>
                     </div>
 
-                    {/* Stats */}
-                    <div className="flex flex-col gap-4 justify-center">
-                        <div className="flex justify-between items-center border-b border-white/10 pb-2">
-                            <span className="text-gray-400 text-sm">Credits Earned</span>
-                            <span className="text-xl font-bold text-neon-cyan">+{run?.creditsEarned ?? (game?.currentTurn * 10)} CR</span>
-                        </div>
-                        <div className="flex justify-between items-center border-b border-white/10 pb-2">
-                            <span className="text-gray-400 text-sm">Core Integrity Dmg</span>
-                            <span className="text-xl font-bold text-red-400">{(100 - integrity)}%</span>
-                        </div>
-                        <div className="flex justify-between items-center border-b border-white/10 pb-2">
-                            <span className="text-gray-400 text-sm">Boss Neutralized</span>
-                            <span className="text-xl font-bold text-white">{bossDefeated ? "YES" : "NO"}</span>
-                        </div>
-                        <div className="flex justify-between items-center border-b border-white/10 pb-2">
-                            <span className="text-gray-400 text-sm">Extraction</span>
-                            <span className={`text-xl font-bold ${extracted ? "text-green-400" : "text-red-400"}`}>{extracted ? "SUCCESS" : "FAILED"}</span>
-                        </div>
+                    {/* Stats List - Staggered Reveal */}
+                    <div className={`flex flex-col gap-4 justify-center transition-opacity duration-1000 ${showStats ? "opacity-100" : "opacity-0"}`}>
+                        <StatRow label="Credits Earned" value={`+${run?.creditsEarned ?? 0} CR`} color="text-neon-cyan" delay={0} />
+                        <StatRow label="Core Integrity Dmg" value={`${(100 - integrity)}%`} color="text-red-400" delay={200} />
+                        <StatRow label="Hostiles Neutralized" value="N/A" color="text-white" delay={400} /> {/* Placeholder for now */}
+                        <StatRow label="Boss Neutralized" value={bossDefeated ? "YES" : "NO"} color="text-white" delay={600} />
+                        <StatRow label="Extraction" value={extracted ? "SUCCESS" : "FAILED"} color={extracted ? "text-green-400" : "text-red-400"} delay={800} />
                     </div>
                 </div>
 
-                <div className="flex justify-center gap-4">
-                    <Button variant="outline" className="w-full md:w-auto px-8 py-6 text-lg border-2" onClick={() => router.push('/lobby/browse')}>
+                <div className={`flex justify-center gap-4 transition-all duration-1000 ${showRank ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
+                    <Button variant="outline" className="w-full md:w-auto px-8 py-6 text-lg border-2 hover:bg-neon-cyan hover:text-black transition-colors" onClick={() => router.push('/lobby/browse')}>
                         RETURN TO LOBBY
                     </Button>
                 </div>
 
-            </div>
+            </div >
+        </div >
+    );
+}
+
+function StatRow({ label, value, color, delay }: { label: string, value: string, color: string, delay: number }) {
+    const [show, setShow] = useState(false);
+    useEffect(() => {
+        const timer = setTimeout(() => setShow(true), delay);
+        return () => clearTimeout(timer);
+    }, [delay]);
+
+    return (
+        <div className={`flex justify-between items-center border-b border-white/10 pb-2 transition-all duration-500 ${show ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-4"}`}>
+            <span className="text-gray-400 text-sm">{label}</span>
+            <span className={`text-xl font-bold ${color}`}>{value}</span>
         </div>
     );
 }
