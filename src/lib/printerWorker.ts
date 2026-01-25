@@ -185,9 +185,11 @@ const runGeneration = async (state: WorkerState, id: string, type: 'item' | 'cha
             if (type === 'item') await prisma.inventoryItem.update({ where: { id }, data: { imageStatus: status } });
             else await prisma.character.update({ where: { id }, data: { portraitStatus: status } });
         }
-    } catch (e) {
+    } catch (e: any) {
         console.error("Printer worker failed:", e);
-        const status = "ERROR";
+        const isTransient = e.message?.includes("Generation timeout") || e.message?.includes("WebSocket closed");
+        const status = isTransient ? "QUEUED" : "ERROR";
+
         if (type === 'item') await prisma.inventoryItem.update({ where: { id }, data: { imageStatus: status } });
         else await prisma.character.update({ where: { id }, data: { portraitStatus: status } });
     } finally {
