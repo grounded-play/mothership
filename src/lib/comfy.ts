@@ -121,5 +121,12 @@ export async function generateItemArt(
             ws.close();
             reject(e);
         });
+
+        ws.on('close', (code, reason) => {
+            if (code !== 1000) { // Normal closure
+                console.warn(`WebSocket closed prematurely: ${code} ${reason}`);
+                reject(new Error("WebSocket closed prematurely"));
+            }
+        });
     });
 }
