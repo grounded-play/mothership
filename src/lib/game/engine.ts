@@ -1,10 +1,24 @@
 import { prisma } from "@/lib/prisma";
 import { DeckGenerator, CardRules } from "./cards";
 import { getBackpackCapacity } from "./backpack";
+import { SpaceDerelictGenerator } from "./generator";
 
 export class GameEngine {
     static async initializeGame(lobbyId: string) {
-        // 1. Get Lobby & Members
+        console.log(`[GameEngine] Initializing mission for lobby: ${lobbyId}`);
+
+        // 1. Pre-clear any "ghost" data from failed/interrupted starts
+        try {
+            await Promise.all([
+                (prisma as any).gameState.delete({ where: { id: lobbyId } }).catch(() => null),
+                (prisma as any).mapNode.deleteMany({ where: { gameId: lobbyId } }),
+                (prisma as any).gamePlayer.deleteMany({ where: { gameId: lobbyId } })
+            ]);
+            console.log(`[GameEngine] Sector cleared for lobby: ${lobbyId}`);
+        } catch (e) {
+            console.warn(`[GameEngine] Warning during cleanup for ${lobbyId}:`, e);
+        }
+
         const lobby = await (prisma as any).gameLobby.findUnique({
             where: { id: lobbyId },
             include: {
@@ -26,7 +40,6 @@ export class GameEngine {
         const baseApPool = 2 + playerCount; // Base 3 for solo, +1 per extra player
 
         // 2. Create Game State
-        // Starting in DRAW phase for the first round.
         await (prisma as any).gameState.create({
             data: {
                 id: gameId,
@@ -45,88 +58,33 @@ export class GameEngine {
             }
         });
 
-        // 3. Generate 3x3x3 Cube Map (Level 1)
-        const nodes = [];
-        const SIZE = 3; // 3x3x3 Cube
-        const suits: ("COMMAND" | "VOID" | "BIOTECH" | "PLASMA")[] = ["COMMAND", "BIOTECH", "PLASMA", "VOID"];
-        const startCoord = { x: 1, y: -1, z: 0 };
+        // 3. Generate Procedural Map using SpaceDerelictGenerator
+        const generatedNodes = SpaceDerelictGenerator.generate(gameId, 4);
 
-        // MANUALLY ADD START NODE (Outside Cube at 1, -1, 0)
-        nodes.push({
-            id: crypto.randomUUID(),
-            gameId: gameId,
-            x: startCoord.x, y: startCoord.y, z: startCoord.z,
-            type: "START",
-            isExplored: true,
-            scanned: true,
-            connections: JSON.stringify(["FORWARD"]), // Into the cube
-            roomSuit: "COMMAND",
-            roomPower: 1,
-            security: 1,
-            enemies: "[]",
-            loot: "[]"
-        });
-
-        // Procedural Generation: 3D Grid
-        for (let z = 0; z < SIZE; z++) {
-            for (let y = 0; y < SIZE; y++) {
-                for (let x = 0; x < SIZE; x++) {
-                    const isBoss = (x === 1 && y === 2 && z === 2); // Top North Center
-
-                    // Logic for Node 1,0,0 (Entry Point)
-                    const isEntry = (x === 1 && y === 0 && z === 0);
-
-                    let type = "EMPTY";
-                    if (isBoss) type = "BOSS";
-                    else if (isEntry) type = "ENTRY";
-                    else {
-                        const rand = Math.random();
-                        if (rand > 0.8) type = "LOOT";
-                        else if (rand > 0.6) type = "ENEMY"; // Increased Enemy density
-                        else if (rand > 0.5) type = "TRAP";
-                    }
-
-                    const conns = [];
-                    // Grid Connections
-                    if (x < SIZE - 1) conns.push("RIGHT");
-                    if (x > 0) conns.push("LEFT");
-                    if (y < SIZE - 1) conns.push("FORWARD");
-                    if (y > 0) conns.push("BACK");
-                    if (z < SIZE - 1) conns.push("UP");
-                    if (z > 0) conns.push("DOWN");
-
-                    // Connect Entry to Start
-                    if (isEntry) conns.push("BACK");
-
-                    const distance = Math.abs(x - startCoord.x) + Math.abs(y - startCoord.y) + Math.abs(z - startCoord.z);
-                    const roomPower = isEntry ? 0 : Math.min(9, 2 + distance); // entry is 0, scale up slowly
-                    const suitIdx = isEntry ? 0 : Math.abs(x + y + z) % suits.length;
-
-                    nodes.push({
-                        id: crypto.randomUUID(),
-                        gameId: gameId,
-                        x, y, z,
-                        type,
-                        roomSuit: suits[suitIdx],
-                        roomPower,
-                        security: 0,
-                        isExplored: false, // Fog of War
-                        connections: JSON.stringify(conns),
-                        enemies: "[]",
-                        loot: "[]"
-                    });
+        // Batch create nodes in DB
+        for (const gNode of generatedNodes) {
+            await (prisma as any).mapNode.create({
+                data: {
+                    id: gNode.id,
+                    gameId: gameId,
+                    x: gNode.x,
+                    y: gNode.y,
+                    z: gNode.z,
+                    type: gNode.type,
+                    roomSuit: gNode.roomSuit,
+                    roomPower: gNode.roomPower,
+                    security: 0,
+                    isExplored: gNode.isExplored,
+                    scanned: gNode.scanned,
+                    connections: JSON.stringify(gNode.connections),
+                    enemies: gNode.enemies,
+                    loot: gNode.loot
                 }
-            }
+            });
         }
 
-        // Batch create nodes
-        for (const node of nodes) {
-            await (prisma as any).mapNode.create({ data: node });
-        }
-
-        // Identify Key Nodes
-        const startNode = nodes.find(n => n.type === "START")!;
-        const bossNode = nodes.find(n => n.type === "BOSS")!;
+        const startNode = generatedNodes.find(n => n.type === "START")!;
+        const bossNode = generatedNodes.find(n => n.type === "BOSS")!;
 
         // 4. Create Players & Deal Cards - NOW WITH NODE ID
         const roomDeck = DeckGenerator.generateDeck();

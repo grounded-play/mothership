@@ -11,11 +11,11 @@ export default function MainMenu() {
 
     const menuItems = [
         {
-            label: "Start Game",
+            label: "Mission Control",
             icon: Play,
             action: () => router.push("/lobby/browse"),
             disabled: false,
-            description: "Mission Control",
+            description: "Join Runs or Start Your Own",
         },
         {
             label: "Character",

@@ -9,6 +9,8 @@ import { existsSync } from "fs";
 import path from "path";
 import { normalizePublicPath } from "@/lib/imagePath";
 
+const NO_PRINT_ITEM_NAMES = ["Scrap Metal", "Nutrient Paste"];
+
 export default async function PrinterPage() {
     const session = await getServerSession(authOptions);
     if (!session?.user?.email) redirect("/");
@@ -33,30 +35,34 @@ export default async function PrinterPage() {
     };
 
     // Fetch Global Queue (items + character portraits waiting for visualization)
-    const queuedItems = await (prisma as any).inventoryItem.findMany({
-        where: {
-            customImage: null,
-            instanceStats: { not: null },
-            NOT: [{ instanceStats: "{}" }, { instanceStats: "" }],
-            OR: [
-                { imageStatus: { startsWith: "GENERATING" } },
-                { imageStatus: { in: ["QUEUED", "FAILED", "ERROR", "READY", ""] } }
-            ]
-        },
-        include: { item: true, character: { select: { name: true } } },
-        orderBy: { createdAt: "asc" }
-    });
+    const queuedItemsRaw = await (prisma as any).$queryRaw`
+        SELECT ii.id, ii.updatedAt, ii.createdAt, ii.imageStatus, i.name as "itemName", c.name as "charName", c.class as "charClass"
+        FROM "InventoryItem" ii
+        JOIN "Item" i ON ii.itemId = i.id
+        JOIN "Character" c ON ii.characterId = c.id
+        WHERE i.name NOT IN ('Scrap Metal', 'Nutrient Paste')
+          AND (ii.customImage IS NULL OR ii.customImage = '' OR ii.customImage = 'null')
+        ORDER BY ii.updatedAt ASC
+    `;
+
+    const queuedItems = (queuedItemsRaw as any[]).map(item => ({
+        id: item.id,
+        queueType: "ITEM",
+        name: item.itemName || "Item",
+        owner: item.charName || "Unknown",
+        imageStatus: item.imageStatus === "READY" ? "QUEUED" : (item.imageStatus || "QUEUED"),
+        queuedAt: item.updatedAt || item.createdAt,
+        characterClass: item.charClass
+    }));
 
     const queuedCharacters = await (prisma as any).character.findMany({
         where: {
-            OR: [
-                { portraitStatus: { startsWith: "GENERATING" } },
-                { portraitStatus: { in: ["QUEUED", "FAILED", "ERROR"] } }
-            ]
+            OR: [{ portrait: null }, { portrait: "" }, { portrait: "null" }]
         },
         select: {
             id: true,
             name: true,
+            class: true,
             portrait: true,
             portraitStatus: true,
             updatedAt: true,
@@ -72,7 +78,8 @@ export default async function PrinterPage() {
             name: item.item?.name || "Item",
             owner: item.character?.name || "Unknown",
             imageStatus: item.imageStatus === "READY" ? "QUEUED" : (item.imageStatus || "QUEUED"),
-            queuedAt: item.createdAt
+            queuedAt: item.updatedAt || item.createdAt,
+            characterClass: item.character?.class
         })),
         ...queuedCharacters.map((char: any) => ({
             id: char.id,
@@ -80,59 +87,79 @@ export default async function PrinterPage() {
             name: char.name,
             owner: char.user?.email || char.name,
             imageStatus: char.portraitStatus || "QUEUED",
-            queuedAt: char.updatedAt
+            queuedAt: char.updatedAt,
+            characterClass: char.class
         }))
     ].sort((a, b) => new Date(a.queuedAt).getTime() - new Date(b.queuedAt).getTime());
 
-    const recentReady = await (prisma as any).inventoryItem.findMany({
-        where: {
-            customImage: { not: null },
-            NOT: { customImage: "" },
-            imageStatus: "READY"
-        },
-        include: { item: true, character: { select: { name: true } } },
-        orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
-        take: 10
-    });
+    const recentReadyItemsRaw = await (prisma as any).$queryRaw`
+        SELECT ii.id, ii.customImage, ii.imageUpdatedAt, ii.updatedAt, i.name as "itemName", c.name as "charName", c.class as "charClass"
+        FROM "InventoryItem" ii
+        JOIN "Item" i ON ii.itemId = i.id
+        JOIN "Character" c ON ii.characterId = c.id
+        WHERE ii.customImage IS NOT NULL
+          AND ii.customImage != ''
+          AND ii.imageStatus = 'READY'
+          AND ii.imageUpdatedAt IS NOT NULL
+        ORDER BY ii.imageUpdatedAt DESC
+        LIMIT 10
+    `;
 
-    const getAgeTs = (entry: any) => {
-        const updatedAt = entry?.updatedAt ? new Date(entry.updatedAt).getTime() : Number.NaN;
-        if (!Number.isNaN(updatedAt)) return updatedAt;
-        const createdAt = entry?.createdAt ? new Date(entry.createdAt).getTime() : Number.NaN;
-        if (!Number.isNaN(createdAt)) return createdAt;
-        return Number.NaN;
-    };
+    const recentReadyItems = (recentReadyItemsRaw as any[]).map(item => ({
+        id: item.id,
+        customImage: item.customImage,
+        imageUpdatedAt: item.imageUpdatedAt,
+        updatedAt: item.updatedAt,
+        item: { name: item.itemName },
+        character: { name: item.charName, class: item.charClass }
+    }));
 
-    type ReadyEntry = { entry: any; ts: number; rand: number };
-    const sortedReady = recentReady
-        .map((entry: any): ReadyEntry => ({
-            entry,
-            ts: getAgeTs(entry),
-            rand: Math.random()
+    const recentReadyCharsRaw = await (prisma as any).$queryRaw`
+        SELECT c.id, c.name, c.class, c.portrait, c.portraitUpdatedAt, u.email as "userEmail"
+        FROM "Character" c
+        JOIN "User" u ON c.userId = u.id
+        WHERE c.portrait IS NOT NULL 
+          AND c.portrait != '' 
+          AND c.portraitStatus = 'READY'
+          AND c.portraitUpdatedAt IS NOT NULL
+        ORDER BY c.portraitUpdatedAt DESC
+        LIMIT 10
+    `;
+
+    const recentReadyChars = (recentReadyCharsRaw as any[]).map(char => ({
+        id: char.id,
+        name: char.name,
+        class: char.class,
+        portrait: char.portrait,
+        portraitUpdatedAt: char.portraitUpdatedAt,
+        user: { email: char.userEmail }
+    }));
+
+    const recentMade = [
+        ...recentReadyItems.map((item: any) => ({
+            id: item.id,
+            queueType: "ITEM",
+            title: item.item?.name || "Item",
+            owner: item.character?.name || "Unknown",
+            preview: normalizePublicPath(item.customImage) || item.customImage,
+            completedAt: item.imageUpdatedAt,
+            characterClass: item.character?.class
+        })),
+        ...recentReadyChars.map((char: any) => ({
+            id: char.id,
+            queueType: "PORTRAIT",
+            title: char.name,
+            owner: char.user?.email || char.name,
+            preview: normalizePublicPath(char.portrait) || char.portrait,
+            completedAt: char.portraitUpdatedAt,
+            characterClass: char.class
         }))
-        .sort((a: ReadyEntry, b: ReadyEntry) => {
-            const aHasTs = !Number.isNaN(a.ts);
-            const bHasTs = !Number.isNaN(b.ts);
-            if (aHasTs && bHasTs) return b.ts - a.ts;
-            if (aHasTs) return -1;
-            if (bHasTs) return 1;
-            return b.rand - a.rand;
-        });
-
-    const preferredItem = sortedReady.find((item: ReadyEntry) => hasLocalImage(item.entry.customImage))?.entry || null;
-    const fallbackItem = sortedReady[0]?.entry || null;
-    const lastReadyItem = preferredItem || fallbackItem;
-
-    const lastMade: any = lastReadyItem
-        ? {
-            id: lastReadyItem.id,
-            title: lastReadyItem.item?.name || "Item",
-            owner: lastReadyItem.character?.name || "Unknown",
-            preview: normalizePublicPath(lastReadyItem.customImage) || lastReadyItem.customImage,
-            imageStatus: lastReadyItem.imageStatus || "READY",
-            completedAt: lastReadyItem.updatedAt || lastReadyItem.createdAt
-        }
-        : null;
+    ].sort((a, b) => {
+        const timeA = new Date(a.completedAt).getTime();
+        const timeB = new Date(b.completedAt).getTime();
+        if (timeA !== timeB) return timeB - timeA;
+        return b.id.localeCompare(a.id); // Stable tie-breaker
+    }); // Newest first
 
     return (
         <div className="h-full bg-black">
@@ -147,7 +174,7 @@ export default async function PrinterPage() {
                 inventory={(character as any).inventory}
                 backpackLevel={(character as any).backpackLevel ?? 1}
                 globalQueue={globalQueue}
-                lastMade={lastMade}
+                recentMade={recentMade}
             />
         </div>
     );
