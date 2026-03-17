@@ -1,8 +1,8 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-
-#pics
+# pics
 *.png
+
 # dependencies
 /node_modules
 /.pnp
@@ -48,8 +48,19 @@ next-env.d.ts
 # sqlite
 *.db
 *.db-journal
-printer-worker.log
-ComfyUI
-ComfyUI
+
+# logs
 *.log
-ComfyUI
+printer-worker.log
+
+# ComfyUI
+ComfyUI/
+
+# temp scripts
+/*.js
+!eslint.config.mjs
+!next.config.js
+!postcss.config.mjs
+
+# requested
+http://localhost:3000/menu
