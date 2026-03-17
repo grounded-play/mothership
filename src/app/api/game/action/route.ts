@@ -513,9 +513,13 @@ async function resolveReaction(gameState: any, players: any[], pending: PendingA
             }
 
             if (!moveResult) {
+                console.log(`[MOVE_DIAG] No valid target for player ${playerName} in directions: ${candidateDirections.join(', ')}`);
+                console.log(`[MOVE_DIAG] Facing: ${facing}, Connections: ${JSON.stringify(nodeConnections)}`);
                 logs.push({ ts: now, type: "MOVE", message: `${playerName} could not find a safe escape route.` });
                 continue;
             }
+
+            console.log(`[MOVE_DIAG] Success: ${playerName} moving ${moveResult.direction} to (${moveResult.target.x}, ${moveResult.target.y}, ${moveResult.target.z})`);
 
             if (emergencyMove) {
                 const nextHp = Math.max(0, (player.hp ?? 0) - 1);
@@ -548,6 +552,30 @@ async function resolveReaction(gameState: any, players: any[], pending: PendingA
                 const diff = lobbyDifficulty || "NORMAL";
                 const minutes = diff === "HARD" ? 10 : diff === "EASY" ? 20 : 15;
                 startedDeadline = new Date(Date.now() + minutes * 60000);
+            }
+        }
+    }
+
+    // V24: Move Collision Detection
+    const nodeOccupancy = new Map<string, string[]>();
+    players.forEach(p => {
+        const nid = p.nodeId;
+        if (!nid) return;
+        const list = nodeOccupancy.get(nid) || [];
+        list.push(p.Character?.name || "Unknown");
+        nodeOccupancy.set(nid, list);
+    });
+
+    for (const [nid, names] of nodeOccupancy.entries()) {
+        if (names.length > 1) {
+            logs.push({ ts: now, type: "COLLISION", message: `COLLISION: ${names.join(", ")} bumped into each other! -1 Energy.` });
+            // Apply stress penalty to all players involved
+            for (const name of names) {
+                const p = players.find(pl => pl.Character?.name === name);
+                if (p) {
+                    const nextStress = Math.max(0, (p.stress ?? 0) - 1);
+                    updates.push((prisma as any).gamePlayer.update({ where: { id: p.id }, data: { stress: nextStress } }));
+                }
             }
         }
     }
@@ -592,6 +620,8 @@ async function resolveReaction(gameState: any, players: any[], pending: PendingA
                 else if (score >= 2000) rank = "A";
                 else if (score >= 1500) rank = "B";
                 else rank = "C";
+            } else {
+                rank = "F";
             }
 
             // Create GameRun Result

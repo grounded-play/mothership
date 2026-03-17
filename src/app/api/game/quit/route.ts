@@ -40,24 +40,27 @@ export async function POST(req: Request) {
         const difficulty = game.GameLobby.difficulty; // "NORMAL" or "HARD"
         const multiplier = difficulty === "HARD" ? 2 : 1;
 
-        const baseScore = 100;
-        const timeBonus = timeRemainingSeconds * multiplier;
+        const baseScore = isVictory ? 100 : 10;
+        const timeBonus = isVictory ? (timeRemainingSeconds * multiplier) : 0;
         const totalScore = baseScore + timeBonus;
 
-        let rank = "D";
-        if (totalScore >= 1000) rank = "S";
-        else if (totalScore >= 750) rank = "A";
-        else if (totalScore >= 500) rank = "B";
-        else if (totalScore >= 250) rank = "C";
+        let rank = "F";
+        if (isVictory) {
+            if (totalScore >= 1000) rank = "S";
+            else if (totalScore >= 750) rank = "A";
+            else if (totalScore >= 500) rank = "B";
+            else if (totalScore >= 250) rank = "C";
+        }
 
         // Reward Credits
-        // Only award if not already ended? Assume yes.
+        const creditsEarned = isVictory ? totalScore : 0;
         try {
             await (prisma as any).character.update({
                 where: { id: character.id },
                 data: {
-                    credits: { increment: totalScore },
-                    runsCompleted: { increment: 1 }
+                    credits: { increment: creditsEarned },
+                    runsCompleted: { increment: isVictory ? 1 : 0 },
+                    runsFailed: { increment: isVictory ? 0 : 1 }
                 }
             });
         } catch (e) { console.error("Reward Error:", e); }
@@ -121,7 +124,7 @@ export async function POST(req: Request) {
             isHost,
             score: totalScore,
             rank,
-            creditsEarned: totalScore,
+            creditsEarned,
             timeBonus,
             baseScore
         });

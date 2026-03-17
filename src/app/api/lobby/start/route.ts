@@ -8,8 +8,10 @@ export async function POST(req: Request) {
     const session = await getServerSession(authOptions);
     if (!session?.user?.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    let lobbyId: string | undefined;
     try {
-        const { lobbyId } = await req.json();
+        const bodySize = await req.json();
+        lobbyId = bodySize.lobbyId;
         const user = await prisma.user.findUnique({ where: { email: session.user.email }, include: { characters: true } });
         const character = user?.characters[0];
 
@@ -28,12 +30,15 @@ export async function POST(req: Request) {
             data: { status: "IN_PROGRESS" }
         });
 
+        if (!lobbyId) return NextResponse.json({ error: "Lobby ID required" }, { status: 400 });
+
         // Initialize Game State
         await GameEngine.initializeGame(lobbyId);
 
         return NextResponse.json({ success: true });
 
     } catch (e) {
+        console.error(`[LobbyStart] Failed to initialize mission for ${lobbyId}:`, e);
         return NextResponse.json({ error: "Failed to start" }, { status: 500 });
     }
 }

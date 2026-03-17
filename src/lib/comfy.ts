@@ -55,7 +55,11 @@ export async function generateItemArt(
                     body: JSON.stringify({ prompt: workflow, client_id: clientId })
                 });
 
-                if (!res.ok) throw new Error("Failed to queue prompt");
+                if (!res.ok) {
+                    const errorText = await res.text();
+                    console.error("ComfyUI API Error:", errorText);
+                    throw new Error(`Failed to queue prompt: ${res.status} ${res.statusText}`);
+                }
                 const { prompt_id } = await res.json();
 
                 // Listen for Completion & Progress

@@ -43,12 +43,15 @@ export default async function CharacterViewPage() {
     } catch (e) { }
 
     return (
-        <div className="min-h-full p-4 md:p-8 flex flex-col items-center pt-24">
+        <div className="min-h-full p-4 md:p-8 flex flex-col items-center pt-24 bg-space-void relative">
+            <div className="fixed top-6 left-8 z-50">
+                <Link href="/menu" className="flex items-center text-neon-cyan hover:text-white transition-colors glass-panel px-4 py-2 rounded-full">
+                    <ArrowLeft className="mr-2 h-4 w-4" /> Back to Bridge
+                </Link>
+            </div>
+
             <div className="w-full max-w-6xl">
-                <header className="flex items-center justify-between mb-8">
-                    <Link href="/menu" className="flex items-center text-neon-cyan hover:text-white transition-colors">
-                        <ArrowLeft className="mr-2 h-5 w-5" /> Back to Bridge
-                    </Link>
+                <header className="flex items-center justify-end mb-8">
                     <div className="flex items-center gap-4">
                         <CurrencyDisplay credits={character.credits} voidTokens={character.voidTokens} scrap={scrapCount} paste={pasteCount} />
                     </div>

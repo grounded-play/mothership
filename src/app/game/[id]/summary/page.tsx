@@ -3,6 +3,8 @@
 import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 
 export default function SummaryPage({ params }: { params: Promise<{ id: string }> }) {
     const router = useRouter();
@@ -39,7 +41,7 @@ export default function SummaryPage({ params }: { params: Promise<{ id: string }
         : (game?.phase === "VICTORY" && player?.MapNode?.type === "START");
     const isVictory = bossDefeated;
 
-    let rank = run?.rank || "C";
+    let rank = run?.rank || "F";
     let status = "MISSION ABORTED";
     let color = "text-yellow-500";
 
@@ -49,17 +51,16 @@ export default function SummaryPage({ params }: { params: Promise<{ id: string }
         status = "MISSION ACCOMPLISHED";
         color = "text-neon-cyan";
     } else if (game?.phase === "ABORTED") {
-        if (integrity < 50) {
-            rank = "B";
-            status = "TACTICAL WITHDRAWAL";
-            color = "text-orange-500";
-        } else {
-            status = "MISSION ABORTED";
-            color = "text-red-500";
-        }
+        rank = run?.rank || "F";
+        status = "MISSION ABORTED";
+        color = "text-red-500";
+    } else {
+        rank = run?.rank || "F";
+        status = "CRITICAL FAILURE";
+        color = "text-red-600";
     }
 
-    const finalScore = run?.score || (isVictory ? 2000 : 500);
+    const finalScore = run?.score || (isVictory ? 2000 : 0);
 
     // Sequence Effect
     useEffect(() => {
@@ -91,7 +92,13 @@ export default function SummaryPage({ params }: { params: Promise<{ id: string }
     }, [loading, stats, finalScore]);
 
     return (
-        <div className="min-h-full bg-black text-white font-mono flex flex-col items-center justify-center p-4 relative overflow-hidden">
+        <div className="min-h-full bg-space-void text-white font-mono flex flex-col items-center justify-center p-4 relative overflow-hidden">
+            <div className="fixed top-6 left-8 z-50">
+                <Link href="/menu" className="flex items-center text-neon-cyan hover:text-white transition-colors glass-panel px-4 py-2 rounded-full">
+                    <ArrowLeft className="mr-2 h-4 w-4" /> Back to Bridge
+                </Link>
+            </div>
+
             {/* Background Grid */}
             <div className="absolute inset-0 opacity-20 pointer-events-none"
                 style={{ backgroundImage: 'linear-gradient(#0ff 1px, transparent 1px), linear-gradient(90deg, #0ff 1px, transparent 1px)', backgroundSize: '40px 40px' }}

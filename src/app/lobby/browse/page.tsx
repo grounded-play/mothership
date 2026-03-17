@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { motion } from "framer-motion";
-import { Users, Lock, Unlock, Play, Plus, RefreshCw, LogOut } from "lucide-react";
+import Link from "next/link";
+import { Users, Lock, Unlock, Play, Plus, RefreshCw, LogOut, ArrowLeft } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import SafeImage from "@/components/ui/SafeImage";
 
@@ -108,18 +109,21 @@ export default function LobbyBrowser() {
     };
 
     return (
-        <div className="min-h-full p-8 pt-24 space-y-8">
+        <div className="min-h-full p-8 pt-24 space-y-8 bg-space-void relative">
+            <div className="fixed top-6 left-8 z-50">
+                <Link href="/menu" className="flex items-center text-neon-cyan hover:text-white transition-colors glass-panel px-4 py-2 rounded-full">
+                    <ArrowLeft className="mr-2 h-4 w-4" /> Back to Bridge
+                </Link>
+            </div>
+
             <div className="flex justify-between items-end">
                 <div>
-                    <h1 className="text-4xl font-bold text-white neon-text mb-2">MISSION CONTROL</h1>
+                    <h1 className="text-4xl font-bold text-white neon-text mb-2 uppercase tracking-tighter">Mission Control</h1>
                     <p className="text-neon-cyan/80">Select a deployment or establish a new frequency.</p>
                 </div>
                 <div className="flex gap-4">
-                    <Button variant="outline" onClick={fetchLobbies} disabled={loading}>
+                    <Button variant="outline" onClick={fetchLobbies} disabled={loading} className="border-neon-cyan/30 text-neon-cyan hover:bg-neon-cyan/10">
                         <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} /> REFRESH
-                    </Button>
-                    <Button onClick={() => router.push("/")} variant="ghost">
-                        BACK
                     </Button>
                 </div>
             </div>

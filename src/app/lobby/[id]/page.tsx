@@ -5,7 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { motion, AnimatePresence } from "framer-motion";
 import SafeImage from "@/components/ui/SafeImage";
-import { Users, Shield, Play, LogOut } from "lucide-react";
+import Link from "next/link";
+import { Users, Shield, Play, LogOut, ArrowLeft } from "lucide-react";
 import { getBackpackCapacity } from "@/lib/game/backpack";
 import { normalizePublicPath } from "@/lib/imagePath";
 
@@ -57,13 +58,27 @@ export default function LobbyRoom() {
         fetchLobby();
     };
 
+    const [starting, setStarting] = useState(false);
+
     const handleStart = async () => {
-        await fetch("/api/lobby/start", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ lobbyId: id })
-        });
-        // The poll will redirect us
+        setStarting(true);
+        try {
+            const res = await fetch("/api/lobby/start", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ lobbyId: id })
+            });
+            if (!res.ok) {
+                const data = await res.json();
+                setError(data.error || "Failed to initialize mission.");
+                setStarting(false);
+            }
+            // If successful, the poll will redirect us
+        } catch (e) {
+            console.error(e);
+            setError("Tactical error during launch.");
+            setStarting(false);
+        }
     };
 
     const handleLeave = async () => {
@@ -130,7 +145,12 @@ export default function LobbyRoom() {
     };
 
     return (
-        <div className="min-h-full p-8 pt-24 max-w-4xl mx-auto space-y-8">
+        <div className="min-h-full p-8 pt-24 max-w-4xl mx-auto space-y-8 bg-space-void relative">
+            <div className="fixed top-6 left-8 z-50">
+                <Link href="/menu" className="flex items-center text-neon-cyan hover:text-white transition-colors glass-panel px-4 py-2 rounded-full">
+                    <ArrowLeft className="mr-2 h-4 w-4" /> Back to Bridge
+                </Link>
+            </div>
             {/* Header */}
             <div className="glass-panel p-8 rounded-xl flex justify-between items-center border-neon-cyan/30">
                 <div>
@@ -375,10 +395,11 @@ export default function LobbyRoom() {
                         ) : (
                             <Button
                                 onClick={handleStart}
-                                disabled={!allReady}
-                                className={`w-48 ${allReady ? 'bg-neon-cyan text-black hover:bg-cyan-400' : 'opacity-50 cursor-not-allowed'}`}
+                                disabled={!allReady || starting}
+                                className={`w-48 ${allReady ? (starting ? 'opacity-70 cursor-wait' : 'bg-neon-cyan text-black hover:bg-cyan-400') : 'opacity-50 cursor-not-allowed'}`}
                             >
-                                <Play className="w-4 h-4 mr-2" /> LAUNCH MISSION
+                                <Play className={`w-4 h-4 mr-2 ${starting ? 'animate-pulse' : ''}`} /> 
+                                {starting ? "LAUNCHING..." : "LAUNCH MISSION"}
                             </Button>
                         )}
                     </div>

@@ -8,12 +8,15 @@ export default function SettingsPage() {
     const [volume, setVolume] = useState(70);
 
     return (
-        <div className="min-h-full flex items-center justify-center p-4">
+        <div className="min-h-full flex items-center justify-center p-4 bg-space-void relative">
+            <div className="fixed top-6 left-8 z-50">
+                <Link href="/menu" className="flex items-center text-neon-cyan hover:text-white transition-colors glass-panel px-4 py-2 rounded-full">
+                    <ArrowLeft className="mr-2 h-4 w-4" /> Back to Bridge
+                </Link>
+            </div>
+
             <div className="w-full max-w-2xl glass-panel p-8 rounded-2xl">
                 <header className="flex items-center mb-8 pb-4 border-b border-white/10">
-                    <Link href="/menu" className="mr-4 text-neon-cyan hover:text-white transition-colors">
-                        <ArrowLeft className="h-6 w-6" />
-                    </Link>
                     <h1 className="text-2xl font-bold tracking-widest text-white">SYSTEM CONFIGURATION</h1>
                 </header>
 

@@ -34,21 +34,25 @@ export default async function RosterPage() {
     }));
 
     return (
-        <div className="min-h-full p-8 pt-24">
-            <header className="fixed top-0 left-0 right-0 z-50 bg-black/50 backdrop-blur-md border-b border-white/5 p-4 px-8 flex items-center justify-between">
-                <Link href="/menu" className="flex items-center text-neon-cyan hover:text-white transition-colors group">
-                    <ArrowLeft className="mr-2 h-5 w-5 group-hover:-translate-x-1 transition-transform" />
-                    <span className="uppercase tracking-widest text-sm font-bold">Bridge</span>
+        <div className="min-h-full bg-space-void p-8 pt-24">
+            <div className="fixed top-6 left-8 z-50">
+                <Link href="/menu" className="flex items-center text-neon-cyan hover:text-white transition-colors glass-panel px-4 py-2 rounded-full">
+                    <ArrowLeft className="mr-2 h-4 w-4" /> Back to Bridge
                 </Link>
-                <div className="flex items-center gap-2">
-                    <Users className="w-5 h-5 text-neon-magenta" />
-                    <span className="uppercase tracking-widest text-sm font-bold text-white">Active Roster</span>
-                </div>
-            </header>
+            </div>
+
+            <div className="max-w-6xl mx-auto">
+                <header className="flex items-center justify-between mb-8 pb-4 border-b border-white/5">
+                    <div className="flex items-center gap-2">
+                        <Users className="w-5 h-5 text-neon-magenta" />
+                        <span className="uppercase tracking-widest text-lg font-bold text-white">Active Roster</span>
+                    </div>
+                </header>
 
             <div className="mt-8">
                 <RosterInterface initialCharacters={characters} />
             </div>
+          </div>
         </div>
     );
 }
