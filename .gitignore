@@ -48,3 +48,7 @@ next-env.d.ts
 # sqlite
 *.db
 *.db-journal
+printer-worker.log
+ComfyUI
+ComfyUI
+*.log
