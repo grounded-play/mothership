@@ -223,6 +223,9 @@ export class GameEngine {
             });
         });
 
+        // Calculate current depth from turn count (simplified)
+        const currentDepth = Math.min(turnNumber, 10);
+
         // Construct Turn Order
         // Start with the starter, then round robin (no AI card turn; environment reacts in reaction phase)
         const turnOrder = players.map(p => p.characterId);

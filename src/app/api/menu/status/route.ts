@@ -2,30 +2,24 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { findUserBySessionEmail, touchUserByEmail } from "@/lib/sessionUser";
 
 export async function GET() {
     const session = await getServerSession(authOptions);
     if (!session?.user?.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const user = await prisma.user.findUnique({
-        where: { email: session.user.email }
-    });
-    const userId = user?.id;
-
-    if (!userId) return NextResponse.json({ error: "User not found" }, { status: 404 });
+    const user = await findUserBySessionEmail(session.user.email);
+    if (!user) return NextResponse.json({ error: "Session expired" }, { status: 401 });
 
     // Mark user as active
-    await prisma.user.update({
-        where: { id: userId },
-        data: { updatedAt: new Date() }
-    });
+    await touchUserByEmail(user.email);
 
     const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
     const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
     
     let [character, totalPlayers, onlinePlayers, activeMissions, activeLobbies, globalLastRun] = await Promise.all([
         prisma.character.findFirst({
-            where: { userId: userId },
+            where: { userId: user.id },
             include: { inventory: { take: 1 } }
         }),
         prisma.user.count(),

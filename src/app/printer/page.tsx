@@ -20,7 +20,8 @@ export default async function PrinterPage() {
         include: { characters: { include: { inventory: { include: { item: true } } } } as any }
     });
 
-    if (!user || (user as any).characters.length === 0) redirect("/character/create");
+    if (!user) redirect("/");
+    if ((user as any).characters.length === 0) redirect("/character/create");
     const character = (user as any).characters[0];
 
     const hasLocalImage = (value?: string | null) => {

@@ -38,6 +38,11 @@ export default function PrinterInterface({ credits, inventory, globalQueue, back
     const [queueHold, setQueueHold] = useState(false);
     const [recentIndex, setRecentIndex] = useState(0);
 
+    // System Status Tracking
+    const [comfyStatus, setComfyStatus] = useState<'online' | 'offline' | 'checking'>('checking');
+    const [workerStatus, setWorkerStatus] = useState<'active' | 'idle' | 'offline'>('idle');
+    const [queueStatus, setQueueStatus] = useState<'active' | 'empty'>('empty');
+
     // Queue State - Removed (Handled by Background Worker)
     // const [generationQueue, setGenerationQueue] = useState<any[]>([]);
     // const [isProcessing, setIsProcessing] = useState(false);

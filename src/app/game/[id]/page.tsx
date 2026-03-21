@@ -117,7 +117,11 @@ export default function GameInterface() {
 
     // Hoisted Logic for Hooks
     const inActionPhase = game?.roundPhase === "ACTION";
+    const inDrawPhase = game?.roundPhase === "DRAW";
     const hasActionTimer = !!game?.actionDeadline;
+    const turnNumber = game?.currentTurn || 1;
+    const playerCount = game?.turnOrder ? JSON.parse(game.turnOrder).length : 1;
+    const playerIndex = game?.activePlayerIndex || 0;
 
     // Fetch Game State
     useEffect(() => {
@@ -423,13 +427,15 @@ export default function GameInterface() {
         || (actionIntent === "ATTACK" && !canAttack)
         || (actionIntent === "MOVE" && (!moveDirection || !canMoveSelected));
     const actionStatus = !inActionPhase
-        ? "DRAWING..."
+        ? "DRAWING CARDS..."
         : hasActionTimer
-            ? "ACTION WINDOW"
+            ? "⚠️ ACTION WINDOW ⚠️"
             : isAirlock
-                ? "AIRLOCK READY"
-                : "WAITING FOR READY";
-    const actionTimerLabel = !inActionPhase ? "WAITING..." : (hasActionTimer ? `ACTION CLOSING IN ${actionTimeLeft}s` : "READY");
+                ? "AIRLOCK READY - EXITING"
+                : "WAITING FOR INPUT";
+    const actionTimerLabel = !inActionPhase ? "WAITING..." : (hasActionTimer
+        ? `${actionTimeLeft}s`
+        : "READY");
     const pileOwnerIsMe = player && game?.pileOwnerId === player.characterId; // Use CharacterID for consistent ownership
 
     const toggleItemSelection = (itemId: string) => {
@@ -1003,9 +1009,19 @@ export default function GameInterface() {
 
                                             {/* Action Timer Overlay */}
                                             {hasActionTimer && inActionPhase && (
-                                                <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/60 rounded-full animate-pulse">
-                                                    <div className="text-xl font-bold text-red-500 font-mono tracking-tighter">
-                                                        {actionTimeLeft}
+                                                <div className="absolute inset-0 z-40 flex items-center justify-center bg-red-900/40 animate-pulse">
+                                                    <div className="relative">
+                                                        {/* Outer countdown ring */}
+                                                        <div className="absolute inset-0 border-4 border-red-500/30 rounded-full animate-spin-slow" />
+                                                        {/* Center timer */}
+                                                        <div className="w-48 h-48 rounded-full bg-black/80 flex flex-col items-center justify-center border-2 border-red-500">
+                                                            <div className="text-6xl font-black text-red-500 font-mono tracking-tighter">{actionTimeLeft}</div>
+                                                            <div className="text-[10px] text-red-300 tracking-widest mt-2">SECONDS REMAINING</div>
+                                                        </div>
+                                                        {/* Warning flash when below 5s */}
+                                                        {actionTimeLeft <= 5 && (
+                                                            <div className="absolute inset-0 rounded-full bg-red-500/20 animate-ping" />
+                                                        )}
                                                     </div>
                                                 </div>
                                             )}

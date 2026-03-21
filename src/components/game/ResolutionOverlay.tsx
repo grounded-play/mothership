@@ -131,10 +131,52 @@ export default function ResolutionOverlay({ data, onClose }: ResolutionOverlayPr
                             {step >= 3 && breakdown.integrity !== 0 && <ModifierRow label="Structural Integrity" value={breakdown.integrity} negative />}
 
                             {step >= 4 && (
-                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-2 pt-2 border-t border-white/10 flex justify-between items-center">
-                                    <span className="text-xs font-bold text-white">TOTAL STRENGTH</span>
-                                    <span className={`text-lg font-bold ${success ? "text-neon-cyan" : "text-red-500"}`}>{strength}</span>
-                                </motion.div>
+                                <>
+                                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-2 pt-2 border-t border-white/10 flex justify-between items-center">
+                                        <span className="text-xs font-bold text-white">TOTAL STRENGTH</span>
+                                        <span className={`text-lg font-bold ${success ? "text-neon-cyan" : "text-red-500"}`}>{strength}</span>
+                                    </motion.div>
+
+                                    {/* Combat Summary */}
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        className="mt-3 p-4 bg-black/40 rounded-lg border border-white/10"
+                                    >
+                                        <div className="text-[10px] text-gray-500 uppercase tracking-widest mb-3 border-b border-white/5 pb-2">
+                                            {success ? "⚔️ VICTORY SUMMARY" : "💀 DEFAT SUMMARY"}
+                                        </div>
+
+                                        {/* Main Power Comparison */}
+                                        <div className="mb-3">
+                                            <div className="flex items-center justify-between text-sm mb-1">
+                                                <span className="text-gray-400">Enemy Threat Power</span>
+                                                <span className="text-white font-mono font-bold text-lg">{nodePower}</span>
+                                            </div>
+                                            <div className="flex items-center justify-between text-sm">
+                                                <span className="text-gray-400">Your Attack Power</span>
+                                                <span className={success ? "text-neon-cyan font-mono font-bold text-lg" : "text-red-500 font-mono font-bold text-lg"}>{strength}</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Result Banner */}
+                                        <div className={`text-center py-3 px-4 rounded-lg font-bold text-sm tracking-widest mb-3 ${success ? "bg-neon-cyan/20 text-neon-cyan border border-neon-cyan/50" : "bg-red-500/20 text-red-500 border border-red-500/50"}`}>
+                                            {success ? "✓ SECTOR CLEARED" : "✗ SECTOR FAILED"}
+                                        </div>
+
+                                        {/* Outcome Breakdown */}
+                                        <div className="grid grid-cols-2 gap-2 text-xs">
+                                            <div className="bg-black/30 rounded p-2 border border-white/5">
+                                                <span className="text-gray-500 block mb-1">Damage Dealt</span>
+                                                <span className="text-white font-mono font-bold">{Math.max(0, strength - nodePower)} pts</span>
+                                            </div>
+                                            <div className="bg-black/30 rounded p-2 border border-white/5">
+                                                <span className="text-gray-500 block mb-1">Damage Taken</span>
+                                                <span className="text-red-500 font-mono font-bold">{Math.max(0, nodePower - strength)} pts</span>
+                                            </div>
+                                        </div>
+                                    </motion.div>
+                                </>
                             )}
                         </div>
 
