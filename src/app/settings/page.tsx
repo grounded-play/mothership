@@ -1,11 +1,29 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, Volume2, Monitor, Bell } from "lucide-react";
-import { useState } from "react";
+import { ArrowLeft, Volume2, Monitor, Bell, VolumeX } from "lucide-react";
+import { useState, useEffect } from "react";
+import { soundManager } from "@/lib/soundManager";
 
 export default function SettingsPage() {
     const [volume, setVolume] = useState(70);
+    const [soundEnabled, setSoundEnabled] = useState(true);
+
+    useEffect(() => {
+        setSoundEnabled(soundManager.enabled);
+        setVolume(Math.round(soundManager.volume * 100));
+    }, []);
+
+    const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const newVolume = Number(e.target.value);
+        setVolume(newVolume);
+        soundManager.setVolume(newVolume / 100);
+    };
+
+    const handleSoundToggle = () => {
+        const newState = soundManager.toggle();
+        setSoundEnabled(newState);
+    };
 
     return (
         <div className="min-h-full flex items-center justify-center p-4 bg-space-void relative">
@@ -30,10 +48,26 @@ export default function SettingsPage() {
                                 type="range"
                                 min="0" max="100"
                                 value={volume}
-                                onChange={(e) => setVolume(Number(e.target.value))}
+                                onChange={handleVolumeChange}
                                 className="w-full accent-neon-cyan bg-gray-700 h-1 appearance-none rounded"
                             />
                             <span className="w-8 text-right font-mono text-neon-cyan">{volume}%</span>
+                        </div>
+
+                        {/* Sound Toggle */}
+                        <div className="flex items-center justify-between p-4 bg-white/5 rounded border border-white/5">
+                            <div className="flex items-center gap-3">
+                                {soundEnabled ? <Volume2 className="h-5 w-5 text-neon-cyan" /> : <VolumeX className="h-5 w-5 text-gray-500" />}
+                                <span className="text-sm text-gray-300">Sound Effects</span>
+                            </div>
+                            <button
+                                onClick={handleSoundToggle}
+                                className={`w-12 h-6 rounded-full transition-colors relative ${soundEnabled ? 'bg-neon-cyan/20' : 'bg-gray-700'} border ${soundEnabled ? 'border-neon-cyan' : 'border-gray-600'}`}
+                            >
+                                <div
+                                    className={`h-5 w-5 rounded-full transition-all absolute top-0.5 ${soundEnabled ? 'left-7' : 'left-0.5'} bg-neon-cyan`}
+                                />
+                            </button>
                         </div>
                     </div>
 
