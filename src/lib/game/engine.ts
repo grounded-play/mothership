@@ -224,6 +224,8 @@ export class GameEngine {
         });
 
         // Calculate current depth from turn count (simplified)
+        // Note: turnNumber is initialized from currentTurn above
+        const turnNumber = 1; // First turn
         const currentDepth = Math.min(turnNumber, 10);
 
         // Construct Turn Order

@@ -1012,13 +1012,33 @@ export default function GameInterface() {
                                                 <div className="absolute inset-0 z-40 flex items-center justify-center bg-red-900/40 animate-pulse">
                                                     <div className="relative">
                                                         {/* Outer countdown ring */}
-                                                        <div className="absolute inset-0 border-4 border-red-500/30 rounded-full animate-spin-slow" />
+                                                        <div className={`absolute inset-0 border-4 rounded-full transition-colors duration-300 ${
+                                                            actionTimeLeft <= 3
+                                                                ? 'border-red-500/60 animate-ping'
+                                                                : actionTimeLeft <= 10
+                                                                    ? 'border-red-400/50 animate-pulse'
+                                                                    : 'border-red-500/30 animate-spin-slow'
+                                                        }`} />
                                                         {/* Center timer */}
-                                                        <div className="w-48 h-48 rounded-full bg-black/80 flex flex-col items-center justify-center border-2 border-red-500">
-                                                            <div className="text-6xl font-black text-red-500 font-mono tracking-tighter">{actionTimeLeft}</div>
-                                                            <div className="text-[10px] text-red-300 tracking-widest mt-2">SECONDS REMAINING</div>
+                                                        <div className="w-48 h-48 rounded-full bg-black/80 flex flex-col items-center justify-center border-2 transition-colors duration-300 ${
+                                                            actionTimeLeft <= 3
+                                                                ? 'border-red-500 shadow-[0_0_30px_#f00]'
+                                                                : actionTimeLeft <= 10
+                                                                    ? 'border-red-400'
+                                                                    : 'border-red-500'
+                                                        }">
+                                                            <div className={`text-6xl font-black font-mono tracking-tighter transition-colors duration-300 ${
+                                                                actionTimeLeft <= 3
+                                                                    ? 'text-red-400 animate-pulse'
+                                                                    : actionTimeLeft <= 10
+                                                                        ? 'text-red-500'
+                                                                        : 'text-red-500'
+                                                            }`}>{actionTimeLeft}</div>
+                                                            <div className="text-[10px] text-red-300 tracking-widest mt-2 transition-colors duration-300">
+                                                                {actionTimeLeft <= 3 ? 'TURN EXPIRING' : 'SECONDS REMAINING'}
+                                                            </div>
                                                         </div>
-                                                        {/* Warning flash when below 5s */}
+                                                        {/* Urgent warning when below 5s */}
                                                         {actionTimeLeft <= 5 && (
                                                             <div className="absolute inset-0 rounded-full bg-red-500/20 animate-ping" />
                                                         )}
