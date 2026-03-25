@@ -11,9 +11,35 @@ interface RoomScannerProps {
     scanned?: boolean; // Fully Scanned (reveals suit/color)
     relativeNorth?: string; // "FORWARD", "LEFT", "RIGHT", "BACK"
     facing?: string; // "NORTH", "WEST" (For Debug)
+    hallwayIntel?: Array<{
+        direction: string;
+        directionLabel?: string;
+        distance: number;
+        endpointType: string;
+        endpointLabel?: string;
+        turns: number;
+        branches: number;
+        truncated: boolean;
+    }>;
+    movementDirection?: string | null;
+    movementActive?: boolean;
 }
 
-export default function RoomScanner({ type, isExplored, integrity, suit, suitColor, connections = [], windows = [], scanned = false, relativeNorth = "FORWARD", facing }: RoomScannerProps) {
+export default function RoomScanner({
+    type,
+    isExplored,
+    integrity,
+    suit,
+    suitColor,
+    connections = [],
+    windows = [],
+    scanned = false,
+    relativeNorth = "FORWARD",
+    facing,
+    hallwayIntel = [],
+    movementDirection,
+    movementActive = false
+}: RoomScannerProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [dimensions, setDimensions] = React.useState({ width: 0, height: 0 });
@@ -96,6 +122,8 @@ export default function RoomScanner({ type, isExplored, integrity, suit, suitCol
             ctx.shadowBlur = showDetails ? 10 * scale : 0;
             ctx.lineWidth = 2 * scale;
 
+            const isHallwayView = type === "CORRIDOR" || type === "HUB";
+
             // Draw Wireframe Box (Perspective)
             ctx.beginPath();
             const b = 50 * scale;
@@ -110,37 +138,24 @@ export default function RoomScanner({ type, isExplored, integrity, suit, suitCol
             ctx.moveTo(cx + b, cy + b); ctx.lineTo(cx + f, cy + f); // Bottom Right
             ctx.stroke();
 
-            // Draw Compass on Floor (Visual Orientation)
-            if (scanned || isExplored) {
-                const floorColor = color;
-                ctx.font = `bold ${10 * scale}px monospace`;
-                ctx.fillStyle = floorColor;
-                ctx.textAlign = "center";
-                ctx.textBaseline = "middle";
-                ctx.globalAlpha = 0.7;
+            if (isHallwayView || movementActive) {
+                const flow = movementActive ? (Date.now() / 85) % (18 * scale) : 0;
+                ctx.save();
+                ctx.strokeStyle = showDetails ? `${color}88` : "#334155";
+                ctx.lineWidth = 1.4 * scale;
+                for (let i = 0; i < 6; i++) {
+                    const baseY = cy + f - i * (24 * scale) + flow;
+                    ctx.beginPath();
+                    ctx.moveTo(cx - f * 0.9 + i * (8 * scale), baseY);
+                    ctx.lineTo(cx - b * 0.55, cy + b * 0.6 - i * (5 * scale));
+                    ctx.stroke();
 
-                const relNorthIdx = ["FORWARD", "RIGHT", "BACK", "LEFT"].indexOf(relativeNorth || "FORWARD");
-                const labels = ["N", "E", "S", "W"]; // North, East, South, West
-
-                // Layout Update: Forward on Wall Center. Sides Centered. Back near Front.
-                const pos = [
-                    { x: cx, y: cy, label: labels[(4 - relNorthIdx + 0) % 4] }, // FWD (Center of Back Wall)
-                    { x: cx + b + (f - b) * 0.5, y: cy + b + (f - b) * 0.5, label: labels[(4 - relNorthIdx + 1) % 4] }, // RIGHT (Mid Floor)
-                    { x: cx, y: cy + f - 30 * scale, label: labels[(4 - relNorthIdx + 2) % 4] }, // BACK (Floor near Front)
-                    { x: cx - b - (f - b) * 0.5, y: cy + b + (f - b) * 0.5, label: labels[(4 - relNorthIdx + 3) % 4] }, // LEFT (Mid Floor)
-                ];
-
-                pos.forEach(p => {
-                    ctx.fillText(p.label, p.x, p.y);
-                });
-                ctx.globalAlpha = 1;
-
-                // Debug Facing Info
-                if (facing) {
-                    ctx.font = `${8 * scale}px monospace`;
-                    ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
-                    ctx.fillText(facing, cx, cy + f + 10 * scale);
+                    ctx.beginPath();
+                    ctx.moveTo(cx + f * 0.9 - i * (8 * scale), baseY);
+                    ctx.lineTo(cx + b * 0.55, cy + b * 0.6 - i * (5 * scale));
+                    ctx.stroke();
                 }
+                ctx.restore();
             }
 
             // DRAW FEATURES (Doors/Windows/Hatches)
@@ -293,6 +308,18 @@ export default function RoomScanner({ type, isExplored, integrity, suit, suitCol
                 ctx.font = `bold ${12 * scale}px monospace`;
                 ctx.fillText(`SECTOR: ${type}`, 10, 10);
                 if (suit) ctx.fillText(`TS: ${suit}`, 10, 10 + (15 * scale));
+                if (movementActive && movementDirection) {
+                    ctx.fillStyle = "#22d3ee";
+                    ctx.fillText(`TRANSIT: ${movementDirection}`, 10, 10 + (30 * scale));
+                }
+
+                // Danger Warning for low integrity
+                if (integrity && integrity < 50) {
+                    ctx.fillStyle = "#ef4444";
+                    ctx.font = `bold ${10 * scale}px monospace`;
+                    ctx.fillText(`LOW INTEGRITY: ${integrity}%`, 10, 10 + (movementActive && movementDirection ? 45 * scale : 30 * scale));
+                }
+
             }
 
             animationFrameId = requestAnimationFrame(draw);
@@ -300,7 +327,7 @@ export default function RoomScanner({ type, isExplored, integrity, suit, suitCol
 
         draw();
         return () => cancelAnimationFrame(animationFrameId);
-    }, [dimensions, type, isExplored, suitColor, connections, suit, windows, scanned]);
+    }, [dimensions, type, isExplored, suitColor, connections, suit, windows, scanned, hallwayIntel, movementDirection, movementActive, integrity]);
 
     return (
         <div ref={containerRef} className="w-full h-full relative border border-gray-800 rounded bg-black shadow-inner overflow-hidden">

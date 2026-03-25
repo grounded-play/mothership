@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 
 const BASE_WIDTH = 1920;
 const BASE_HEIGHT = 1080;
@@ -11,6 +11,7 @@ export default function ResponsiveShell({ children }: { children: ReactNode }) {
     const [viewportScale, setViewportScale] = useState(1);
     const [viewportOffset, setViewportOffset] = useState({ x: 0, y: 0 });
     const [scaledSize, setScaledSize] = useState({ width: BASE_WIDTH, height: BASE_HEIGHT });
+    const [isMeasured, setIsMeasured] = useState(false);
 
     useEffect(() => {
         const updateOrientation = () => {
@@ -46,11 +47,11 @@ export default function ResponsiveShell({ children }: { children: ReactNode }) {
         };
     }, []);
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         const updateScale = () => {
             if (typeof window === "undefined") return;
-            const width = window.innerWidth;
-            const height = window.innerHeight;
+            const width = window.visualViewport?.width ?? window.innerWidth;
+            const height = window.visualViewport?.height ?? window.innerHeight;
             const scale = Math.min(width / BASE_WIDTH, height / BASE_HEIGHT);
             const scaledWidth = BASE_WIDTH * scale;
             const scaledHeight = BASE_HEIGHT * scale;
@@ -59,11 +60,18 @@ export default function ResponsiveShell({ children }: { children: ReactNode }) {
             setViewportScale(scale);
             setViewportOffset({ x: offsetX, y: offsetY });
             setScaledSize({ width: scaledWidth, height: scaledHeight });
+            setIsMeasured(true);
         };
 
         updateScale();
         window.addEventListener("resize", updateScale);
-        return () => window.removeEventListener("resize", updateScale);
+        window.visualViewport?.addEventListener("resize", updateScale);
+        window.visualViewport?.addEventListener("scroll", updateScale);
+        return () => {
+            window.removeEventListener("resize", updateScale);
+            window.visualViewport?.removeEventListener("resize", updateScale);
+            window.visualViewport?.removeEventListener("scroll", updateScale);
+        };
     }, []);
 
     return (
@@ -83,7 +91,8 @@ export default function ResponsiveShell({ children }: { children: ReactNode }) {
                     width: `${scaledSize.width}px`,
                     height: `${scaledSize.height}px`,
                     transform: `translate(${viewportOffset.x}px, ${viewportOffset.y}px)`,
-                    transformOrigin: "top left"
+                    transformOrigin: "top left",
+                    opacity: isMeasured ? 1 : 0
                 }}
             >
                 <div
@@ -92,10 +101,11 @@ export default function ResponsiveShell({ children }: { children: ReactNode }) {
                         width: `${BASE_WIDTH}px`,
                         height: `${BASE_HEIGHT}px`,
                         transform: `scale(${viewportScale})`,
-                        transformOrigin: "top left"
+                        transformOrigin: "top left",
+                        willChange: "transform"
                     }}
                 >
-                    <div className="w-full h-full overflow-hidden">
+                    <div className="w-full h-full overflow-hidden bg-space-void">
                         {children}
                     </div>
                 </div>

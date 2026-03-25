@@ -4,18 +4,74 @@ import { useEffect, useState, useRef, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { motion, AnimatePresence } from "framer-motion";
-import { Shield, Zap, Crosshair, User, Heart, AlertTriangle, Cpu, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ArrowLeft, ArrowRight } from "lucide-react";
+import { Shield, Zap, Crosshair, User, Heart, AlertTriangle, Cpu, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Settings2, X } from "lucide-react";
 import SectorGrid from "@/components/game/SectorGrid";
 import RoomScanner from "@/components/game/RoomScanner";
 import MissionLog from "@/components/game/MissionLog";
 import ResolutionOverlay from "@/components/game/ResolutionOverlay";
+import AudioSettingsPanel from "@/components/audio/AudioSettingsPanel";
 import { useToast } from "@/components/ui/Toast";
 import SafeImage from "@/components/ui/SafeImage";
 import { soundManager } from "@/lib/soundManager";
 
 type Facing = "NORTH" | "EAST" | "SOUTH" | "WEST";
+type HandFilter = "ALL" | "COMMAND" | "VOID" | "BIOTECH" | "PLASMA" | "ANOMALY";
+type HallwayIntel = {
+    direction: string;
+    distance: number;
+    endpointType: string;
+    turns: number;
+    intersections: number;
+    branches: number;
+    truncated: boolean;
+    certainty: "LOW" | "MED" | "HIGH";
+};
+type TraversalPreview = {
+    currentNode: any;
+    facing: Facing;
+    remainingSteps: number;
+    totalSteps: number;
+    stepIndex: number;
+    stepDurationMs: number;
+    currentDirection: string | null;
+    active: boolean;
+};
+type RoomEffectState = {
+    modifier: number;
+    status: "up" | "down" | "neutral" | "unknown";
+    label: string;
+};
+
+const CARD_SIZE_PRESETS = {
+    sm: { width: 64, height: 96 },
+    md: { width: 96, height: 128 },
+    lg: { width: 104, height: 148 }
+} as const;
+
+const HAND_FILTER_ORDER: HandFilter[] = ["ALL", "COMMAND", "VOID", "BIOTECH", "PLASMA", "ANOMALY"];
+const MIN_HAND_CARD_WIDTH = 64;
+const MIN_HAND_CARD_HEIGHT = 88;
+const HAND_VIEWPORT_SAFE_VERTICAL_PADDING = 92;
+const HAND_VIEWPORT_FALLBACK_HEIGHT = 248;
+const HALLWAY_STEP_INTERVAL_MS = 1080;
+const ROOM_STEP_INTERVAL_MS = 720;
+
+const getScaledCardHeight = (width: number, preset = CARD_SIZE_PRESETS.lg) => {
+    return Math.max(MIN_HAND_CARD_HEIGHT, Math.round((width / preset.width) * preset.height));
+};
+
 const parseJSON = (raw: any, fallback: any) => {
     try { return JSON.parse(raw); } catch { return fallback; }
+};
+
+const getLatestMovePayload = (rawLogs: any) => {
+    const logs = Array.isArray(rawLogs) ? rawLogs : parseJSON(rawLogs, []);
+    if (!Array.isArray(logs) || logs.length === 0) return null;
+    const latestMove = [...logs].reverse().find((entry: any) => entry?.type === "MOVE_DATA");
+    if (!latestMove) return null;
+    const payload = parseJSON(latestMove.message, null);
+    if (!payload?.from || !Array.isArray(payload.path) || payload.path.length === 0) return null;
+    return { latestMove, payload };
 };
 
 const relativeToAbsolute: Record<Facing, Record<string, string>> = {
@@ -24,9 +80,121 @@ const relativeToAbsolute: Record<Facing, Record<string, string>> = {
     SOUTH: { FORWARD: "BACK", BACK: "FORWARD", LEFT: "RIGHT", RIGHT: "LEFT" },
     WEST: { FORWARD: "LEFT", BACK: "RIGHT", LEFT: "BACK", RIGHT: "FORWARD" }
 };
+const relativeDirectionOrder = ["FORWARD", "RIGHT", "BACK", "LEFT"] as const;
+const worldDirectionVectors: Record<string, { x: number; y: number }> = {
+    FORWARD: { x: 0, y: 1 },
+    RIGHT: { x: 1, y: 0 },
+    BACK: { x: 0, y: -1 },
+    LEFT: { x: -1, y: 0 }
+};
+const worldDirectionVectors3D: Record<string, { x: number; y: number; z: number }> = {
+    FORWARD: { x: 0, y: 1, z: 0 },
+    RIGHT: { x: 1, y: 0, z: 0 },
+    BACK: { x: 0, y: -1, z: 0 },
+    LEFT: { x: -1, y: 0, z: 0 },
+    UP: { x: 0, y: 0, z: 1 },
+    DOWN: { x: 0, y: 0, z: -1 }
+};
+const suitOpposites: Record<string, string> = { COMMAND: "VOID", VOID: "COMMAND", BIOTECH: "PLASMA", PLASMA: "BIOTECH" };
+const normalizeSuit = (suit?: string | null) => (suit || "").toUpperCase();
 
 const toAbsoluteDirection = (relative: string, facing: Facing) => {
     return relativeToAbsolute[facing]?.[relative] || relative;
+};
+
+const toRelativeDirection = (absolute: string, facing: Facing) => {
+    if (absolute === "UP" || absolute === "DOWN") return absolute;
+    const worldIndex = relativeDirectionOrder.indexOf(absolute as typeof relativeDirectionOrder[number]);
+    if (worldIndex === -1) return absolute;
+    const facingForward = relativeToAbsolute[facing]?.FORWARD || "FORWARD";
+    const facingIndex = relativeDirectionOrder.indexOf(facingForward as typeof relativeDirectionOrder[number]);
+    if (facingIndex === -1) return absolute;
+    const relativeIndex = (worldIndex - facingIndex + relativeDirectionOrder.length) % relativeDirectionOrder.length;
+    return relativeDirectionOrder[relativeIndex];
+};
+
+const parseSecretIntel = (raw: any) => {
+    const parsed = parseJSON(raw || "{}", {});
+    if (Array.isArray(parsed)) {
+        return { leads: parsed, hallwayIntel: [] as HallwayIntel[], hallwayScanDepth: 0 };
+    }
+    if (!parsed || typeof parsed !== "object") {
+        return { leads: [] as any[], hallwayIntel: [] as HallwayIntel[], hallwayScanDepth: 0 };
+    }
+    return {
+        leads: Array.isArray(parsed.leads) ? parsed.leads : [],
+        hallwayIntel: Array.isArray(parsed.hallwayIntel) ? parsed.hallwayIntel : [],
+        hallwayScanDepth: typeof parsed.hallwayScanDepth === "number" ? parsed.hallwayScanDepth : 0
+    };
+};
+
+const isNodeScanComplete = (node: any) => Boolean(node && (node.type === "START" || node.scanned));
+const isNodeSecureComplete = (node: any) => Boolean(node && (node.type === "START" || Number(node.security ?? 0) >= 2));
+
+const movementDirectionFromDelta = (from: any, to: any): string | null => {
+    if (!from || !to) return null;
+    const dx = Number(to.x) - Number(from.x);
+    const dy = Number(to.y) - Number(from.y);
+    const dz = Number(to.z) - Number(from.z);
+    if (dz > 0) return "UP";
+    if (dz < 0) return "DOWN";
+    if (dx > 0) return "RIGHT";
+    if (dx < 0) return "LEFT";
+    if (dy > 0) return "FORWARD";
+    if (dy < 0) return "BACK";
+    return null;
+};
+
+const directionToFacing = (direction: string | null | undefined, fallback: Facing): Facing => {
+    switch (direction) {
+        case "FORWARD": return "NORTH";
+        case "RIGHT": return "EAST";
+        case "BACK": return "SOUTH";
+        case "LEFT": return "WEST";
+        default: return fallback;
+    }
+};
+
+const toCardinalDirection = (direction: string | null | undefined) => {
+    switch (direction) {
+        case "FORWARD": return "NORTH";
+        case "RIGHT": return "EAST";
+        case "BACK": return "SOUTH";
+        case "LEFT": return "WEST";
+        case "UP": return "UP";
+        case "DOWN": return "DOWN";
+        default: return direction || "UNKNOWN";
+    }
+};
+
+const toEndpointLabel = (endpointType: string | null | undefined) => {
+    switch ((endpointType || "").toUpperCase()) {
+        case "CORRIDOR": return "HALL";
+        case "HUB": return "JUNCTION";
+        case "START": return "AIRLOCK";
+        case "BOSS": return "BOSS";
+        case "VOID": return "VOID";
+        default: return endpointType || "UNKNOWN";
+    }
+};
+
+const getRoomEffectForCard = (card: any, roomSuit?: string | null, roomKnown = false): RoomEffectState => {
+    if (!roomKnown) {
+        return { modifier: 0, status: "unknown", label: "SCAN ROOM" };
+    }
+
+    const cardSuit = normalizeSuit(card?.suit || card?.suitName);
+    const normalizedRoomSuit = normalizeSuit(roomSuit);
+    if (!cardSuit || !normalizedRoomSuit) {
+        return { modifier: 0, status: "neutral", label: "STABLE" };
+    }
+    if (cardSuit === normalizedRoomSuit) {
+        return { modifier: 1, status: "up", label: "POWER UP" };
+    }
+    if (suitOpposites[cardSuit] === normalizedRoomSuit) {
+        return { modifier: -1, status: "down", label: "POWER DOWN" };
+    }
+    return { modifier: 0, status: "neutral", label: "STABLE" };
 };
 
 export default function GameInterface() {
@@ -40,19 +208,67 @@ export default function GameInterface() {
     const [actionTimeLeft, setActionTimeLeft] = useState(0);
     const [missionTimeLeft, setMissionTimeLeft] = useState(0);
     const [showInventory, setShowInventory] = useState(false);
+    const [showSettings, setShowSettings] = useState(false);
+    const [pendingActionCount, setPendingActionCount] = useState(0); // Reconnect safety
+    const [pendingIntent, setPendingIntent] = useState<string | null>(null); // Reconnect safety
+    const [lastActionDeadline, setLastActionDeadline] = useState<number | null>(null); // Reconnect safety
     const [actionIntent, setActionIntent] = useState<"MOVE" | "SCAN" | "ATTACK" | "SECURE" | null>(null);
     const [moveDirection, setMoveDirection] = useState<string | null>(null);
     const [exitIntent, setExitIntent] = useState<"ABORT" | "DEPART" | null>(null);
     const [mapZ, setMapZ] = useState<number | null>(null);
     const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]); // V11 Combat Items
+    const [cardFilter, setCardFilter] = useState<HandFilter>("ALL");
+    const [showFullMaze, setShowFullMaze] = useState(false);
+    const [fullMapFocusDeck, setFullMapFocusDeck] = useState<number | null>(null);
+    const [hoveredMapNodeId, setHoveredMapNodeId] = useState<string | null>(null);
+    const [selectedMapNodeId, setSelectedMapNodeId] = useState<string | null>(null);
+    const [handViewportWidth, setHandViewportWidth] = useState(0);
+    const [handViewportHeight, setHandViewportHeight] = useState(0);
     const [resolutionData, setResolutionData] = useState<any>(null); // V22 Visuals
+    const [scanFeedback, setScanFeedback] = useState<{
+        success: boolean;
+        nodePower: number;
+        strength: number;
+        roomSuit?: string | null;
+        scanDepth?: number;
+        detectedEnemies?: number;
+    } | null>(null);
+    const [actionFeedback, setActionFeedback] = useState<{ status: "success" | "error"; label: string } | null>(null); // V23 Action Feedback
+    const [isActionLoading, setIsActionLoading] = useState(false); // V23 Card Action Loading State
+    const [recentMovement, setRecentMovement] = useState<any>(null);
+    const [hallwayTraversal, setHallwayTraversal] = useState<TraversalPreview | null>(null);
     const hasStartedRoundRef = useRef(false);
+    const handViewportRef = useRef<HTMLDivElement | null>(null);
     const prevPlayerZRef = useRef<number | null>(null);
+    const prevPlayerNodeRef = useRef<any>(null);
     const lastResolutionTsRef = useRef<number>(0);
+    const lastMoveDataTsRef = useRef<number>(0);
+    const objectiveCompletionRef = useRef<Set<string> | null>(null);
+    const traversalTimeoutsRef = useRef<NodeJS.Timeout[]>([]);
     const { addToast } = useToast();
-    const [confirmEmergency, setConfirmEmergency] = useState(false);
     const lastPileSizeRef = useRef(0);
+    const hasReconnectedRef = useRef(false); // Track successful reconnections
+    const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const actionFeedbackTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const scanFeedbackTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const failureHandledRef = useRef(false);
     const { game, player } = gameState ?? { game: null, player: null };
+
+    // Helper for numeric values with color coding
+    const getNumericColor = (value: number, type: "damage" | "healing" | "shield" | "neutral" = "neutral") => {
+        if (type === "damage") return "text-red-400";
+        if (type === "healing") return "text-green-400";
+        if (type === "shield") return "text-yellow-400";
+        return "text-white";
+    };
+
+    const getNumericValue = (value: number, label: string): number => {
+        if (label.toLowerCase().includes("integrity") || label.toLowerCase().includes("hp") || label.toLowerCase().includes("health")) {
+            return value > 0 ? 1 : -1;
+        }
+        return value >= 0 ? 1 : -1;
+    };
+
     // V18: Separate Loadout (Equipped) vs Backpack (Loot)
     // Derived from single persistent inventory list
     const allItems = useMemo(() => {
@@ -66,20 +282,47 @@ export default function GameInterface() {
     const backpackItems = useMemo(() => {
         return allItems.filter((i: any) => !i.isEquipped);
     }, [allItems]);
+    const mapNodes = game?.MapNode || [];
+    const clearTraversalSequence = () => {
+        traversalTimeoutsRef.current.forEach((timeout) => clearTimeout(timeout));
+        traversalTimeoutsRef.current = [];
+        setRecentMovement(null);
+    };
+    const visualPlayerNode = hallwayTraversal?.currentNode ?? player?.MapNode ?? null;
+    const visualFacing = (hallwayTraversal?.facing || player?.facing || "NORTH") as Facing;
+    const movementStepsRemaining = hallwayTraversal?.remainingSteps ?? 0;
+    const transitStatus = hallwayTraversal
+        ? {
+            direction: hallwayTraversal.currentDirection || recentMovement?.direction || null,
+            stepIndex: hallwayTraversal.stepIndex || 0,
+            totalSteps: hallwayTraversal.totalSteps || 0,
+            remainingSteps: hallwayTraversal.remainingSteps ?? movementStepsRemaining
+        }
+        : recentMovement?.hallway
+            ? {
+                direction: recentMovement.direction || null,
+                stepIndex: Math.max(1, Number(recentMovement.remainingSteps ?? 0) + 1),
+                totalSteps: Math.max(1, Number(recentMovement.remainingSteps ?? 0) + 1),
+                remainingSteps: Number(recentMovement.remainingSteps ?? 0)
+            }
+            : null;
+    const showHallwayCountdown = Boolean(transitStatus);
+    const transitDirectionLabel = toCardinalDirection(transitStatus?.direction || "FORWARD");
 
     const roomInfo = useMemo(() => {
-        if (!player?.MapNode) return null;
-        let secret: any[] = [];
-        try { secret = player.MapNode.secretPaths ? JSON.parse(player.MapNode.secretPaths) : []; } catch { secret = []; }
+        if (!visualPlayerNode) return null;
+        const secret = parseSecretIntel(visualPlayerNode.secretPaths);
         return {
-            power: player.MapNode.roomPower,
-            suit: player.MapNode.roomSuit,
-            integrity: player.MapNode.integrity,
-            security: player.MapNode.security,
-            scanned: player.MapNode.scanned,
-            secretPaths: secret
+            power: visualPlayerNode.roomPower,
+            suit: visualPlayerNode.roomSuit,
+            integrity: visualPlayerNode.integrity,
+            security: visualPlayerNode.security,
+            scanned: isNodeScanComplete(visualPlayerNode),
+            secretPaths: secret,
+            hallwayIntel: secret.hallwayIntel as HallwayIntel[],
+            hallwayScanDepth: secret.hallwayScanDepth as number
         };
-    }, [player?.MapNode]);
+    }, [visualPlayerNode]);
     const suitMeta = {
         BIOTECH: { color: "text-red-400", icon: "BIO" },
         PLASMA: { color: "text-orange-400", icon: "PLS" },
@@ -88,18 +331,41 @@ export default function GameInterface() {
         ANOMALY: { color: "text-white", icon: "VOID" }
     } as const;
     const roomSuitMeta = roomInfo?.suit ? suitMeta[roomInfo.suit as keyof typeof suitMeta] : null;
-    const connections = useMemo(() => parseJSON(player?.MapNode?.connections || "[]", []), [player?.MapNode?.connections]);
-    const roomEnemies = useMemo(() => parseJSON(player?.MapNode?.enemies || "[]", []), [player?.MapNode?.enemies]);
+    const roomOpposingSuit = roomInfo?.suit ? suitOpposites[normalizeSuit(roomInfo.suit)] ?? null : null;
+    const connections = useMemo(() => parseJSON(visualPlayerNode?.connections || "[]", []), [visualPlayerNode?.connections]);
+    const roomEnemies = useMemo(() => parseJSON(visualPlayerNode?.enemies || "[]", []), [visualPlayerNode?.enemies]);
     const hasEnemies = roomEnemies.length > 0;
     const isAirlock = player?.MapNode?.type === "START";
+    const visualIsAirlock = visualPlayerNode?.type === "START";
+    const emergencyExitLabel = isAirlock ? "RETURN TO SHIP" : "ABANDON MISSION";
+    const emergencyExitIntent: "DEPART" | "ABORT" = isAirlock ? "DEPART" : "ABORT";
+    const roomHallwayIntel = roomInfo?.hallwayIntel || [];
+    const visibleRoomHallwayIntel = useMemo(
+        () => roomHallwayIntel.map((intel: HallwayIntel) => ({
+            ...intel,
+            directionLabel: toCardinalDirection(intel.direction),
+            endpointLabel: toEndpointLabel(intel.endpointType)
+        })),
+        [roomHallwayIntel]
+    );
+    const scannedExitLabels = useMemo(() => {
+        if (!visualPlayerNode) return [];
+        if (!isNodeScanComplete(visualPlayerNode)) return [];
+        return connections.map((connection: string) => toCardinalDirection(connection));
+    }, [connections, visualPlayerNode]);
+    const threatLabel = hasEnemies
+        ? `HOSTILES ${roomEnemies.length}`
+        : visualPlayerNode?.type === "BOSS"
+            ? "CORE CONTACT"
+            : "CLEAR";
     const playerMarkers = useMemo(() => {
         const markers: { id: string; x: number; y: number; z: number; isCurrent?: boolean }[] = [];
-        if (player?.MapNode) {
+        if (visualPlayerNode) {
             markers.push({
                 id: player.characterId,
-                x: player.MapNode.x,
-                y: player.MapNode.y,
-                z: player.MapNode.z,
+                x: visualPlayerNode.x,
+                y: visualPlayerNode.y,
+                z: visualPlayerNode.z,
                 isCurrent: true
             });
         }
@@ -114,15 +380,181 @@ export default function GameInterface() {
             });
         });
         return markers;
-    }, [player?.MapNode, player?.characterId, gameState?.otherPlayers]);
+    }, [visualPlayerNode, player?.characterId, gameState?.otherPlayers]);
+    const missionObjectives = Array.isArray(game?.objectives) ? game.objectives : [];
+    const availableDecks = useMemo<number[]>(
+        () => Array.from(new Set<number>(mapNodes.map((node: any) => Number(node.z ?? 0)))).sort((a: number, b: number) => a - b),
+        [mapNodes]
+    );
+    const mapNodeById = useMemo<Map<string, any>>(
+        () => new Map<string, any>(mapNodes.map((node: any) => [node.id, node])),
+        [mapNodes]
+    );
+    const mapNodeByCoord = useMemo<Map<string, any>>(
+        () => new Map<string, any>(mapNodes.map((node: any) => [`${Number(node.x)}:${Number(node.y)}:${Number(node.z)}`, node])),
+        [mapNodes]
+    );
+    const hoveredMapNode: any = hoveredMapNodeId ? mapNodeById.get(hoveredMapNodeId) ?? null : null;
+    const selectedMapNode: any = selectedMapNodeId ? mapNodeById.get(selectedMapNodeId) ?? null : null;
+    const inspectedMapNode: any = hoveredMapNode ?? selectedMapNode ?? visualPlayerNode ?? null;
+    const inspectedMapScanDone = isNodeScanComplete(inspectedMapNode);
+    const inspectedMapSecureDone = isNodeSecureComplete(inspectedMapNode);
+    const inspectedMapSuitMeta = inspectedMapNode?.roomSuit ? suitMeta[inspectedMapNode.roomSuit as keyof typeof suitMeta] : null;
+    const inspectedMapConnections = useMemo(
+        () => inspectedMapNode ? parseJSON(inspectedMapNode.connections || "[]", []) : [],
+        [inspectedMapNode?.connections]
+    );
+    const inspectedMapRevealState = Boolean(
+        inspectedMapNode && (
+            inspectedMapNode.type === "START"
+            || inspectedMapNode.type === "CORRIDOR"
+            || inspectedMapNode.scanned
+        )
+    );
+    const inspectedMapConnectionLabels = useMemo(
+        () => inspectedMapRevealState ? inspectedMapConnections.map((connection: string) => toCardinalDirection(connection)) : [],
+        [inspectedMapConnections, inspectedMapRevealState]
+    );
+    const inspectedMapEnemies = useMemo(
+        () => inspectedMapNode ? parseJSON(inspectedMapNode.enemies || "[]", []) : [],
+        [inspectedMapNode?.enemies]
+    );
+    const inspectedMapLoot = useMemo(
+        () => inspectedMapNode ? parseJSON(inspectedMapNode.loot || "[]", []) : [],
+        [inspectedMapNode?.loot]
+    );
+    const inspectedMapStatus = hoveredMapNode
+        ? "HOVER"
+        : selectedMapNode
+            ? "LOCKED"
+            : "CURRENT";
+    const inspectedMapIsBoss = Boolean(inspectedMapNode && (inspectedMapNode.type === "BOSS" || inspectedMapNode.id === game?.objectiveNodeId));
+    const minDeck = availableDecks[0] ?? 0;
+    const maxDeck = availableDecks[availableDecks.length - 1] ?? 0;
+    const airlockNode = useMemo(
+        () => mapNodes.find((node: any) => node?.type === "START") ?? null,
+        [mapNodes]
+    );
+    const playerRoleDisplay = useMemo(() => {
+        const cls = String(player?.character?.class || "").toLowerCase();
+        if (cls === "marine") return { name: "COMMAND", color: "text-green-500", border: "border-green-500/50", bg: "bg-green-500/10" };
+        if (cls === "engineer") return { name: "PLASMA", color: "text-orange-500", border: "border-orange-500/50", bg: "bg-orange-500/10" };
+        if (cls === "scientist") return { name: "BIOTECH", color: "text-red-500", border: "border-red-500/50", bg: "bg-red-500/10" };
+        if (cls === "scout") return { name: "VOID", color: "text-purple-500", border: "border-purple-500/50", bg: "bg-purple-500/10" };
+        return { name: "UNKNOWN", color: "text-gray-500", border: "border-gray-500", bg: "bg-gray-500/10" };
+    }, [player?.character?.class]);
+    const playerHealthTone = !player
+        ? "text-gray-400"
+        : player.hp <= Math.max(1, Math.ceil((player.maxHp || 1) * 0.35))
+            ? "text-red-400"
+            : player.hp < (player.maxHp || 0)
+                ? "text-yellow-300"
+                : "text-green-400";
+    const airlockDistance = useMemo(() => {
+        if (!visualPlayerNode?.id || !airlockNode?.id) return null;
+        if (visualPlayerNode.id === airlockNode.id) return 0;
+
+        const queue: Array<{ node: any; distance: number }> = [{ node: visualPlayerNode, distance: 0 }];
+        const visited = new Set<string>([String(visualPlayerNode.id)]);
+
+        while (queue.length > 0) {
+            const current = queue.shift();
+            if (!current?.node) continue;
+
+            const connectionDirections = parseJSON(current.node.connections || "[]", []);
+            for (const direction of connectionDirections) {
+                const delta = worldDirectionVectors3D[direction];
+                if (!delta) continue;
+
+                const nextNode = mapNodeByCoord.get(
+                    `${Number(current.node.x) + delta.x}:${Number(current.node.y) + delta.y}:${Number(current.node.z) + delta.z}`
+                );
+                if (!nextNode?.id) continue;
+
+                const nextId = String(nextNode.id);
+                if (visited.has(nextId)) continue;
+                if (nextId === String(airlockNode.id)) return current.distance + 1;
+
+                visited.add(nextId);
+                queue.push({ node: nextNode, distance: current.distance + 1 });
+            }
+        }
+
+        return null;
+    }, [airlockNode?.id, mapNodeByCoord, visualPlayerNode]);
+    const airlockDistanceLabel = airlockDistance === null
+        ? "NO ROUTE"
+        : airlockDistance === 0
+            ? "AT AIRLOCK"
+            : `${airlockDistance} sectors`;
+    const playerHand = (player?.hand as any[]) || [];
+    const handEntries = useMemo(
+        () => playerHand.map((card: any, index: number) => ({ card, index })),
+        [playerHand]
+    );
+    const visibleHandEntries = useMemo(
+        () => handEntries.filter(({ card }) => cardFilter === "ALL" || card.suit === cardFilter),
+        [handEntries, cardFilter]
+    );
+    const hiddenSelectedCount = useMemo(
+        () => selectedCardIndices.filter((index) => !visibleHandEntries.some((entry) => entry.index === index)).length,
+        [selectedCardIndices, visibleHandEntries]
+    );
+    const handLayout = useMemo(() => {
+        const preset = CARD_SIZE_PRESETS.lg;
+        const count = visibleHandEntries.length;
+        const effectiveHandViewportHeight = handViewportHeight || HAND_VIEWPORT_FALLBACK_HEIGHT;
+        const maxCardHeight = Math.max(MIN_HAND_CARD_HEIGHT, effectiveHandViewportHeight - HAND_VIEWPORT_SAFE_VERTICAL_PADDING);
+
+        if (!count || !handViewportWidth) {
+            const cardHeight = Math.min(preset.height, maxCardHeight);
+            return {
+                cardWidth: preset.width,
+                cardHeight,
+                gap: 12,
+                wrapperHeight: cardHeight + Math.max(28, Math.round(cardHeight * 0.14)),
+                selectionLift: Math.min(9, Math.max(5, Math.round(cardHeight * 0.05)))
+            };
+        }
+
+        const availableWidth = Math.max(handViewportWidth - 20, preset.width);
+        let cardWidth: number = preset.width;
+        let gap: number = 12;
+        const fitWidth = (targetWidth: number) => {
+            cardWidth = Math.max(MIN_HAND_CARD_WIDTH, Math.floor(targetWidth));
+            gap = count > 1
+                ? Math.max(-18, Math.min(12, Math.floor((availableWidth - count * cardWidth) / Math.max(count - 1, 1))))
+                : 0;
+        };
+
+        if (count * cardWidth + (count - 1) * gap > availableWidth) {
+            fitWidth((availableWidth - (count - 1) * 4) / count);
+        }
+
+        let cardHeight = getScaledCardHeight(cardWidth, preset);
+        if (cardHeight > maxCardHeight) {
+            const widthFromHeight = Math.floor((maxCardHeight / preset.height) * preset.width);
+            fitWidth(Math.min(cardWidth, widthFromHeight));
+            cardHeight = Math.min(maxCardHeight, getScaledCardHeight(cardWidth, preset));
+        }
+
+        if (count * cardWidth + (count - 1) * gap > availableWidth) {
+            fitWidth((availableWidth - (count - 1) * 4) / count);
+            cardHeight = Math.min(maxCardHeight, getScaledCardHeight(cardWidth, preset));
+        }
+
+        return {
+            cardWidth,
+            cardHeight,
+            gap,
+            wrapperHeight: cardHeight + Math.max(24, Math.round(cardHeight * 0.12)),
+            selectionLift: Math.min(9, Math.max(5, Math.round(cardHeight * 0.05)))
+        };
+    }, [visibleHandEntries.length, handViewportHeight, handViewportWidth]);
 
     // Hoisted Logic for Hooks
     const inActionPhase = game?.roundPhase === "ACTION";
-    const inDrawPhase = game?.roundPhase === "DRAW";
     const hasActionTimer = !!game?.actionDeadline;
-    const turnNumber = game?.currentTurn || 1;
-    const playerCount = game?.turnOrder ? JSON.parse(game.turnOrder).length : 1;
-    const playerIndex = game?.activePlayerIndex || 0;
 
     // Fetch Game State
     useEffect(() => {
@@ -134,7 +566,7 @@ export default function GameInterface() {
                 if (data.error) {
                     if (res.status === 410 || data.error.includes("Corrupted")) {
                         addToast(data.error, "error");
-                soundManager.actionFail();
+                        soundManager.actionFail();
                         router.push("/lobby/browse");
                         return;
                     }
@@ -154,8 +586,45 @@ export default function GameInterface() {
                     data.game.turnOrder = JSON.parse(data.game.turnOrder);
                 }
 
+                // RECONNECT SAFETY: Capture pending actions for warnings
+                if (data.game && data.game.pendingActions) {
+                    try {
+                        const parsed = JSON.parse(data.game.pendingActions);
+                        setPendingActionCount(parsed.length);
+                        // Check if user has pending action
+                        if (data.player && parsed.some((p: any) => p.playerId === data.player.characterId)) {
+                            setPendingIntent("You have a pending action!");
+                        }
+                    } catch (e) {
+                        setPendingActionCount(0);
+                    }
+                }
+
+                if (data.game && data.game.actionDeadline) {
+                    try {
+                        const deadline = new Date(data.game.actionDeadline).getTime();
+                        setLastActionDeadline(deadline);
+                    } catch (e) {
+                        setLastActionDeadline(null);
+                    }
+                }
+
                 if (data.game && typeof data.game.objectives === 'string') {
                     data.game.objectives = JSON.parse(data.game.objectives);
+                }
+
+                const latestMoveData = getLatestMovePayload(data.game?.gameLog);
+                if (latestMoveData) {
+                    const { latestMove, payload } = latestMoveData;
+                    const isFreshMove = Date.now() - (latestMove.ts || 0) < 15000;
+                    const isUnconsumedMove = lastMoveDataTsRef.current !== latestMove.ts;
+                    if (isFreshMove && isUnconsumedMove && data.player && payload.from?.id) {
+                        data.player.MapNode = payload.from;
+                        data.player.nodeId = payload.from.id;
+                        if (payload.fromFacing) {
+                            data.player.facing = payload.fromFacing;
+                        }
+                    }
                 }
 
                 setGameState(data);
@@ -184,6 +653,82 @@ export default function GameInterface() {
         return () => clearInterval(interval);
     }, [params.id, currentTurnId]);
 
+    useEffect(() => {
+        const node = handViewportRef.current;
+        if (!node) return;
+
+        const updateViewportSize = () => {
+            setHandViewportWidth(node.clientWidth);
+            setHandViewportHeight(node.clientHeight);
+        };
+        updateViewportSize();
+
+        if (typeof ResizeObserver === "undefined") {
+            window.addEventListener("resize", updateViewportSize);
+            return () => window.removeEventListener("resize", updateViewportSize);
+        }
+
+        const observer = new ResizeObserver(() => updateViewportSize());
+        observer.observe(node);
+
+        return () => observer.disconnect();
+    }, [showInventory, showSettings]);
+
+    useEffect(() => {
+        return () => {
+            if (actionFeedbackTimeoutRef.current) {
+                clearTimeout(actionFeedbackTimeoutRef.current);
+            }
+            if (scanFeedbackTimeoutRef.current) {
+                clearTimeout(scanFeedbackTimeoutRef.current);
+            }
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!mapNodes.length) return;
+        if (selectedMapNodeId && mapNodeById.has(selectedMapNodeId)) return;
+        setSelectedMapNodeId(visualPlayerNode?.id ?? mapNodes[0]?.id ?? null);
+    }, [mapNodeById, mapNodes, visualPlayerNode?.id, selectedMapNodeId]);
+
+    useEffect(() => {
+        if (!availableDecks.length) return;
+        setFullMapFocusDeck((current) => {
+            if (typeof current === "number" && availableDecks.includes(current)) return current;
+            if (selectedMapNode?.z != null && availableDecks.includes(Number(selectedMapNode.z))) return Number(selectedMapNode.z);
+            if (visualPlayerNode?.z != null && availableDecks.includes(Number(visualPlayerNode.z))) return Number(visualPlayerNode.z);
+            return availableDecks[availableDecks.length - 1];
+        });
+    }, [availableDecks, visualPlayerNode?.z, selectedMapNode?.z]);
+
+    // RECONNECT SAFETY: Beforeunload warning (First instance - polling interval)
+    useEffect(() => {
+        const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+            // Only warn if:
+            // 1. We're in ACTION phase (timer is running)
+            // 2. User has a pending action OR timer is active
+            // 3. Not a navigation to a new game page
+            const inAction = inActionPhase;
+            const hasPending = pendingActionCount > 0;
+            const hasTimer = lastActionDeadline && lastActionDeadline > Date.now();
+
+            if ((inAction || hasPending || hasTimer) && params.id && !router.push.toString().includes(String(params.id))) {
+                e.preventDefault();
+                e.returnValue = ''; // Chrome requires return value
+                return '';
+            }
+
+            // Set reconnect flag when user is about to reload
+            hasReconnectedRef.current = true;
+        };
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+
+        return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+        };
+    }, [inActionPhase, pendingActionCount, lastActionDeadline, params.id, router]);
+
     // Auto-start round if we're stuck in DRAW
     useEffect(() => {
         if (!game?.roundPhase) return;
@@ -198,6 +743,22 @@ export default function GameInterface() {
             });
         }
     }, [game?.roundPhase, params.id]);
+
+    useEffect(() => {
+        const failed = game?.phase === "FAILED" || game?.roundPhase === "FAILED" || game?.phase === "DEFEAT";
+        if (!failed || !params.id || failureHandledRef.current) return;
+
+        failureHandledRef.current = true;
+        soundManager.setMusicScene("default");
+        soundManager.actionFail();
+        addToast("CRITICAL FAILURE: mission lost.", "error");
+
+        const timeout = setTimeout(() => {
+            router.push(`/game/${params.id}/summary`);
+        }, 1400);
+
+        return () => clearTimeout(timeout);
+    }, [game?.phase, game?.roundPhase, params.id, router, addToast]);
 
     // Action Timer Logic
     useEffect(() => {
@@ -242,6 +803,105 @@ export default function GameInterface() {
         return () => clearInterval(interval);
     }, [gameState?.game?.deadline]);
 
+    // RECONNECT SAFETY: Beforeunload warning
+    useEffect(() => {
+        const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+            // Only warn if:
+            // 1. We're in ACTION phase (timer is running)
+            // 2. User has a pending action OR timer is active
+            // 3. Not a navigation to a new game page
+            const inAction = inActionPhase;
+            const hasPending = pendingActionCount > 0;
+            const hasTimer = lastActionDeadline && lastActionDeadline > Date.now();
+
+            if ((inAction || hasPending || hasTimer) && params.id && !router.push.toString().includes(String(params.id))) {
+                e.preventDefault();
+                e.returnValue = ''; // Chrome requires return value
+                return '';
+            }
+        };
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+
+        return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+        };
+    }, [inActionPhase, pendingActionCount, lastActionDeadline, params.id, router]);
+
+    // RECONNECT SAFETY: Show confirmation modal on refresh with pending action summary
+    const showReconnectWarning = inActionPhase && (pendingActionCount > 0 || (lastActionDeadline && lastActionDeadline > Date.now()));
+
+    // RECONNECT SUCCESS: Set flag before page unload (user is reloading) - Second instance
+    useEffect(() => {
+        const handleBeforeUnload = () => {
+            hasReconnectedRef.current = true;
+        };
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+
+        return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+        };
+    }, []);
+
+    // RECONNECT SUCCESS: Detect when reconnection restored game state successfully
+    useEffect(() => {
+        // Clear previous reconnect timeout if any
+        if (reconnectTimeoutRef.current) {
+            clearTimeout(reconnectTimeoutRef.current);
+            reconnectTimeoutRef.current = null;
+        }
+
+        // If we have no pending actions AND no active timer AND we're in action phase,
+        // this means we successfully reconnected
+        if (!showReconnectWarning && inActionPhase && !isActing && !actionIntent && hasReconnectedRef.current) {
+            // Show success feedback
+            addToast(
+                "✅ Reconnected! Game state restored. Your turn is ready.",
+                "success"
+            );
+
+            // Auto-hide after 4 seconds
+            reconnectTimeoutRef.current = setTimeout(() => {
+                hasReconnectedRef.current = false;
+            }, 4000);
+        }
+    }, [showReconnectWarning, inActionPhase, isActing, actionIntent, addToast]);
+
+    // Track when page was last loaded (for reconnect detection)
+    useEffect(() => {
+        // Reset reconnect flag on component mount (simulating initial load)
+        hasReconnectedRef.current = false;
+    }, [params.id]);
+
+    // If showing warning, add a subtle indicator in UI
+    useEffect(() => {
+        if (showReconnectWarning && !isActing && !actionIntent) {
+            addToast(
+                "⚠️ You have a pending action. Press Refresh or Reload to resume.",
+                "info"
+            );
+        }
+    }, [showReconnectWarning, isActing, actionIntent, addToast]);
+
+    // RECONNECT SAFETY: Warning Banner for Pending Actions
+    if (showReconnectWarning && !isActing && !actionIntent && !resolutionData) {
+        return (
+            <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] w-96">
+                <div className="bg-yellow-500/10 border border-yellow-500/50 backdrop-blur-md rounded-lg p-3 flex items-start gap-3 animate-in slide-in-from-top-4">
+                    <AlertTriangle className="w-5 h-5 text-yellow-500 shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                        <div className="text-yellow-500 text-xs font-bold uppercase tracking-widest mb-1">Reconnect Required</div>
+                        <p className="text-[10px] text-yellow-200/80">
+                            You have a pending action in the ACTION WINDOW.
+                            Refresh or Reload this page to resume your turn.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     // Airlock forces a forward move to begin
     useEffect(() => {
         if (!player?.MapNode) return;
@@ -260,6 +920,29 @@ export default function GameInterface() {
         prevPlayerZRef.current = playerZ;
     }, [player?.MapNode?.z, mapZ]);
 
+    useEffect(() => {
+        return () => clearTraversalSequence();
+    }, []);
+
+    useEffect(() => {
+        const currentNode = player?.MapNode;
+        if (!currentNode?.id) return;
+
+        prevPlayerNodeRef.current = {
+            id: currentNode.id,
+            x: currentNode.x,
+            y: currentNode.y,
+            z: currentNode.z,
+            type: currentNode.type
+        };
+    }, [player?.MapNode?.id, player?.MapNode?.x, player?.MapNode?.y, player?.MapNode?.z, player?.MapNode?.type]);
+
+    useEffect(() => {
+        if (!recentMovement?.ts) return;
+        const timeout = setTimeout(() => setRecentMovement(null), Math.max(260, (recentMovement?.durationMs ?? 420) + 120));
+        return () => clearTimeout(timeout);
+    }, [recentMovement?.ts, recentMovement?.durationMs]);
+
     // V22: Listen for Resolution Data in Log stream
     useEffect(() => {
         const logs = gameState?.game?.gameLog ? parseJSON(gameState.game.gameLog, []) : [];
@@ -276,12 +959,135 @@ export default function GameInterface() {
             if (isFresh && lastResolutionTsRef.current !== latest.ts) {
                 const data = parseJSON(latest.message, null);
                 if (data) {
-                    setResolutionData(data);
+                    if (data.type === "SCAN") {
+                        setScanFeedback({
+                            success: Boolean(data.success),
+                            nodePower: Number(data.nodePower || 0),
+                            strength: Number(data.strength || 0),
+                            roomSuit: data.roomSuit || null,
+                            scanDepth: Number(data.scanDepth || 0),
+                            detectedEnemies: Number(data.detectedEnemies || 0)
+                        });
+                        if (scanFeedbackTimeoutRef.current) {
+                            clearTimeout(scanFeedbackTimeoutRef.current);
+                        }
+                        scanFeedbackTimeoutRef.current = setTimeout(() => setScanFeedback(null), 2200);
+                        soundManager.scanResolve(Boolean(data.success), Number(data.nodePower || 0));
+                    } else {
+                        setResolutionData(data);
+                    }
                     lastResolutionTsRef.current = latest.ts;
                 }
             }
         }
     }, [gameState?.game?.gameLog]);
+
+    useEffect(() => {
+        const objectives = Array.isArray(game?.objectives) ? game.objectives : [];
+        const completedIds = new Set<string>(
+            objectives
+                .filter((objective: any) => objective?.isComplete && objective?.id)
+                .map((objective: any) => String(objective.id))
+        );
+
+        if (!objectiveCompletionRef.current) {
+            objectiveCompletionRef.current = completedIds;
+            return;
+        }
+
+        const previous = objectiveCompletionRef.current;
+        const newlyCompleted = objectives.filter((objective: any) => objective?.isComplete && objective?.id && !previous.has(String(objective.id)));
+        if (newlyCompleted.length > 0) {
+            soundManager.objectiveComplete();
+            newlyCompleted.forEach((objective: any) => {
+                addToast(`${objective.type === "MAIN" ? "PRIMARY" : "OBJECTIVE"} COMPLETE: ${objective.description}`, "success");
+            });
+        }
+
+        objectiveCompletionRef.current = completedIds;
+    }, [game?.objectives, addToast]);
+
+    useEffect(() => {
+        const latestMoveData = getLatestMovePayload(gameState?.game?.gameLog);
+        if (!latestMoveData) return;
+        const { latestMove, payload } = latestMoveData;
+
+        const isFresh = Date.now() - (latestMove.ts || 0) < 12000;
+        if (!isFresh || lastMoveDataTsRef.current === latestMove.ts) return;
+        const path = Array.isArray(payload.path) ? payload.path : [];
+        if (path.length === 0) return;
+
+        clearTraversalSequence();
+
+        const initialDirection = movementDirectionFromDelta(payload.from, path[0]) || payload.direction || null;
+        const originFacing = (payload.fromFacing || player?.facing || "NORTH") as Facing;
+        let rollingFacing = originFacing;
+        const startNode = payload.from || path[0];
+        const stepDurations = path.map((node: any, index: number) => {
+            const fromNode = index === 0 ? payload.from : path[index - 1];
+            const isVerticalStep = Number(fromNode?.z) !== Number(node?.z);
+            const isHallwayStep = fromNode?.type === "CORRIDOR" || node?.type === "CORRIDOR";
+            return isVerticalStep ? 680 : isHallwayStep ? HALLWAY_STEP_INTERVAL_MS : ROOM_STEP_INTERVAL_MS;
+        });
+        const startDelayMs = Math.max(180, Math.round((stepDurations[0] || ROOM_STEP_INTERVAL_MS) * 0.32));
+        let elapsedMs = startDelayMs;
+
+        setHallwayTraversal({
+            currentNode: startNode,
+            facing: originFacing,
+            remainingSteps: path.length,
+            totalSteps: path.length,
+            stepIndex: 0,
+            stepDurationMs: stepDurations[0] || ROOM_STEP_INTERVAL_MS,
+            currentDirection: initialDirection,
+            active: true
+        });
+
+        path.forEach((node: any, index: number) => {
+            const fromNode = index === 0 ? payload.from : path[index - 1];
+            const stepDirection = movementDirectionFromDelta(fromNode, node) || payload.direction || null;
+            const stepFacing = directionToFacing(stepDirection, rollingFacing);
+            rollingFacing = stepFacing;
+            const remainingSteps = Math.max(0, path.length - (index + 1));
+            const stepDurationMs = stepDurations[index] || ROOM_STEP_INTERVAL_MS;
+            const shouldPlayFootstep = path.length > 1 || fromNode?.type === "CORRIDOR" || node?.type === "CORRIDOR" || Number(fromNode?.z) !== Number(node?.z);
+
+            const timeout = setTimeout(() => {
+                setRecentMovement({
+                    from: { x: fromNode.x, y: fromNode.y, z: fromNode.z, type: fromNode.type },
+                    to: { x: node.x, y: node.y, z: node.z, type: node.type },
+                    direction: stepDirection,
+                    hallway: fromNode.type === "CORRIDOR" || node.type === "CORRIDOR",
+                    remainingSteps,
+                    durationMs: stepDurationMs,
+                    ts: Date.now()
+                });
+                setHallwayTraversal({
+                    currentNode: node,
+                    facing: stepFacing,
+                    remainingSteps,
+                    totalSteps: path.length,
+                    stepIndex: index + 1,
+                    stepDurationMs,
+                    currentDirection: stepDirection,
+                    active: remainingSteps > 0
+                });
+                if (shouldPlayFootstep) {
+                    soundManager.hallwayStep(index, Number(payload.hallwaySteps || path.length));
+                }
+                if (index === path.length - 1) {
+                    const finishTimeout = setTimeout(() => {
+                        setHallwayTraversal(null);
+                    }, Math.max(260, Math.round(stepDurationMs * 0.5)));
+                    traversalTimeoutsRef.current.push(finishTimeout);
+                }
+            }, elapsedMs);
+            traversalTimeoutsRef.current.push(timeout);
+            elapsedMs += stepDurationMs;
+        });
+
+        lastMoveDataTsRef.current = latestMove.ts;
+    }, [gameState?.game?.gameLog, player?.facing]);
 
 
     // AI Move Detector - REMOVED (Handled by Server Response)
@@ -290,7 +1096,15 @@ export default function GameInterface() {
         lastPileSizeRef.current = gameState.game.currentPile.length;
     }, [gameState?.game?.currentPile]);
 
+    const handleCardFilterChange = (nextFilter: HandFilter) => {
+        setCardFilter(nextFilter);
+        soundManager.cardSelect();
+    };
+
     const toggleCardSelection = (idx: number) => {
+        // Prevent clicking while action is executing
+        if (isActing) return;
+
         const hand = (player?.hand as any[]) || [];
         const card = hand[idx];
         if (!card) return;
@@ -302,30 +1116,129 @@ export default function GameInterface() {
         }
         if (current.length === 0) {
             setSelectedCardIndices([...current, idx]);
-            soundManager.cardPlay();
+            soundManager.cardPlay(card, 1);
             return;
         }
         const first = hand[current[0]];
         if (first && first.rank === card.rank) {
             setSelectedCardIndices([...current, idx]);
-            soundManager.cardPlay();
+            soundManager.cardPlay(card, current.length + 1);
             return;
         }
         addToast("DOUBLES MUST MATCH RANK", "error");
-            soundManager.actionFail();
-        // Play failure sound
         soundManager.actionFail();
+    };
+
+    const triggerActionFeedback = (status: "success" | "error", label?: string) => {
+        if (actionFeedbackTimeoutRef.current) {
+            clearTimeout(actionFeedbackTimeoutRef.current);
+        }
+
+        const nextLabel = label || (status === "success" ? "ACTION LOCKED" : "ACTION FAILED");
+        setActionFeedback({ status, label: nextLabel });
+        actionFeedbackTimeoutRef.current = setTimeout(() => setActionFeedback(null), status === "success" ? 900 : 1200);
+    };
+
+    const handleMapNodeHover = (nodeId: string | null) => {
+        setHoveredMapNodeId(nodeId);
+    };
+
+    const handleMapNodeSelect = (nodeId: string) => {
+        setHoveredMapNodeId(null);
+        setSelectedMapNodeId(nodeId);
+        soundManager.cardSelect();
+    };
+
+    const handleLocateCurrentRoom = () => {
+        if (!visualPlayerNode) return;
+        setHoveredMapNodeId(null);
+        setShowFullMaze(false);
+        setMapZ(visualPlayerNode.z);
+        setSelectedMapNodeId(visualPlayerNode.id);
+        soundManager.cardSelect();
+    };
+
+    const handleDeckSelect = (z: number) => {
+        setHoveredMapNodeId(null);
+        setShowFullMaze(false);
+        setMapZ(z);
+        soundManager.cardSelect();
+    };
+
+    const handleToggleFullMaze = () => {
+        setHoveredMapNodeId(null);
+        if (showFullMaze) {
+            const focusDeck = selectedMapNode?.z ?? visualPlayerNode?.z;
+            setShowFullMaze(false);
+            if (typeof focusDeck === "number") setMapZ(focusDeck);
+        } else {
+            const focusDeck = selectedMapNode?.z ?? visualPlayerNode?.z ?? maxDeck;
+            if (typeof focusDeck === "number") setFullMapFocusDeck(focusDeck);
+            setShowFullMaze(true);
+        }
+        soundManager.cardSelect();
+    };
+
+    const handleDeckStep = (direction: "up" | "down") => {
+        if (!availableDecks.length) return;
+        const currentDeck = showFullMaze
+            ? (typeof fullMapFocusDeck === "number" ? fullMapFocusDeck : selectedMapNode?.z ?? visualPlayerNode?.z ?? maxDeck)
+            : activeDeck;
+        const currentIndex = Math.max(0, availableDecks.indexOf(Number(currentDeck)));
+        const nextIndex = direction === "up"
+            ? Math.min(availableDecks.length - 1, currentIndex + 1)
+            : Math.max(0, currentIndex - 1);
+        const nextDeck = availableDecks[nextIndex];
+        if (nextDeck === Number(currentDeck)) return;
+
+        setHoveredMapNodeId(null);
+        if (showFullMaze) {
+            setFullMapFocusDeck(nextDeck);
+        } else {
+            setMapZ(nextDeck);
+        }
+        soundManager.cardSelect();
     };
 
 
 
 
-    const facing = (player?.facing || "NORTH") as Facing;
+    const facing = visualFacing;
     const mapRotationDeg = facing === "EAST" ? 270 : facing === "SOUTH" ? 180 : facing === "WEST" ? 90 : 0;
-    const isRoomScanned = !!player?.MapNode?.scanned;
-    const isBossRoom = player?.MapNode?.type === "BOSS";
+    const isRoomScanned = isNodeScanComplete(visualPlayerNode);
+    const isBossRoom = visualPlayerNode?.type === "BOSS";
     const isVictory = game?.phase === "VICTORY" || game?.roundPhase === "VICTORY";
-    const activeDeck = mapZ ?? (player?.MapNode?.z ?? 0);
+    const activeDeck = mapZ ?? (visualPlayerNode?.z ?? 0);
+    const distanceTraveled = player?.distanceTraveled ?? 0;
+    const moveDirectionLabels = {
+        FORWARD: toCardinalDirection(toAbsoluteDirection("FORWARD", facing)),
+        LEFT: toCardinalDirection(toAbsoluteDirection("LEFT", facing)),
+        BACK: toCardinalDirection(toAbsoluteDirection("BACK", facing)),
+        RIGHT: toCardinalDirection(toAbsoluteDirection("RIGHT", facing))
+    };
+    const selectedMoveHeading = moveDirection ? moveDirectionLabels[moveDirection as keyof typeof moveDirectionLabels] ?? toCardinalDirection(toAbsoluteDirection(moveDirection, facing)) : null;
+    const handStatusBanner = showHallwayCountdown ? (
+        <div className="rounded-full border border-neon-cyan/30 bg-cyan-500/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.22em] text-neon-cyan shadow-[0_0_12px_rgba(34,211,238,0.16)]">
+            Transit {transitDirectionLabel} · {transitStatus?.remainingSteps || 0} step{(transitStatus?.remainingSteps || 0) === 1 ? "" : "s"} left
+        </div>
+    ) : hiddenSelectedCount > 0 ? (
+        <div className="rounded-full border border-yellow-400/20 bg-yellow-400/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-yellow-300">
+            {hiddenSelectedCount} selected card{hiddenSelectedCount === 1 ? "" : "s"} hidden by filter
+        </div>
+    ) : inActionPhase && handEntries.length > 0 && selectedCardIndices.length === 0 ? (
+        <div className="rounded-full border border-neon-cyan/20 bg-black/35 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-neon-cyan/85 animate-pulse">
+            Tap cards below to select
+        </div>
+    ) : null;
+    const mapDeckLabel = showFullMaze
+        ? `CENTER DECK ${typeof fullMapFocusDeck === "number" ? fullMapFocusDeck : maxDeck}`
+        : `DECK ${activeDeck}`;
+    const canStepDeckDown = showFullMaze
+        ? typeof fullMapFocusDeck === "number" && fullMapFocusDeck > minDeck
+        : activeDeck > minDeck;
+    const canStepDeckUp = showFullMaze
+        ? typeof fullMapFocusDeck === "number" && fullMapFocusDeck < maxDeck
+        : activeDeck < maxDeck;
 
     // V23: Connection & Window Calculation
 
@@ -340,45 +1253,29 @@ export default function GameInterface() {
     }, [inActionPhase, isAirlock, isRoomScanned, actionIntent, isActing]);
 
     const { scannedConnections, windows } = useMemo(() => {
-        if (!player?.MapNode || !game?.MapNode) return { scannedConnections: [], windows: [] };
-        const n = player.MapNode;
+        if (!visualPlayerNode || !game?.MapNode) return { scannedConnections: [], windows: [] };
+        const n = visualPlayerNode;
         const allNodes = game.MapNode;
         const relConns: string[] = [];
         const winList: string[] = [];
 
-        const toRel = (abs: string) => {
-            const dirs = ["NORTH", "EAST", "SOUTH", "WEST"];
-            const idx = dirs.indexOf(abs);
-            const fIdx = dirs.indexOf(facing);
-            if (idx === -1) return abs; // UP/DOWN
-            const diff = (idx - fIdx + 4) % 4;
-            return ["FORWARD", "RIGHT", "BACK", "LEFT"][diff];
-        };
-
-        const getVec = (abs: string) => {
-            if (abs === "NORTH") return { x: 0, y: 1 }; // Cartesian: North is Up (+Y)
-            if (abs === "SOUTH") return { x: 0, y: -1 };
-            if (abs === "EAST") return { x: 1, y: 0 };
-            if (abs === "WEST") return { x: -1, y: 0 };
-            return { x: 0, y: 0 };
-        };
+        if (!n.scanned && n.type !== "START") {
+            return { scannedConnections: [], windows: [] };
+        }
 
         // 1. Process Connections (Trust DB to prevent missing doors)
         (connections || []).forEach((abs: string) => {
             if (abs === "UP" || abs === "DOWN") relConns.push(abs);
-            else relConns.push(toRel(abs));
+            else relConns.push(toRelativeDirection(abs, facing));
         });
 
         // 2. Process Windows (Skip for Airlock/Start room)
         if (n.type !== "START") {
-            ["NORTH", "EAST", "SOUTH", "WEST"].forEach(abs => {
+            relativeDirectionOrder.forEach(abs => {
                 // If it's a connection (Door), skip window
                 if ((connections || []).includes(abs)) return;
 
-                const v = getVec(abs);
-                // Check if Neighbor exists using strict casing
-                // Note: We used Y-1 for North previously. If map uses standard coords, North might be Y+1. 
-                // We'll use the getVec logic (Y-1) but if it fails, it just adds a window.
+                const v = worldDirectionVectors[abs];
                 const tx = Number(n.x) + v.x;
                 const ty = Number(n.y) + v.y;
                 const tz = Number(n.z);
@@ -391,16 +1288,15 @@ export default function GameInterface() {
 
                 // Window Logic:
                 // Only show window if there is strictly NO ROOM (Void) or EMPTY type.
-                // If a neighbor exists (Wall), do NOT show window. 
-                // Using corrected vectors (North=Y+1) ensures this checks the correct side.
+                // If a neighbor exists (Wall), do NOT show window.
                 if (!neighbor || neighbor.type === "EMPTY") {
-                    winList.push(toRel(abs));
+                    winList.push(toRelativeDirection(abs, facing));
                 }
             });
         }
 
         return { scannedConnections: relConns, windows: winList };
-    }, [player?.MapNode, game?.MapNode, facing, connections]);
+    }, [visualPlayerNode, game?.MapNode, facing, connections]);
 
     const canMoveDir = (dir: string) => {
         if (!inActionPhase || !player?.MapNode) return false;
@@ -435,15 +1331,13 @@ export default function GameInterface() {
         || (actionIntent === "ATTACK" && !canAttack)
         || (actionIntent === "MOVE" && (!moveDirection || !canMoveSelected));
     const actionStatus = !inActionPhase
-        ? "DRAWING CARDS..."
+        ? "DRAWING..."
         : hasActionTimer
-            ? "⚠️ ACTION WINDOW ⚠️"
+            ? "ACTION WINDOW"
             : isAirlock
-                ? "AIRLOCK READY - EXITING"
-                : "WAITING FOR INPUT";
-    const actionTimerLabel = !inActionPhase ? "WAITING..." : (hasActionTimer
-        ? `${actionTimeLeft}s`
-        : "READY");
+                ? "AIRLOCK READY"
+                : "WAITING FOR READY";
+    const actionTimerLabel = !inActionPhase ? "WAITING..." : (hasActionTimer ? `ACTION CLOSING IN ${actionTimeLeft}s` : "READY");
     const pileOwnerIsMe = player && game?.pileOwnerId === player.characterId; // Use CharacterID for consistent ownership
 
     const toggleItemSelection = (itemId: string) => {
@@ -453,13 +1347,8 @@ export default function GameInterface() {
     };
 
     const handleUseItem = async (itemId: string) => {
-        // Instant use for consumables? Or just fallback.
-        // For V11, we prefer Selection.
-        toggleItemSelection(itemId);
-    };
-
-    const handleEmergencyEscape = async () => {
         if (isActing || !player) return;
+
         setIsActing(true);
         try {
             const res = await fetch('/api/game/action', {
@@ -467,32 +1356,52 @@ export default function GameInterface() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     gameId: params.id,
-                    action: "LOCK_ACTION",
-                    intent: "MOVE",
-                    emergency: true
+                    action: "USE_ITEM",
+                    itemId
                 })
             });
             const data = await res.json();
             if (data.error) {
                 addToast(data.error, "error");
-            } else {
-                addToast(data.message || "EMERGENCY ESCAPE LOCKED", "success");
-                setActionIntent(null);
-                setMoveDirection(null);
-                setSelectedCardIndices([]);
-            }
-        } catch (e) {
-            console.error(e);
-            addToast("SYSTEM FAILURE", "error");
                 soundManager.actionFail();
+                return;
+            }
+
+            if (data.hand || data.inventory) {
+                setGameState((prev: any) => {
+                    if (!prev?.player) return prev;
+                    return {
+                        ...prev,
+                        player: {
+                            ...prev.player,
+                            hand: data.hand ?? prev.player.hand,
+                            inventory: JSON.stringify(data.inventory ?? parseJSON(prev.player.inventory || "[]", []))
+                        }
+                    };
+                });
+            }
+
+            setSelectedItemIds((prev) => prev.filter((id) => id !== itemId));
+            addToast(data.message || "ITEM USED", "success");
+            if (data.drawnCard) {
+                soundManager.cardPlay(data.drawnCard, 1);
+            } else {
+                soundManager.actionSuccess();
+            }
+        } catch (error) {
+            console.error(error);
+            addToast("ITEM FAILURE", "error");
+            soundManager.actionFail();
         } finally {
             setIsActing(false);
         }
     };
 
+
     const handleVictoryExit = async () => {
         if (isActing) return;
         setIsActing(true);
+        soundManager.setMusicScene("default");
         try {
             await fetch('/api/game/quit', {
                 method: 'POST',
@@ -502,6 +1411,7 @@ export default function GameInterface() {
             router.push(`/game/${params.id}/summary`);
         } catch (e) {
             console.error(e);
+            soundManager.setMusicScene("intense");
             addToast("EXIT FAILURE", "error");
         } finally {
             setIsActing(false);
@@ -526,6 +1436,7 @@ export default function GameInterface() {
 
         const payloadCards = cardsToSend.length > 0 ? cardsToSend : (forceAutoLowest && hand.length > 0 ? [hand.reduce((lowest: any, c: any) => (lowest && lowest.power < c.power ? lowest : c), hand[0])] : []);
         setIsActing(true);
+        setIsActionLoading(true); // V23: Set loading state
         try {
             const res = await fetch('/api/game/action', {
                 method: 'POST',
@@ -547,9 +1458,12 @@ export default function GameInterface() {
             const data = await res.json();
             if (data.error) {
                 addToast(data.error, "error");
+                triggerActionFeedback("error", data.error);
+                soundManager.actionFail();
             } else {
-                addToast(data.message || "ACTION LOCKED", "success");
+                triggerActionFeedback("success", data.message || "ACTION LOCKED");
                 soundManager.actionSuccess();
+                addToast(data.message || "ACTION LOCKED", "success");
                 setSelectedCardIndices([]);
                 setSelectedItemIds([]); // Clear loadout
                 setActionIntent(null);
@@ -558,14 +1472,18 @@ export default function GameInterface() {
         } catch (e) {
             console.error(e);
             addToast("SYSTEM FAILURE", "error");
+            triggerActionFeedback("error", "SYSTEM FAILURE");
+            soundManager.actionFail();
         } finally {
             setIsActing(false);
+            setIsActionLoading(false); // V23: Clear loading state
         }
     };
 
     const confirmExit = async () => {
         if (!exitIntent) return;
         setIsActing(true);
+        soundManager.setMusicScene("default");
         try {
             const payload: any = { gameId: params.id };
             if (exitIntent === "DEPART") payload.reason = "DEPART";
@@ -577,6 +1495,7 @@ export default function GameInterface() {
             router.push(`/game/${params.id}/summary`);
         } catch (e) {
             console.error(e);
+            soundManager.setMusicScene("intense");
             addToast("EXIT FAILURE", "error");
         } finally {
             setIsActing(false);
@@ -596,7 +1515,23 @@ export default function GameInterface() {
     const missionSeconds = missionTimeLeft % 60;
 
     return (
-        <div className="h-[100dvh] w-full bg-black text-white relative overflow-hidden font-mono flex flex-col landscape:scale-90 landscape:origin-center sm:landscape:scale-100 transition-transform duration-300">
+        <div className="h-full w-full bg-black text-white relative overflow-hidden font-mono flex flex-col landscape:scale-90 landscape:origin-center sm:landscape:scale-100 transition-transform duration-300">
+            <style jsx global>{`
+                @keyframes spinSlow {
+                    from { transform: rotate(0deg); }
+                    to { transform: rotate(360deg); }
+                }
+            `}</style>
+            {/* V23: Card Action Loading Overlay */}
+            {isActionLoading && (
+                <div className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm flex items-center justify-center">
+                    <div className="text-center">
+                        <div className="w-16 h-16 border-4 border-neon-cyan/30 border-t-neon-cyan rounded-full animate-spin mb-4 mx-auto" style={{ animationDuration: '1s' }} />
+                        <div className="text-neon-cyan font-bold tracking-widest text-sm animate-pulse">PROCESSING ACTION</div>
+                        <div className="text-[10px] text-gray-500 mt-1">Awaiting server confirmation...</div>
+                    </div>
+                </div>
+            )}
             {/* Portrait Mode Warning Overlay */}
             <div className="fixed inset-0 z-[200] bg-black flex flex-col items-center justify-center p-8 text-center portrait:flex hidden">
                 <div className="w-16 h-16 border-2 border-neon-cyan/50 rounded-lg flex items-center justify-center mb-4 animate-pulse">
@@ -615,79 +1550,6 @@ export default function GameInterface() {
             {/* Background Ambiance */}
             <div className="absolute inset-0 bg-[url('/bg-space.jpg')] bg-cover opacity-50 z-0" />
             <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-transparent to-black/90 z-0" />
-
-            {/* Header: Player Stats, Timer, Abort */}
-            <header className="relative z-30 px-2 py-1 grid grid-cols-3 items-center h-12 shrink-0 border-b border-white/10 bg-black/40 backdrop-blur-sm">
-                <div className="flex items-center gap-2 text-[9px] text-gray-500 uppercase tracking-widest">
-                    SYS STATUS
-                </div>
-
-                {player && (
-                    <div className="flex items-center justify-center gap-3">
-                        <div className="w-8 h-8 bg-gray-800 rounded-full overflow-hidden border-2 border-neon-cyan shadow-[0_0_8px_#0ff]">
-                            {player.character?.portrait && (
-                                <img
-                                    src={player.character.portrait}
-                                    alt={`${player.character.name} portrait`}
-                                    title={`${player.character.name} portrait`}
-                                    className="w-full h-full object-cover"
-                                />
-                            )}
-                        </div>
-                        <div className="flex flex-col items-center">
-                            <div className="text-xs md:text-sm font-bold text-neon-cyan uppercase tracking-widest leading-none flex items-center gap-2">
-                                {player.character.name}
-                                {(() => {
-                                    const cls = player.character.class?.toLowerCase();
-                                    let suit = { name: "UNKNOWN", color: "text-gray-500", border: "border-gray-500", bg: "bg-gray-500/10" };
-                                    if (cls === "marine") suit = { name: "COMMAND", color: "text-green-500", border: "border-green-500/50", bg: "bg-green-500/10" };
-                                    if (cls === "engineer") suit = { name: "PLASMA", color: "text-orange-500", border: "border-orange-500/50", bg: "bg-orange-500/10" };
-                                    if (cls === "scientist") suit = { name: "BIOTECH", color: "text-red-500", border: "border-red-500/50", bg: "bg-red-500/10" };
-                                    if (cls === "scout") suit = { name: "VOID", color: "text-purple-500", border: "border-purple-500/50", bg: "bg-purple-500/10" };
-
-                                    return (
-                                        <span className={`text-[8px] px-1.5 py-0.5 rounded border ${suit.border} ${suit.color} ${suit.bg} font-mono`}>
-                                            {suit.name}
-                                        </span>
-                                    );
-                                })()}
-                            </div>
-                            <div className="flex gap-2 text-[9px] text-gray-400 font-bold">
-                                <span className="flex items-center text-red-400"><Heart className="w-3 h-3 mr-1" /> {player.hp}/{player.maxHp}</span>
-                                <span className="flex items-center text-yellow-400"><Zap className="w-3 h-3 mr-1" /> {player.ap}</span>
-                                <span className="flex items-center text-cyan-300"><Cpu className="w-3 h-3 mr-1" /> {player.stress ?? 0}</span>
-                                <span className="flex items-center text-purple-300">LVL {player.character.level ?? 1}</span>
-                            </div>
-                        </div>
-                        <div className="hidden lg:flex flex-col justify-center items-center px-3 border-l border-white/10">
-                            <div className="text-[9px] text-gray-500 uppercase tracking-widest">T-MINUS</div>
-                            <div className={`text-lg font-bold font-mono ${game?.deadline && missionTimeLeft < 300 ? 'text-red-500 animate-pulse' : 'text-white'}`}>
-                                {game?.deadline ? `${missionMinutes}:${missionSeconds.toString().padStart(2, '0')}` : "--:--"}
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                <div className="flex justify-end">
-                    {player?.MapNode?.type === "START" ? (
-                        <Button
-                            variant="primary"
-                            className="bg-green-500/10 text-green-500 border border-green-500 hover:bg-green-500 hover:text-black h-7 text-[10px] px-3"
-                            onClick={() => setExitIntent("DEPART")}
-                        >
-                            DEPART
-                        </Button>
-                    ) : (
-                        <Button
-                            variant="outline"
-                            className="border-red-500/50 text-red-500 hover:bg-red-950/50 h-7 text-[10px] px-2"
-                            onClick={() => setExitIntent("ABORT")}
-                        >
-                            ABORT
-                        </Button>
-                    )}
-                </div>
-            </header>
 
             <AnimatePresence>
                 {isVictory && !exitIntent && (
@@ -731,10 +1593,10 @@ export default function GameInterface() {
                             className="w-[320px] rounded-xl border border-white/10 bg-black/90 p-6 text-center shadow-2xl"
                         >
                             <div className="text-xs text-gray-500 uppercase tracking-widest mb-2">
-                                {exitIntent === "DEPART" ? "Extraction Protocol" : "Abort Protocol"}
+                                {exitIntent === "DEPART" ? "Return To Ship" : "Abandon Mission"}
                             </div>
                             <div className="text-sm text-white mb-4">
-                                {exitIntent === "DEPART" ? "Depart the sector and end the mission?" : "Abort mission and return to summary?"}
+                                {exitIntent === "DEPART" ? "Return through the airlock and end the run?" : "Abandon the mission and end the run now?"}
                             </div>
                             <div className="flex justify-center gap-3">
                                 <Button
@@ -750,7 +1612,7 @@ export default function GameInterface() {
                                     onClick={confirmExit}
                                     disabled={isActing}
                                 >
-                                    CONFIRM
+                                    {exitIntent === "DEPART" ? "RETURN" : "ABANDON"}
                                 </Button>
                             </div>
                         </motion.div>
@@ -766,12 +1628,6 @@ export default function GameInterface() {
                 {/* LEFT PANEL: Map & Info (Col Span 3) */}
                 <div className="flex col-span-1 md:col-span-3 flex-col gap-2 h-full min-h-0 relative overflow-hidden">
 
-
-                    {/* Mission Log */}
-                    <div className="glass-panel p-3 border border-white/10 h-32 shrink-0 overflow-y-auto custom-scrollbar">
-                        <div className="text-[9px] text-gray-500 uppercase tracking-widest mb-2 border-b border-white/5 pb-1">MISSION OBJECTIVES</div>
-                        <MissionLog objectives={game.objectives || []} />
-                    </div>
 
                     {/* Room Intel */}
                     {roomInfo && (
@@ -796,6 +1652,64 @@ export default function GameInterface() {
                                 <span className="text-gray-400 text-xs">Security</span>
                                 <span className="font-bold text-white">{roomInfo.security ?? 0}</span>
                             </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-gray-400 text-xs">Threat</span>
+                                <span className={`font-bold ${hasEnemies || isBossRoom ? "text-red-400" : "text-green-400"}`}>
+                                    {threatLabel}
+                                </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-gray-400 text-xs">Distance</span>
+                                <span className="font-bold text-white">{distanceTraveled} sectors</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-gray-400 text-xs">Airlock</span>
+                                <span className={`font-bold ${airlockDistance === 0 ? "text-green-400" : airlockDistance === null ? "text-gray-500" : "text-cyan-300"}`}>
+                                    {airlockDistanceLabel}
+                                </span>
+                            </div>
+                            {showHallwayCountdown && (
+                                <div className="rounded border border-neon-cyan/30 bg-cyan-500/10 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.24em] text-neon-cyan">
+                                    Transit {transitDirectionLabel} · leg {transitStatus?.stepIndex || 0}/{transitStatus?.totalSteps || 0} · {transitStatus?.remainingSteps || 0} step{(transitStatus?.remainingSteps || 0) === 1 ? "" : "s"} left
+                                </div>
+                            )}
+                            <div className="rounded border border-white/10 bg-black/35 px-2 py-1.5">
+                                <div className="text-[8px] text-gray-500 uppercase tracking-[0.24em] mb-1">Exits</div>
+                                <div className="flex flex-wrap gap-1">
+                                    {scannedExitLabels.length > 0 ? scannedExitLabels.map((label: string) => (
+                                        <span key={label} className="rounded border border-cyan-500/20 bg-cyan-500/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-cyan-200">
+                                            {label}
+                                        </span>
+                                    )) : (
+                                        <span className="text-[9px] font-bold uppercase tracking-[0.16em] text-gray-500">
+                                            {visualPlayerNode?.type === "START" ? "AIRLOCK" : roomInfo.scanned ? "SEALED" : "SCAN REQUIRED"}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                            {roomInfo.scanned && visibleRoomHallwayIntel.length > 0 && (
+                                <div className="rounded border border-cyan-500/20 bg-cyan-500/5 p-2">
+                                    <div className="text-[8px] text-cyan-300 uppercase tracking-[0.28em] mb-1">
+                                        Hallway Readout · Depth {roomInfo.hallwayScanDepth}
+                                    </div>
+                                    <div className="space-y-1">
+                                        {visibleRoomHallwayIntel.map((intel: HallwayIntel & { directionLabel: string; endpointLabel: string }) => (
+                                            <div key={`${intel.direction}-${intel.endpointType}-${intel.distance}`} className="flex items-center justify-between gap-2 text-[9px]">
+                                                <span className="font-bold text-white">
+                                                    {intel.directionLabel}
+                                                </span>
+                                                <span className="text-gray-400">
+                                                    {intel.distance}{intel.truncated ? "+" : ""} to {intel.endpointLabel}
+                                                    {intel.turns > 0 ? ` · ${intel.turns} turn` : ""}
+                                                    {intel.turns > 1 ? "s" : ""}
+                                                    {intel.branches > 0 ? ` · ${intel.branches} branch` : ""}
+                                                    {intel.branches > 1 ? "es" : ""}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                             {player?.MapNode?.type === "BOSS" && (
                                 <div className="flex items-center justify-between">
                                     <span className="text-gray-400 text-xs">Core Integrity</span>
@@ -808,17 +1722,121 @@ export default function GameInterface() {
                     {/* Map (Flex Grow) */}
                     {player?.MapNode && (
                         <div className="glass-panel p-1 border border-white/20 flex-1 min-h-0 flex flex-col animate-in slide-in-from-left duration-500 shadow-lg relative">
-                            <div className="absolute top-2 left-3 z-10 text-[9px] text-gray-500 uppercase tracking-widest">SECTOR MAP</div>
-
-                            {/* Orientation (Top Right) */}
-                            <div className="absolute top-2 right-2 z-10 flex flex-col items-center">
-                                <div className="relative w-12 h-12 rounded-full border border-white/10 bg-black/80 flex items-center justify-center shadow-lg backdrop-blur">
-                                    <div
-                                        className="absolute inset-0 flex items-center justify-center transition-transform duration-700 ease-out"
-                                        style={{ transform: `rotate(${mapRotationDeg + 45}deg)` }}
-                                    >
-                                        <ChevronUp className="w-8 h-8 text-neon-cyan opacity-80" />
-                                        <span className="absolute -top-3 text-[9px] text-neon-cyan font-bold tracking-widest">N</span>
+                            <div className="shrink-0 border-b border-white/10 bg-black/35 px-3 py-2">
+                                {inspectedMapNode && (
+                                    <div className="mb-2 rounded-lg border border-white/10 bg-black/55 px-2.5 py-2">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <div className="flex items-center gap-2">
+                                                <div className="text-[8px] text-gray-500 uppercase tracking-[0.35em]">Map Readout</div>
+                                                <div className={`rounded-full border px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.22em] ${
+                                                    inspectedMapStatus === "CURRENT"
+                                                        ? "border-neon-cyan/40 text-neon-cyan"
+                                                        : inspectedMapStatus === "LOCKED"
+                                                            ? "border-white/20 text-white"
+                                                            : "border-yellow-500/40 text-yellow-400"
+                                                }`}>
+                                                    {inspectedMapStatus}
+                                                </div>
+                                                {inspectedMapIsBoss && (
+                                                    <div className="rounded-full border border-red-500/50 bg-red-500/10 px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.22em] text-red-300">
+                                                        Boss
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <div className={`flex items-center gap-2 rounded-full border px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.22em] ${inspectedMapScanDone ? "border-green-500/40 bg-green-500/10 text-green-300" : "border-red-500/40 bg-red-500/10 text-red-300"}`}>
+                                                    <span className={`h-1.5 w-1.5 rounded-full ${inspectedMapScanDone ? "bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.95)]" : "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.95)]"}`} />
+                                                    Scan {inspectedMapScanDone ? "Done" : "Pending"}
+                                                </div>
+                                                <div className={`flex items-center gap-2 rounded-full border px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.22em] ${inspectedMapSecureDone ? "border-green-500/40 bg-green-500/10 text-green-300" : "border-red-500/40 bg-red-500/10 text-red-300"}`}>
+                                                    <span className={`h-1.5 w-1.5 rounded-full ${inspectedMapSecureDone ? "bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.95)]" : "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.95)]"}`} />
+                                                    Secure {inspectedMapSecureDone ? "Done" : "Pending"}
+                                                </div>
+                                                <div className="text-[8px] text-gray-500 uppercase tracking-[0.24em]">
+                                                    Hover inspect · click lock
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[9px]">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <span className="text-gray-500">Node</span>
+                                                <span className={`font-bold uppercase ${
+                                                    inspectedMapNode.type === "CORRIDOR"
+                                                        ? "text-slate-300"
+                                                        : inspectedMapSuitMeta?.color || "text-white"
+                                                }`}>
+                                                    {inspectedMapNode.type === "CORRIDOR" ? "HALL" : inspectedMapNode.type}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center justify-between gap-2">
+                                                <span className="text-gray-500">Deck</span>
+                                                <span className="font-mono text-white">{inspectedMapNode.z}</span>
+                                            </div>
+                                            <div className="flex items-center justify-between gap-2">
+                                                <span className="text-gray-500">Sector</span>
+                                                <span className="font-mono text-white">{inspectedMapNode.x}-{inspectedMapNode.y}-{inspectedMapNode.z}</span>
+                                            </div>
+                                            <div className="flex items-center justify-between gap-2">
+                                                <span className="text-gray-500">State</span>
+                                                <span className="font-bold text-white">
+                                                    {inspectedMapNode.scanned ? "SCANNED" : inspectedMapNode.isExplored ? "EXPLORED" : "UNSEEN"}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center justify-between gap-2">
+                                                <span className="text-gray-500">Threat</span>
+                                                <span className={`font-bold ${!inspectedMapRevealState ? "text-gray-500" : inspectedMapEnemies.length > 0 ? "text-red-400" : "text-gray-400"}`}>
+                                                    {inspectedMapRevealState ? inspectedMapEnemies.length : "?"}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center justify-between gap-2">
+                                                <span className="text-gray-500">Loot</span>
+                                                <span className={`font-bold ${!inspectedMapRevealState ? "text-gray-500" : inspectedMapLoot.length > 0 ? "text-yellow-400" : "text-gray-400"}`}>
+                                                    {inspectedMapRevealState ? inspectedMapLoot.length : "?"}
+                                                </span>
+                                            </div>
+                                            {inspectedMapNode.type !== "CORRIDOR" && inspectedMapRevealState && (
+                                                <>
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <span className="text-gray-500">Suit</span>
+                                                        <span className={`font-bold ${inspectedMapSuitMeta?.color || "text-white"}`}>
+                                                            {inspectedMapSuitMeta ? inspectedMapSuitMeta.icon : inspectedMapNode.roomSuit || "UNKNOWN"}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <span className="text-gray-500">Power</span>
+                                                        <span className="font-bold text-white">{inspectedMapNode.roomPower ?? "?"}</span>
+                                                    </div>
+                                                </>
+                                            )}
+                                        </div>
+                                        <div className="mt-2 flex flex-wrap gap-1">
+                                            <span className="text-[8px] text-gray-500 uppercase tracking-[0.28em]">Links</span>
+                                            {!inspectedMapRevealState ? (
+                                                <span className="text-[8px] text-gray-500 uppercase tracking-wide">Scan to reveal</span>
+                                            ) : inspectedMapConnectionLabels.length > 0 ? inspectedMapConnectionLabels.map((connection: string) => (
+                                                <span key={connection} className="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide text-gray-200">
+                                                    {connection}
+                                                </span>
+                                            )) : (
+                                                <span className="text-[8px] text-gray-500 uppercase tracking-wide">Sealed</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                                <div className="flex items-center justify-between gap-3">
+                                    <div>
+                                        <div className="text-[9px] text-gray-500 uppercase tracking-widest">SECTOR MAP</div>
+                                        <div className="text-[8px] text-gray-600 uppercase tracking-[0.24em]">
+                                            Rooms are chambers. Halls are corridor links.
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.24em] text-white">
+                                            Room
+                                        </span>
+                                        <span className="rounded border border-slate-700 bg-slate-900/70 px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.24em] text-slate-300">
+                                            Hall
+                                        </span>
                                     </div>
                                 </div>
                             </div>
@@ -826,39 +1844,82 @@ export default function GameInterface() {
                             <div className="w-full flex-1 min-h-0 bg-black/50 border border-white/5 relative overflow-hidden rounded">
                                 <div className="w-full h-full">
                                     {/* Removed outer rotation, passing rotation to SectorGrid */}
-                                    <SectorGrid nodes={game.MapNode || []} currentPlayerNodeId={player.nodeId} activeZ={activeDeck} playerMarkers={playerMarkers} rotation={mapRotationDeg} facing={player.facing} />
+                                    <SectorGrid
+                                        nodes={game.MapNode || []}
+                                        currentPlayerNodeId={visualPlayerNode?.id || player?.nodeId}
+                                        activeZ={showFullMaze ? undefined : activeDeck}
+                                        playerMarkers={playerMarkers}
+                                        rotation={mapRotationDeg}
+                                        facing={facing}
+                                        fullMap={showFullMaze}
+                                        fullMapFocusZ={fullMapFocusDeck ?? undefined}
+                                        selectedNodeId={selectedMapNodeId}
+                                        onNodeHover={handleMapNodeHover}
+                                        onNodeSelect={handleMapNodeSelect}
+                                        recentMovement={recentMovement}
+                                    />
                                 </div>
-                                <div className="absolute bottom-1 right-1 text-[8px] font-mono text-gray-600">DECK {activeDeck}</div>
                             </div>
 
                             {/* Dock Deck & Info (Bottom) */}
                             <div className="p-2 border-t border-white/10 bg-black/40 flex flex-col gap-1">
-                                <div className="flex justify-between items-center">
-                                    <div className="flex items-center gap-1">
-                                        {[0, 1, 2].map((z) => (
-                                            <button
-                                                key={z}
-                                                type="button"
-                                                onClick={() => setMapZ(z)}
-                                                className={`w-6 h-6 text-[10px] flex items-center justify-center rounded border transition-colors ${activeDeck === z ? "bg-neon-cyan text-black border-neon-cyan font-bold" : "bg-black/50 text-gray-400 border-white/10 hover:border-white/30"}`}
-                                            >
-                                                D{z}
-                                            </button>
-                                        ))}
+                                <div className="flex flex-col gap-2">
+                                    <div className="flex flex-wrap items-center gap-1">
                                         <button
                                             type="button"
-                                            onClick={() => setMapZ(player.MapNode.z)}
+                                            onClick={() => handleDeckStep("down")}
+                                            disabled={!canStepDeckDown}
+                                            className="w-6 h-6 text-[10px] flex items-center justify-center rounded border transition-colors bg-black/50 text-gray-300 border-white/10 hover:border-white/30 disabled:opacity-30 disabled:cursor-not-allowed"
+                                            aria-label={showFullMaze ? "Center lower deck" : "Move to lower deck"}
+                                        >
+                                            <ChevronDown className="w-3 h-3" />
+                                        </button>
+                                        <div className="min-w-[88px] px-2 text-center text-[9px] font-mono uppercase tracking-[0.2em] text-gray-300">
+                                            {mapDeckLabel}
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleDeckStep("up")}
+                                            disabled={!canStepDeckUp}
+                                            className="w-6 h-6 text-[10px] flex items-center justify-center rounded border transition-colors bg-black/50 text-gray-300 border-white/10 hover:border-white/30 disabled:opacity-30 disabled:cursor-not-allowed"
+                                            aria-label={showFullMaze ? "Center higher deck" : "Move to higher deck"}
+                                        >
+                                            <ChevronUp className="w-3 h-3" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleLocateCurrentRoom}
                                             className="h-6 px-2 text-[9px] rounded border bg-black/50 text-neon-cyan border-white/10 hover:border-white/30 uppercase"
                                         >
                                             LOCATE
                                         </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleToggleFullMaze}
+                                            className={`h-6 px-2 text-[9px] rounded border uppercase transition-colors ${showFullMaze ? "bg-neon-cyan text-black border-neon-cyan font-bold" : "bg-black/50 text-gray-300 border-white/10 hover:border-white/30 hover:text-white"}`}
+                                        >
+                                            FULL
+                                        </button>
                                     </div>
-
-                                    <div className="flex justify-between items-end">
-                                        <span className={`text-sm font-bold uppercase ${player.MapNode.type === 'START' ? 'text-green-400' : 'text-white'}`}>{player.MapNode.type} NODE</span>
-                                        <span className="text-[10px] font-mono text-gray-400 bg-gray-900 px-1 rounded">SEC {player.MapNode.x}-{player.MapNode.y}-{player.MapNode.z}</span>
+                                    <div className="flex items-end justify-between gap-2">
+                                        <span className={`min-w-0 text-sm font-bold uppercase leading-tight ${showFullMaze ? "text-neon-cyan" : visualIsAirlock ? 'text-green-400' : 'text-white'}`}>
+                                            {showFullMaze ? "FULL SHIP VIEW" : `${visualPlayerNode?.type || "ROOM"} NODE`}
+                                        </span>
+                                        <span className="shrink-0 text-[10px] font-mono text-gray-400 bg-gray-900 px-1 rounded">
+                                            {showFullMaze ? `${game.MapNode?.length || 0} NODES` : `SEC ${visualPlayerNode?.x ?? 0}-${visualPlayerNode?.y ?? 0}-${visualPlayerNode?.z ?? 0}`}
+                                        </span>
                                     </div>
                                 </div>
+                                {showFullMaze && (
+                                    <div className="text-[9px] text-gray-500 uppercase tracking-widest text-center pt-1">
+                                        Full WFC / Markov hull across all decks. Use arrows to center higher or lower decks.
+                                    </div>
+                                )}
+                                {!showFullMaze && inspectedMapNode && (
+                                    <div className="text-[9px] text-gray-500 uppercase tracking-widest text-center pt-1">
+                                        Viewing deck {activeDeck} • inspector on deck {inspectedMapNode.z}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
@@ -873,54 +1934,199 @@ export default function GameInterface() {
 
                         {/* 1. TOP: ROOM SCANNER (Large, 2/3rds) */}
                         <div className="flex-[2] w-full flex items-center justify-center relative min-h-0 mb-4 border border-white/5 rounded-2xl bg-black/20 overflow-hidden shadow-inner">
+                            <div className="pointer-events-none absolute left-4 right-4 top-4 z-20 flex flex-wrap items-start justify-between gap-3">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <div className={`rounded-full border px-3 py-1 text-[9px] font-bold uppercase tracking-[0.24em] ${
+                                        game?.deadline
+                                            ? missionTimeLeft < 300
+                                                ? "border-red-500/40 bg-red-500/10 text-red-300 animate-pulse"
+                                                : "border-white/10 bg-black/70 text-white"
+                                            : "border-white/10 bg-black/55 text-gray-500"
+                                    }`}>
+                                        T-Minus {game?.deadline ? `${missionMinutes}:${missionSeconds.toString().padStart(2, '0')}` : "--:--"}
+                                    </div>
+                                    <div className="rounded-full border border-white/10 bg-black/70 px-3 py-1 text-[9px] font-bold uppercase tracking-[0.24em] text-white">
+                                        {roomInfo?.scanned ? `PWR ${roomInfo.power}` : "PWR ?"}
+                                    </div>
+                                    <div className={`rounded-full border px-3 py-1 text-[9px] font-bold uppercase tracking-[0.24em] ${
+                                        hasEnemies || isBossRoom
+                                            ? "border-red-500/30 bg-red-500/10 text-red-300"
+                                            : "border-green-500/30 bg-green-500/10 text-green-300"
+                                    }`}>
+                                        {threatLabel}
+                                    </div>
+                                    <div className="max-w-[46ch] rounded-full border border-cyan-500/20 bg-black/70 px-3 py-1 text-[9px] font-bold uppercase tracking-[0.2em] text-cyan-200">
+                                        {scannedExitLabels.length > 0
+                                            ? `EXITS ${scannedExitLabels.join(" · ")}`
+                                            : visualPlayerNode?.type === "START"
+                                                ? "AIRLOCK"
+                                                : roomInfo?.scanned
+                                                    ? "NO VERIFIED EXITS"
+                                                    : "SCAN TO VERIFY EXITS"}
+                                    </div>
+                                </div>
+                                {showHallwayCountdown && (
+                                    <div className="rounded-xl border border-neon-cyan/30 bg-black/75 px-3 py-2 text-right shadow-[0_0_16px_rgba(34,211,238,0.16)]">
+                                        <div className="text-[8px] uppercase tracking-[0.32em] text-neon-cyan">Transit</div>
+                                        <div className="text-sm font-black uppercase text-white">
+                                            {transitDirectionLabel}
+                                        </div>
+                                        <div className="text-[10px] font-mono text-cyan-200">
+                                            leg {transitStatus?.stepIndex || 0}/{transitStatus?.totalSteps || 0} · {transitStatus?.remainingSteps || 0} step{(transitStatus?.remainingSteps || 0) === 1 ? "" : "s"} left
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                            {(scanFeedback || actionFeedback) && (
+                                <div className="pointer-events-none absolute left-1/2 top-[4.25rem] z-20 -translate-x-1/2">
+                                    {scanFeedback ? (
+                                        <div className={`rounded-full border px-5 py-2 text-[10px] font-black uppercase tracking-[0.34em] shadow-lg ${
+                                            scanFeedback.success
+                                                ? "border-green-400/50 bg-black/80 text-green-300"
+                                                : "border-red-500/50 bg-black/85 text-red-300"
+                                        }`}>
+                                            {scanFeedback.success ? "SCAN CLEAR" : "SCAN FAIL"} · PWR {scanFeedback.nodePower}
+                                            {typeof scanFeedback.detectedEnemies === "number" && scanFeedback.detectedEnemies > 0 ? ` · HOSTILES ${scanFeedback.detectedEnemies}` : ""}
+                                        </div>
+                                    ) : actionFeedback ? (
+                                        <div className={`rounded-full border px-5 py-2 text-[10px] font-black uppercase tracking-[0.34em] shadow-lg ${
+                                            actionFeedback.status === "success"
+                                                ? "border-neon-cyan/60 text-neon-cyan bg-black/75"
+                                                : "border-red-500/60 text-red-300 bg-black/80"
+                                        }`}>
+                                            {actionFeedback.label}
+                                        </div>
+                                    ) : null}
+                                </div>
+                            )}
                             {/* Inner Scanner Container - Scale to fit */}
-                            <div className="w-full h-full p-4">
+                            <div className="w-full h-full p-4 pt-24">
                                 <RoomScanner
-                                    key={player.facing} // Force redraw on turn
-                                    type={player.MapNode.type}
-                                    isExplored={player.MapNode.isExplored}
+                                    key={`${visualPlayerNode?.id || "node"}-${facing}`} // Force redraw on turn/step
+                                    type={visualPlayerNode?.type || player?.MapNode?.type || "UNKNOWN"}
+                                    isExplored={Boolean(visualPlayerNode?.isExplored)}
                                     integrity={game.integrity}
                                     suit={isRoomScanned ? roomInfo?.suit : undefined}
                                     suitColor={isRoomScanned ? roomSuitMeta?.color : undefined}
                                     connections={scannedConnections}
                                     windows={windows}
                                     scanned={isRoomScanned}
-                                    facing={player.facing}
-                                    relativeNorth={["FORWARD", "RIGHT", "BACK", "LEFT"][(4 - ["NORTH", "EAST", "SOUTH", "WEST"].indexOf(player.facing || "NORTH")) % 4]}
+                                    facing={facing}
+                                    relativeNorth={["FORWARD", "RIGHT", "BACK", "LEFT"][(4 - ["NORTH", "EAST", "SOUTH", "WEST"].indexOf(facing || "NORTH")) % 4]}
+                                    hallwayIntel={[]}
+                                    movementDirection={showHallwayCountdown ? transitDirectionLabel : null}
+                                    movementActive={showHallwayCountdown}
                                 />
                             </div>
                         </div>
 
-                        {/* 2. MIDDLE: HAND (Spaced Out, Less Opaque) */}
-                        <div className="flex-1 w-full flex flex-col items-center justify-center relative z-20">
-                            <div className="flex items-center justify-center gap-2 h-40 w-full px-4 perspective-[1000px]">
-                                <AnimatePresence>
-                                    {gameState?.player?.hand?.length > 0 ? gameState.player.hand.map((card: any, index: number) => (
-                                        <motion.div
-                                            key={card.id || index}
-                                            layout
-                                            initial={{ y: 50, opacity: 0 }}
-                                            animate={{
-                                                y: selectedCardIndices.includes(index) ? -20 : 0,
-                                                opacity: 1,
-                                                scale: selectedCardIndices.includes(index) ? 1.05 : 1
-                                            }}
-                                            exit={{ y: 50, opacity: 0 }}
-                                            onClick={() => toggleCardSelection(index)}
-                                            className={`
-                                                relative cursor-pointer transition-all duration-200
-                                                ${selectedCardIndices.includes(index) ? 'z-40 brightness-125' : 'hover:-translate-y-4 hover:brightness-110 z-10'}
-                                            `}
-                                        >
-                                            <NavCard card={card} selected={selectedCardIndices.includes(index)} size="md" />
-                                        </motion.div>
-                                    )) : (
-                                        <div className="text-xs text-center text-gray-500 border border-white/5 bg-white/5 p-4 rounded uppercase tracking-widest w-full max-w-sm">
-                                            No Signal Detected
-                                        </div>
+                        {/* 2. MIDDLE: HAND */}
+                        <div className="flex-1 w-full flex flex-col items-center justify-center relative z-20 px-2 min-h-0">
+                            {roomInfo?.scanned && roomInfo?.suit && (
+                                <div className="mb-2 flex flex-wrap items-center justify-center gap-2 rounded-full border border-white/10 bg-black/35 px-3 py-1.5 text-[9px] uppercase tracking-[0.22em]">
+                                    <span className="text-gray-500">Room Effect</span>
+                                    <span className={`${roomSuitMeta?.color || "text-neon-cyan"} font-bold`}>
+                                        {roomInfo.suit} +1
+                                    </span>
+                                    {roomOpposingSuit && (
+                                        <span className="font-bold text-red-300">
+                                            {roomOpposingSuit} -1
+                                        </span>
                                     )}
-                                </AnimatePresence>
+                                </div>
+                            )}
+                            <div className="w-full flex flex-wrap items-center justify-center gap-2 px-2 pb-3">
+                                <div className="text-[9px] text-gray-500 uppercase tracking-[0.3em]">Hand Filter</div>
+                                {HAND_FILTER_ORDER.map((filter) => {
+                                    const isActive = cardFilter === filter;
+                                    const tone = filter === "ALL"
+                                        ? "border-white/20 text-white"
+                                        : filter === "COMMAND"
+                                            ? "border-green-500/40 text-green-400"
+                                            : filter === "VOID"
+                                                ? "border-purple-500/40 text-purple-400"
+                                                : filter === "BIOTECH"
+                                                    ? "border-red-500/40 text-red-400"
+                                                    : filter === "PLASMA"
+                                                        ? "border-orange-500/40 text-orange-400"
+                                                        : "border-white/30 text-gray-200";
+
+                                    return (
+                                        <button
+                                            key={filter}
+                                            type="button"
+                                            onClick={() => handleCardFilterChange(filter)}
+                                            className={`rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-wider transition-all ${
+                                                isActive
+                                                    ? `${tone} bg-white/10 shadow-[0_0_10px_rgba(255,255,255,0.08)]`
+                                                    : "border-white/10 text-gray-500 hover:border-white/30 hover:text-white"
+                                            }`}
+                                        >
+                                            {filter}
+                                        </button>
+                                    );
+                                })}
+                                <div className="text-[10px] text-gray-500 font-mono">
+                                    {visibleHandEntries.length}/{handEntries.length}
+                                </div>
                             </div>
+
+                            <div ref={handViewportRef} className="h-[248px] md:h-[264px] w-full overflow-hidden px-2 -mt-3 pt-1 pb-12 md:-mt-4 md:pt-0 md:pb-14">
+                                <div className="flex items-end justify-center w-full perspective-[1000px]" style={{ gap: `${handLayout.gap}px` }}>
+                                    <AnimatePresence initial={false}>
+                                        {visibleHandEntries.length > 0 ? visibleHandEntries.map(({ card, index }) => (
+                                            <motion.div
+                                                key={card.id || index}
+                                                initial={{ y: 60, opacity: 0, scale: 0.9 }}
+                                                animate={{
+                                                    y: selectedCardIndices.includes(index) ? -handLayout.selectionLift : 0,
+                                                    opacity: 1,
+                                                    scale: selectedCardIndices.includes(index) ? 1.03 : 1
+                                                }}
+                                                exit={{
+                                                    y: 40,
+                                                    opacity: 0,
+                                                    scale: 0.8,
+                                                    transition: { duration: 0.3, ease: "easeOut" }
+                                                }}
+                                                transition={{
+                                                    y: { duration: 0.4, ease: [0.34, 1.56, 0.64, 1] },
+                                                    opacity: { duration: 0.3 },
+                                                    scale: { duration: 0.3 }
+                                                }}
+                                                onClick={() => toggleCardSelection(index)}
+                                                className={`
+                                                    group relative flex items-end justify-center cursor-pointer select-none active:scale-95 active:brightness-90
+                                                    ${selectedCardIndices.includes(index)
+                                                        ? "z-40 brightness-125"
+                                                        : inActionPhase
+                                                            ? "hover:-translate-y-2 z-10 active:scale-95"
+                                                            : "hover:-translate-y-1 z-10 active:scale-95"
+                                                    }
+                                                `}
+                                                style={{
+                                                    width: `${handLayout.cardWidth}px`,
+                                                    minWidth: `${handLayout.cardWidth}px`,
+                                                    height: `${handLayout.wrapperHeight}px`
+                                                }}
+                                            >
+                                                <NavCard
+                                                    card={card}
+                                                    selected={selectedCardIndices.includes(index)}
+                                                    size="lg"
+                                                    dimensions={{ width: handLayout.cardWidth, height: handLayout.cardHeight }}
+                                                    roomEffect={roomInfo?.scanned ? getRoomEffectForCard(card, roomInfo?.suit, true) : undefined}
+                                                />
+                                            </motion.div>
+                                        )) : (
+                                            <div className="text-xs text-center text-gray-500 border border-white/5 bg-white/5 p-4 rounded uppercase tracking-widest w-full max-w-sm">
+                                                {handEntries.length > 0 ? "No cards match that filter" : "No Signal Detected"}
+                                            </div>
+                                        )}
+                                    </AnimatePresence>
+                                </div>
+                            </div>
+
                         </div>
 
                         {/* 3. BOTTOM: CONTROL CONSOLE (Retro Dashboard w/ Central Compass) */}
@@ -929,6 +2135,9 @@ export default function GameInterface() {
                             {/* The Console Chassis */}
                             <div className="bg-slate-900/90 border-t-4 border-slate-700 rounded-t-3xl p-4 shadow-2xl relative overflow-hidden">
                                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-neon-cyan to-transparent opacity-50" />
+                                <div className="mb-3 flex min-h-[28px] items-center justify-center text-center">
+                                    {handStatusBanner}
+                                </div>
 
                                 {/* Console Grid */}
                                 <div className="grid grid-cols-[1fr_auto_1fr] gap-8 items-end">
@@ -942,14 +2151,23 @@ export default function GameInterface() {
                                             <div className="flex gap-2 justify-center">
                                                 {loadoutItems.length > 0 ? loadoutItems.map((item: any, idx: number) => {
                                                     const isWeapon = item.type === "WEAPON" || item.slot === "WEAPON";
+                                                    // Track if this item is currently selected for use
+                                                    const isSelected = selectedItemIds.includes(item.id) && !isWeapon;
+
                                                     // Determine click action
                                                     const handleClick = () => {
+                                                        // Prevent clicking during action execution
+                                                        if (isActing) {
+                                                            addToast("ACTION IN PROGRESS", "error");
+                                                            return;
+                                                        }
                                                         if (isWeapon) {
+                                                            // Weapons auto-trigger attack action
                                                             setActionIntent("ATTACK");
                                                             setMoveDirection(null);
                                                         } else {
-                                                            // Maybe just show info or select?
-                                                            // For now, no-op or info toast?
+                                                            // Non-weapons: toggle selection
+                                                            toggleItemSelection(item.id);
                                                         }
                                                     };
 
@@ -959,7 +2177,7 @@ export default function GameInterface() {
                                                             onClick={handleClick}
                                                             className={`
                                                                 flex-1 h-12 text-[8px] font-bold border flex flex-col items-center justify-center gap-0.5 transition-all
-                                                                ${isWeapon && actionIntent === "ATTACK" ? "bg-red-500/20 border-red-500 text-red-500" : "bg-white/5 border-white/10 text-gray-400 hover:bg-white/10"}
+                                                                ${isSelected ? "bg-neon-cyan/20 border-neon-cyan text-neon-cyan" : "bg-white/5 border-white/10 text-gray-400 hover:bg-white/10"}
                                                             `}
                                                         >
                                                             {/* Suit Badge Small */}
@@ -973,7 +2191,7 @@ export default function GameInterface() {
                                                                     {item.suit.slice(0, 3)}
                                                                 </span>
                                                             )}
-                                                            <span className="leading-none">{item.name}</span>
+                                                            <span className={`leading-none ${isSelected ? "text-neon-cyan" : "text-white"}`}>{item.name}</span>
                                                         </Button>
                                                     );
                                                 }) : (
@@ -982,19 +2200,48 @@ export default function GameInterface() {
                                             </div>
                                         </div>
 
-                                        <div className="flex flex-col gap-2">
-                                            <div className="text-[9px] text-gray-500 uppercase tracking-widest text-center border-b border-white/5 pb-1 mb-1">COMMAND PROTOCOLS</div>
-                                            <div className="grid grid-cols-3 gap-2">
-                                                {/* FORCE SCAN LOGIC: Disable others if unscanned */}
-                                                <Button onClick={() => { setActionIntent("SCAN"); setMoveDirection(null); }} disabled={!canScan} className={`col-span-1 h-16 text-[9px] font-bold tracking-widest border flex flex-col gap-1 items-center justify-center transition-all ${actionIntent === "SCAN" ? "bg-green-500/20 text-green-400 border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.2)]" : "bg-black/50 text-gray-400 border-white/10 hover:border-green-500/50 hover:text-green-500"} ${!player.MapNode.isExplored ? "animate-pulse border-green-500 text-green-500" : ""}`}>
-                                                    <Zap className="h-5 w-5" /> SCAN
-                                                </Button>
-                                                <Button onClick={() => { setActionIntent("ATTACK"); setMoveDirection(null); }} disabled={!canAttack || !player.MapNode.isExplored} className={`col-span-1 h-16 text-[9px] font-bold tracking-widest border flex flex-col gap-1 items-center justify-center transition-all ${actionIntent === "ATTACK" ? "bg-red-500/20 text-red-400 border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.2)]" : "bg-black/50 text-gray-400 border-white/10 hover:border-red-500/50 hover:text-red-500"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}>
-                                                    <Crosshair className="h-5 w-5" /> ENGAGE
-                                                </Button>
-                                                <Button onClick={() => { setActionIntent("SECURE"); setMoveDirection(null); }} disabled={!canSecure || !player.MapNode.isExplored} className={`col-span-1 h-16 text-[9px] font-bold tracking-widest border flex flex-col gap-1 items-center justify-center transition-all ${actionIntent === "SECURE" ? "bg-yellow-400/20 text-yellow-400 border-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.2)]" : "bg-black/50 text-gray-400 border-white/10 hover:border-yellow-400/50 hover:text-yellow-400"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}>
-                                                    <Shield className="h-5 w-5" /> SECURE
-                                                </Button>
+                                        <div className="flex flex-col gap-3">
+                                            {/* COMBAT ACTIONS */}
+                                            <div>
+                                                <div className="text-[8px] text-red-400 uppercase tracking-widest text-center border-b border-red-500/20 pb-1 mb-2 flex items-center justify-center gap-1">
+                                                    <Crosshair className="h-3 w-3" /> Combat
+                                                </div>
+                                                <div className="grid grid-cols-1 gap-2">
+                                                    {/* FORCE SCAN LOGIC: Disable others if unscanned */}
+                                                    <Button onClick={() => {
+                                                        if (isActing) return;
+                                                        setActionIntent("SCAN");
+                                                        setMoveDirection(null);
+                                                    }} disabled={!canScan || isActing} className={`h-12 text-[8px] font-bold tracking-widest border flex flex-col gap-1 items-center justify-center transition-all ${actionIntent === "SCAN" ? "bg-green-500/20 text-green-400 border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.2)]" : "bg-black/50 text-gray-400 border-white/10 hover:border-green-500/50 hover:text-green-500"} ${!player.MapNode.isExplored ? "animate-pulse border-green-500 text-green-500" : ""}`}>
+                                                        <Zap className="h-4 w-4" /> SCAN
+                                                        <span className="text-[7px] text-gray-500">Explore room</span>
+                                                    </Button>
+                                                    <Button onClick={() => {
+                                                        if (isActing) return;
+                                                        setActionIntent("ATTACK");
+                                                        setMoveDirection(null);
+                                                    }} disabled={!canAttack || !player.MapNode.isExplored || isActing} className={`h-12 text-[8px] font-bold tracking-widest border flex flex-col gap-1 items-center justify-center transition-all ${actionIntent === "ATTACK" ? "bg-red-500/20 text-red-400 border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.2)]" : "bg-black/50 text-gray-400 border-white/10 hover:border-red-500/50 hover:text-red-500"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}>
+                                                        <Crosshair className="h-4 w-4" /> ENGAGE
+                                                        <span className="text-[7px] text-gray-500">Fight enemies</span>
+                                                    </Button>
+                                                </div>
+                                            </div>
+
+                                            {/* DEFENSE ACTIONS */}
+                                            <div>
+                                                <div className="text-[8px] text-yellow-400 uppercase tracking-widest text-center border-b border-yellow-500/20 pb-1 mb-2 flex items-center justify-center gap-1">
+                                                    <Shield className="h-3 w-3" /> Defense
+                                                </div>
+                                                <div className="grid grid-cols-1 gap-2">
+                                                    <Button onClick={() => {
+                                                        if (isActing) return;
+                                                        setActionIntent("SECURE");
+                                                        setMoveDirection(null);
+                                                    }} disabled={!canSecure || !player.MapNode.isExplored || isActing} className={`h-12 text-[8px] font-bold tracking-widest border flex flex-col gap-1 items-center justify-center transition-all ${actionIntent === "SECURE" ? "bg-yellow-400/20 text-yellow-400 border-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.2)]" : "bg-black/50 text-gray-400 border-white/10 hover:border-yellow-400/50 hover:text-yellow-400"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}>
+                                                        <Shield className="h-4 w-4" /> SECURE
+                                                        <span className="text-[7px] text-gray-500">Stabilize room</span>
+                                                    </Button>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -1002,13 +2249,71 @@ export default function GameInterface() {
 
                                     {/* Center Panel: Navigation & Compass */}
                                     <div className="flex flex-col items-center gap-3 relative">
+                                        {player && (
+                                            <div className="w-[292px] rounded-2xl border border-white/10 bg-black/55 px-3 py-2 shadow-[0_10px_24px_rgba(0,0,0,0.32)] backdrop-blur-sm">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-neon-cyan/60 bg-slate-900 shadow-[0_0_14px_rgba(34,211,238,0.22)]">
+                                                        {player.character?.portrait ? (
+                                                            <img
+                                                                src={player.character.portrait}
+                                                                alt={`${player.character.name} portrait`}
+                                                                title={`${player.character.name} portrait`}
+                                                                className="h-full w-full object-cover"
+                                                            />
+                                                        ) : (
+                                                            <User className="h-5 w-5 text-neon-cyan/70" />
+                                                        )}
+                                                    </div>
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="truncate text-[10px] font-black uppercase tracking-[0.24em] text-neon-cyan">
+                                                                {player.character?.name || "Operative"}
+                                                            </div>
+                                                            <span className={`shrink-0 rounded border px-1.5 py-0.5 font-mono text-[8px] ${playerRoleDisplay.border} ${playerRoleDisplay.color} ${playerRoleDisplay.bg}`}>
+                                                                {playerRoleDisplay.name}
+                                                            </span>
+                                                        </div>
+                                                        <div className="mt-2 grid grid-cols-4 gap-1.5 text-[8px] font-bold uppercase tracking-[0.14em]">
+                                                            <div className={`rounded-lg border border-white/10 bg-black/40 px-2 py-1 ${playerHealthTone}`}>
+                                                                <div className="flex items-center gap-1">
+                                                                    <Heart className="h-3 w-3" />
+                                                                    <span>HP</span>
+                                                                </div>
+                                                                <div className="mt-0.5 font-mono text-[10px]">{player.hp}/{player.maxHp}</div>
+                                                            </div>
+                                                            <div className="rounded-lg border border-white/10 bg-black/40 px-2 py-1 text-yellow-400">
+                                                                <div className="flex items-center gap-1">
+                                                                    <Zap className="h-3 w-3" />
+                                                                    <span>AP</span>
+                                                                </div>
+                                                                <div className="mt-0.5 font-mono text-[10px]">{player.ap}</div>
+                                                            </div>
+                                                            <div className="rounded-lg border border-white/10 bg-black/40 px-2 py-1 text-cyan-300">
+                                                                <div className="flex items-center gap-1">
+                                                                    <Cpu className="h-3 w-3" />
+                                                                    <span>STR</span>
+                                                                </div>
+                                                                <div className="mt-0.5 font-mono text-[10px]">{player.stress ?? 0}</div>
+                                                            </div>
+                                                            <div className="rounded-lg border border-white/10 bg-black/40 px-2 py-1 text-purple-300">
+                                                                <div className="flex items-center gap-1">
+                                                                    <User className="h-3 w-3" />
+                                                                    <span>LVL</span>
+                                                                </div>
+                                                                <div className="mt-0.5 font-mono text-[10px]">{player.character?.level ?? 1}</div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
 
                                         {/* THE COMPASS (Central Bubble) */}
                                         <div className="w-24 h-24 rounded-full border-4 border-slate-600 bg-black/80 shadow-[inset_0_0_20px_rgba(0,0,0,1)] relative flex items-center justify-center mb-[-1.5rem] z-20 overflow-hidden">
                                             {/* Compass Dial */}
                                             <div
                                                 className="absolute inset-0 transition-transform duration-700 ease-out"
-                                                style={{ transform: `rotate(${mapRotationDeg + 45}deg)` }}
+                                                style={{ transform: `rotate(${mapRotationDeg}deg)` }}
                                             >
                                                 <div className="absolute top-1 left-1/2 -translate-x-1/2 w-1 h-2 bg-neon-cyan/50" />
                                                 <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-2 bg-white/10" />
@@ -1019,41 +2324,28 @@ export default function GameInterface() {
 
                                             {/* Action Timer Overlay */}
                                             {hasActionTimer && inActionPhase && (
-                                                <div className="absolute inset-0 z-40 flex items-center justify-center bg-red-900/40 animate-pulse">
-                                                    <div className="relative">
-                                                        {/* Outer countdown ring */}
-                                                        <div className={`absolute inset-0 border-4 rounded-full transition-colors duration-300 ${
-                                                            actionTimeLeft <= 3
-                                                                ? 'border-red-500/60 animate-ping'
-                                                                : actionTimeLeft <= 10
-                                                                    ? 'border-red-400/50 animate-pulse'
-                                                                    : 'border-red-500/30 animate-spin-slow'
-                                                        }`} />
-                                                        {/* Center timer */}
-                                                        <div className="w-48 h-48 rounded-full bg-black/80 flex flex-col items-center justify-center border-2 transition-colors duration-300 ${
-                                                            actionTimeLeft <= 3
-                                                                ? 'border-red-500 shadow-[0_0_30px_#f00]'
-                                                                : actionTimeLeft <= 10
-                                                                    ? 'border-red-400'
-                                                                    : 'border-red-500'
-                                                        }">
-                                                            <div className={`text-6xl font-black font-mono tracking-tighter transition-colors duration-300 ${
-                                                                actionTimeLeft <= 3
-                                                                    ? 'text-red-400 animate-pulse'
-                                                                    : actionTimeLeft <= 10
-                                                                        ? 'text-red-500'
-                                                                        : 'text-red-500'
-                                                            }`}>{actionTimeLeft}</div>
-                                                            <div className="text-[10px] text-red-300 tracking-widest mt-2 transition-colors duration-300">
-                                                                {actionTimeLeft <= 3 ? 'TURN EXPIRING' : 'SECONDS REMAINING'}
+                                                <>
+                                                    {/* Action Expiring Warning - Appears when time is low and no action selected */}
+                                                    {actionTimeLeft <= 10 && !actionIntent && !isActing && (
+                                                        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center rounded-full bg-red-950/40 backdrop-blur-sm animate-pulse">
+                                                            <div className="text-red-500 text-xs font-bold tracking-widest uppercase mb-1 animate-pulse">
+                                                                Turn Expiring
                                                             </div>
+                                                            <div className="text-3xl font-black font-mono tracking-widest text-red-500 animate-pulse">
+                                                                {actionTimeLeft}
+                                                            </div>
+                                                            <div className="text-[10px] text-red-400/70 mt-1">Select Action</div>
                                                         </div>
-                                                        {/* Urgent warning when below 5s */}
-                                                        {actionTimeLeft <= 5 && (
-                                                            <div className="absolute inset-0 rounded-full bg-red-500/20 animate-ping" />
-                                                        )}
+                                                    )}
+                                                    {/* Standard Timer Display */}
+                                                    <div className={`absolute inset-0 z-40 flex items-center justify-center rounded-full ${actionTimeLeft <= 10 && !actionIntent && !isActing ? 'opacity-0' : ''}`}
+                                                         style={actionTimeLeft <= 5 ? { animationDuration: '0.5s' } : { animationDuration: '1s' }}>
+                                                        <div className={`text-3xl font-black font-mono tracking-widest transition-all duration-300
+                                                            ${actionTimeLeft > 15 ? 'text-red-500' : actionTimeLeft > 5 ? 'text-orange-500' : 'text-red-600 animate-pulse'}`}>
+                                                            {actionTimeLeft}
+                                                        </div>
                                                     </div>
-                                                </div>
+                                                </>
                                             )}
 
                                             {/* Static Center Marker */}
@@ -1063,37 +2355,85 @@ export default function GameInterface() {
                                         </div>
 
                                         {/* Navigation & Action Lock (Pushed down slightly) */}
-                                        <div className="flex items-end gap-2 p-3 pb-2 pt-8 bg-slate-800 rounded-3xl border border-slate-600 shadow-xl z-10 w-[240px] justify-center">
-                                            <div className="flex flex-col items-center gap-1 p-1 bg-black rounded-xl border border-gray-600">
+                                        <div className="flex items-end gap-3 p-3 pb-2 pt-8 bg-slate-800 rounded-3xl border border-slate-600 shadow-xl z-10 w-[292px] justify-center">
+                                            <div className="flex w-[188px] flex-col items-center gap-2.5 rounded-2xl border border-slate-500 bg-black/85 p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
 
                                                 {/* Deck Controls (Up/Down) */}
-                                                <div className="flex gap-2 mb-1">
-                                                    <Button onClick={() => { setActionIntent("MOVE"); setMoveDirection("UP"); }} disabled={!canMoveUp || !player.MapNode.isExplored} className={`h-8 px-2 rounded-sm text-[8px] font-bold flex items-center gap-1 ${moveDirection === "UP" && actionIntent === "MOVE" ? "bg-neon-cyan text-black" : "bg-gray-800 text-gray-500 hover:bg-gray-700"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}>
-                                                        <ChevronUp className="w-3 h-3" /> DECK UP
+                                                <div className="flex w-full gap-2">
+                                                    <Button onClick={() => {
+                                                    if (isActing) return;
+                                                    setActionIntent("MOVE");
+                                                    setMoveDirection("UP");
+                                                }} disabled={!canMoveUp || !player.MapNode.isExplored || isActing} className={`h-8 min-w-0 flex-1 rounded-md border text-[7px] font-bold flex items-center justify-center gap-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] ${moveDirection === "UP" && actionIntent === "MOVE" ? "bg-neon-cyan text-black border-cyan-300" : "bg-slate-900 text-gray-300 border-slate-600 hover:bg-slate-800"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}>
+                                                        <ChevronUp className="w-3 h-3" /> UP
                                                     </Button>
-                                                    <Button onClick={() => { setActionIntent("MOVE"); setMoveDirection("DOWN"); }} disabled={!canMoveDown || !player.MapNode.isExplored} className={`h-8 px-2 rounded-sm text-[8px] font-bold flex items-center gap-1 ${moveDirection === "DOWN" && actionIntent === "MOVE" ? "bg-neon-cyan text-black" : "bg-gray-800 text-gray-500 hover:bg-gray-700"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}>
-                                                        <ChevronDown className="w-3 h-3" /> DECK DN
+                                                    <Button onClick={() => {
+                                                    if (isActing) return;
+                                                    setActionIntent("MOVE");
+                                                    setMoveDirection("DOWN");
+                                                }} disabled={!canMoveDown || !player.MapNode.isExplored || isActing} className={`h-8 min-w-0 flex-1 rounded-md border text-[7px] font-bold flex items-center justify-center gap-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] ${moveDirection === "DOWN" && actionIntent === "MOVE" ? "bg-neon-cyan text-black border-cyan-300" : "bg-slate-900 text-gray-300 border-slate-600 hover:bg-slate-800"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}>
+                                                        <ChevronDown className="w-3 h-3" /> DN
                                                     </Button>
                                                 </div>
 
                                                 {/* Directional Arrows (Inverted T) */}
-                                                <div className="grid grid-cols-3 gap-1">
+                                                <div className="grid w-full grid-cols-3 gap-2.5">
                                                     <div /> {/* Spacer */}
-                                                    <Button onClick={() => { setActionIntent("MOVE"); setMoveDirection("FORWARD"); }} disabled={!canMoveForward || !player.MapNode.isExplored} className={`h-10 w-10 rounded-sm ${moveDirection === "FORWARD" && actionIntent === "MOVE" ? "bg-neon-cyan text-black" : "bg-gray-800 text-gray-500 hover:bg-gray-700"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}><ArrowUp className="w-6 h-6" /></Button>
+                                                    <Button onClick={() => {
+                                                    if (isActing) return;
+                                                    setActionIntent("MOVE");
+                                                    setMoveDirection("FORWARD");
+                                                }} disabled={!canMoveForward || !player.MapNode.isExplored || isActing} className={`h-12 w-full min-w-0 rounded-xl border flex flex-col items-center justify-center gap-1 px-1.5 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_6px_14px_rgba(0,0,0,0.18)] ${moveDirection === "FORWARD" && actionIntent === "MOVE" ? "bg-neon-cyan text-black border-cyan-300" : "bg-slate-900 text-gray-200 border-slate-600 hover:bg-slate-800"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}>
+                                                        <ArrowUp className="w-4 h-4 shrink-0" />
+                                                        <span className="whitespace-nowrap text-[7px] font-black leading-none tracking-[0.14em]">{moveDirectionLabels.FORWARD}</span>
+                                                    </Button>
                                                     <div /> {/* Spacer */}
 
-                                                    <Button onClick={() => { setActionIntent("MOVE"); setMoveDirection("LEFT"); }} disabled={!canMoveLeft || !player.MapNode.isExplored} className={`h-10 w-10 rounded-sm ${moveDirection === "LEFT" && actionIntent === "MOVE" ? "bg-neon-cyan text-black" : "bg-gray-800 text-gray-500 hover:bg-gray-700"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}><ArrowLeft className="w-6 h-6" /></Button>
-                                                    <Button onClick={() => { setActionIntent("MOVE"); setMoveDirection("BACK"); }} disabled={!canMoveBack || !player.MapNode.isExplored} className={`h-10 w-10 rounded-sm ${moveDirection === "BACK" && actionIntent === "MOVE" ? "bg-neon-cyan text-black" : "bg-gray-800 text-gray-500 hover:bg-gray-700"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}><ArrowDown className="w-6 h-6" /></Button>
-                                                    <Button onClick={() => { setActionIntent("MOVE"); setMoveDirection("RIGHT"); }} disabled={!canMoveRight || !player.MapNode.isExplored} className={`h-10 w-10 rounded-sm ${moveDirection === "RIGHT" && actionIntent === "MOVE" ? "bg-neon-cyan text-black" : "bg-gray-800 text-gray-500 hover:bg-gray-700"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}><ArrowRight className="w-6 h-6" /></Button>
+                                                    <Button onClick={() => {
+                                                    if (isActing) return;
+                                                    setActionIntent("MOVE");
+                                                    setMoveDirection("LEFT");
+                                                }} disabled={!canMoveLeft || !player.MapNode.isExplored || isActing} className={`h-12 w-full min-w-0 rounded-xl border flex flex-col items-center justify-center gap-1 px-1.5 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_6px_14px_rgba(0,0,0,0.18)] ${moveDirection === "LEFT" && actionIntent === "MOVE" ? "bg-neon-cyan text-black border-cyan-300" : "bg-slate-900 text-gray-200 border-slate-600 hover:bg-slate-800"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}>
+                                                        <ArrowLeft className="w-4 h-4 shrink-0" />
+                                                        <span className="whitespace-nowrap text-[7px] font-black leading-none tracking-[0.14em]">{moveDirectionLabels.LEFT}</span>
+                                                    </Button>
+                                                    <Button onClick={() => {
+                                                    if (isActing) return;
+                                                    setActionIntent("MOVE");
+                                                    setMoveDirection("BACK");
+                                                }} disabled={!canMoveBack || !player.MapNode.isExplored || isActing} className={`h-12 w-full min-w-0 rounded-xl border flex flex-col items-center justify-center gap-1 px-1.5 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_6px_14px_rgba(0,0,0,0.18)] ${moveDirection === "BACK" && actionIntent === "MOVE" ? "bg-neon-cyan text-black border-cyan-300" : "bg-slate-900 text-gray-200 border-slate-600 hover:bg-slate-800"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}>
+                                                        <ArrowDown className="w-4 h-4 shrink-0" />
+                                                        <span className="whitespace-nowrap text-[7px] font-black leading-none tracking-[0.14em]">{moveDirectionLabels.BACK}</span>
+                                                    </Button>
+                                                    <Button onClick={() => {
+                                                    if (isActing) return;
+                                                    setActionIntent("MOVE");
+                                                    setMoveDirection("RIGHT");
+                                                }} disabled={!canMoveRight || !player.MapNode.isExplored || isActing} className={`h-12 w-full min-w-0 rounded-xl border flex flex-col items-center justify-center gap-1 px-1.5 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_6px_14px_rgba(0,0,0,0.18)] ${moveDirection === "RIGHT" && actionIntent === "MOVE" ? "bg-neon-cyan text-black border-cyan-300" : "bg-slate-900 text-gray-200 border-slate-600 hover:bg-slate-800"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}>
+                                                        <ArrowRight className="w-4 h-4 shrink-0" />
+                                                        <span className="whitespace-nowrap text-[7px] font-black leading-none tracking-[0.14em]">{moveDirectionLabels.RIGHT}</span>
+                                                    </Button>
                                                 </div>
                                             </div>
 
                                             {/* Execute Button */}
                                             <div className="flex flex-col gap-1 items-center">
-                                                <div className="flex gap-1">
-                                                    <div className={`w-8 h-1 rounded-full transition-colors ${actionIntent ? "bg-neon-cyan shadow-[0_0_5px_#0ff]" : "bg-gray-700"}`} title="Action Selected" />
-                                                    <div className={`w-8 h-1 rounded-full transition-colors ${(selectedCardIndices.length > 0 || (actionIntent === 'MOVE' && moveDirection)) ? "bg-neon-cyan shadow-[0_0_5px_#0ff]" : "bg-gray-700"}`} title="Card/Direction Selected" />
-                                                </div>
+                                                {/* Clear Status Indicators */}
+                                                {actionIntent && !actionInvalid && selectedCardIndices.length > 0 && (
+                                                    <div className="text-[9px] text-neon-cyan font-bold uppercase tracking-widest animate-pulse-slow">
+                                                        Cards Selected: {selectedCardIndices.length}
+                                                    </div>
+                                                )}
+                                                {actionIntent === 'MOVE' && moveDirection && (
+                                                    <div className="text-[9px] text-neon-cyan font-bold uppercase tracking-widest">
+                                                        Heading: {selectedMoveHeading}
+                                                    </div>
+                                                )}
+                                                {(!actionIntent || actionInvalid) && (
+                                                    <div className="text-[9px] text-gray-500">
+                                                        Select Action & Card
+                                                    </div>
+                                                )}
                                                 <Button
                                                     onClick={handleExecute}
                                                     disabled={(!actionIntent || actionInvalid || (selectedCardIndices.length === 0 && !canAutoMove)) || isActing || !inActionPhase || backpackItems.length > 5}
@@ -1118,7 +2458,26 @@ export default function GameInterface() {
                                     </div>
 
                                     {/* Right Panel: Systems & Emergency */}
-                                    <div className="flex flex-col gap-2 p-3 bg-black/40 rounded-xl border border-white/5 h-full justify-end">
+                                    <div className="flex flex-col gap-2 p-3 bg-black/40 rounded-xl border border-white/5 h-full justify-start">
+                                        <div className="rounded-lg border border-white/10 bg-black/45 p-2">
+                                            <div className="flex items-center justify-between gap-2 text-[8px] uppercase tracking-[0.24em]">
+                                                <span className="text-gray-500">Airlock Range</span>
+                                                <span className={`font-bold ${airlockDistance === 0 ? "text-green-400" : airlockDistance === null ? "text-gray-500" : "text-cyan-300"}`}>
+                                                    {airlockDistanceLabel}
+                                                </span>
+                                            </div>
+                                            {showHallwayCountdown && (
+                                                <div className="mt-2 rounded border border-neon-cyan/30 bg-cyan-500/10 px-2 py-1.5 text-[8px] uppercase tracking-[0.22em] text-neon-cyan">
+                                                    <div className="font-bold text-white">{transitDirectionLabel}</div>
+                                                    <div className="mt-0.5 text-cyan-200">
+                                                        leg {transitStatus?.stepIndex || 0}/{transitStatus?.totalSteps || 0} · {transitStatus?.remainingSteps || 0} step{(transitStatus?.remainingSteps || 0) === 1 ? "" : "s"} left
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <MissionLog objectives={missionObjectives} compact className="max-h-44 overflow-y-auto custom-scrollbar" />
+
                                         <div className="text-[9px] text-gray-500 uppercase tracking-widest text-center border-b border-white/5 pb-1 mb-1">AUX SYSTEMS</div>
 
                                         <Button
@@ -1129,22 +2488,29 @@ export default function GameInterface() {
                                             <span>{allItems.length}</span>
                                         </Button>
 
+                                        <Button
+                                            onClick={() => {
+                                                setShowInventory(false);
+                                                setShowSettings((current) => !current);
+                                            }}
+                                            className={`w-full h-10 text-[9px] font-bold tracking-widest border rounded flex items-center justify-between px-3 ${showSettings ? "bg-neon-cyan text-black border-neon-cyan" : "bg-black/50 text-gray-300 border-white/10 hover:bg-white/10"}`}
+                                        >
+                                            <span>SETTINGS</span>
+                                            <Settings2 className="h-3.5 w-3.5" />
+                                        </Button>
+
                                         <div className="mt-2">
                                             <Button
-                                                onClick={() => {
-                                                    if (confirmEmergency) {
-                                                        handleEmergencyEscape();
-                                                        setConfirmEmergency(false);
-                                                    } else {
-                                                        setConfirmEmergency(true);
-                                                        setTimeout(() => setConfirmEmergency(false), 3000);
-                                                    }
-                                                }}
-                                                disabled={!inActionPhase || isActing || !player?.MapNode?.type.includes("START")}
+                                                onClick={() => setExitIntent(emergencyExitIntent)}
+                                                disabled={isActing}
                                                 variant="ghost"
-                                                className={`w-full h-10 text-[9px] border rounded transition-all striped-bg ${confirmEmergency ? "bg-red-600 text-white border-red-500 animate-pulse font-bold" : "bg-black/50 text-red-500/50 border-red-900/30 hover:bg-red-900/40 hover:text-red-400"}`}
+                                                className={`w-full h-10 text-[9px] border rounded transition-all font-bold tracking-[0.22em] ${
+                                                    isAirlock
+                                                        ? "bg-green-500/10 text-green-300 border-green-500/40 hover:bg-green-500/20"
+                                                        : "bg-black/50 text-red-300 border-red-900/50 hover:bg-red-900/40 hover:text-red-200"
+                                                }`}
                                             >
-                                                {confirmEmergency ? "CONFIRM EJECT" : "EMERGENCY"}
+                                                {emergencyExitLabel}
                                             </Button>
                                         </div>
                                     </div>
@@ -1188,7 +2554,13 @@ export default function GameInterface() {
                                                     const hasUses = typeof item.usesMax === 'number';
                                                     const depleted = hasUses && (item.usesRemaining ?? item.usesMax) <= 0;
                                                     return (
-                                                        <div key={`loadout-${idx}`} className={`flex items-center justify-between p-2 rounded border transition-colors ${selectedItemIds.includes(item.id) ? "bg-neon-cyan/20 border-neon-cyan" : "bg-white/5 border-white/10 hover:bg-white/10"}`}>
+                                                        <motion.div
+                                                            key={`loadout-${idx}`}
+                                                            initial={{ opacity: 0, y: 10 }}
+                                                            animate={{ opacity: 1, y: 0 }}
+                                                            transition={{ duration: 0.3, delay: idx * 0.05 }}
+                                                            className={`flex items-center justify-between p-2 rounded border transition-colors ${selectedItemIds.includes(item.id) ? "bg-neon-cyan/20 border-neon-cyan" : "bg-white/5 border-white/10 hover:bg-white/10"}`}
+                                                        >
                                                             <div className="flex flex-col">
                                                                 <span className={`text-xs font-bold ${selectedItemIds.includes(item.id) ? "text-neon-cyan" : "text-white"}`}>{item.name}</span>
                                                                 <span className="text-[9px] text-gray-500">
@@ -1203,7 +2575,7 @@ export default function GameInterface() {
                                                             >
                                                                 {depleted ? "EMPTY" : selectedItemIds.includes(item.id) ? "ACTIVE" : "SELECT"}
                                                             </Button>
-                                                        </div>
+                                                        </motion.div>
                                                     );
                                                 })
                                             )}
@@ -1221,12 +2593,24 @@ export default function GameInterface() {
                                                 backpackItems.map((item: any, idx: number) => {
                                                     const hasUses = typeof item.usesMax === 'number';
                                                     const depleted = hasUses && (item.usesRemaining ?? item.usesMax) <= 0;
+                                                    const isCycleableLoot = String(item.type || "").toUpperCase() === "LOOT";
                                                     return (
-                                                        <div key={`backpack-${idx}`} className={`flex items-center justify-between p-2 rounded border transition-colors ${selectedItemIds.includes(item.id) ? "bg-orange-500/20 border-orange-500" : "bg-white/5 border-white/10 hover:bg-white/10"}`}>
+                                                        <motion.div
+                                                            key={`backpack-${idx}`}
+                                                            initial={{ opacity: 0, y: 10 }}
+                                                            animate={{ opacity: 1, y: 0 }}
+                                                            transition={{ duration: 0.3, delay: idx * 0.05 }}
+                                                            className={`flex items-center justify-between p-2 rounded border transition-colors ${selectedItemIds.includes(item.id) ? "bg-orange-500/20 border-orange-500" : "bg-white/5 border-white/10 hover:bg-white/10"}`}
+                                                        >
                                                             <div className="flex flex-col">
                                                                 <span className={`text-xs font-bold flex items-center gap-2 ${selectedItemIds.includes(item.id) ? "text-orange-400" : "text-gray-300"}`}>
                                                                     {item.name}
                                                                     <span className="text-[10px] text-gray-500">x{item.qty}</span>
+                                                                    {isCycleableLoot && (
+                                                                        <span className="rounded border border-cyan-500/40 px-1 text-[8px] uppercase tracking-[0.18em] text-cyan-300">
+                                                                            Draw
+                                                                        </span>
+                                                                    )}
                                                                     {item.suit && (() => {
                                                                         const s = item.suit.toUpperCase();
                                                                         let color = "text-gray-500 border-gray-500";
@@ -1239,22 +2623,51 @@ export default function GameInterface() {
                                                                 </span>
                                                                 <span className="text-[9px] text-gray-500">
                                                                     {item.description}
+                                                                    {isCycleableLoot && <span className="ml-2 text-cyan-300/80">Cycle to force 1 draw</span>}
                                                                     {hasUses && <span className={`ml-2 font-mono ${depleted ? "text-red-500" : "text-orange-400"}`}>[{item.usesRemaining ?? item.usesMax}/{item.usesMax}]</span>}
                                                                 </span>
                                                             </div>
                                                             <Button
-                                                                className={`h-6 text-[9px] border ${selectedItemIds.includes(item.id) ? "bg-orange-500 text-black border-orange-500" : "bg-gray-800 text-gray-400 border-gray-600"} ${depleted ? "opacity-50 cursor-not-allowed" : ""}`}
-                                                                onClick={() => !depleted && toggleItemSelection(item.id)}
-                                                                disabled={depleted}
+                                                                className={`h-6 text-[9px] border ${isCycleableLoot ? "bg-cyan-500/15 text-cyan-300 border-cyan-500/40 hover:bg-cyan-400/20" : selectedItemIds.includes(item.id) ? "bg-orange-500 text-black border-orange-500" : "bg-gray-800 text-gray-400 border-gray-600"} ${depleted || isActing ? "opacity-50 cursor-not-allowed" : ""}`}
+                                                                onClick={() => {
+                                                                    if (depleted || isActing) return;
+                                                                    if (isCycleableLoot) {
+                                                                        handleUseItem(item.id);
+                                                                        return;
+                                                                    }
+                                                                    toggleItemSelection(item.id);
+                                                                }}
+                                                                disabled={depleted || isActing}
                                                             >
-                                                                {depleted ? "EMPTY" : selectedItemIds.includes(item.id) ? "USING" : "USE"}
+                                                                {depleted ? "EMPTY" : isCycleableLoot ? "CYCLE" : selectedItemIds.includes(item.id) ? "USING" : "USE"}
                                                             </Button>
-                                                        </div>
+                                                        </motion.div>
                                                     );
                                                 })
                                             )}
                                         </div>
                                     </div>
+                                </div>
+                            </>
+                        )}
+                        {showSettings && (
+                            <>
+                                <div className="fixed inset-0 bg-black/50 z-[90]" onClick={() => setShowSettings(false)} />
+                                <div className="absolute top-1/2 left-1/2 z-[100] w-[24rem] max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-neon-cyan/30 bg-black/95 p-4 shadow-2xl backdrop-blur-xl">
+                                    <div className="mb-4 flex items-center justify-between border-b border-white/10 pb-2">
+                                        <div>
+                                            <div className="text-xs font-bold uppercase tracking-widest text-neon-cyan">Shipboard Settings</div>
+                                            <div className="text-[10px] text-gray-500">Tune the in-mission HUD and layered audio mix.</div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowSettings(false)}
+                                            className="rounded border border-white/10 p-1 text-gray-400 transition-colors hover:border-white/30 hover:text-white"
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </button>
+                                    </div>
+                                    <AudioSettingsPanel compact />
                                 </div>
                             </>
                         )}
@@ -1266,26 +2679,44 @@ export default function GameInterface() {
 
                     {/* Event Log & Phase (Stacked Bottom) */}
                     <div className="w-full max-w-2xl shrink-0 flex flex-col gap-1">
-                        {/* Phase Indicator (Moved Above Log) */}
-                        <div className="flex items-center justify-between px-3 py-1 bg-black/60 border-l-2 border-neon-cyan backdrop-blur-sm">
-                            <div className="text-[9px] text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                                <span className={`w-1.5 h-1.5 rounded-full ${inActionPhase ? "bg-neon-cyan animate-pulse" : "bg-gray-600"}`} />
-                                CURRENT PHASE
+                        {/* Phase Indicator (Enhanced) */}
+                        <div className={`flex items-center justify-between px-3 py-2 border-l-2 backdrop-blur-sm transition-all duration-300 ${inActionPhase ? "bg-neon-cyan/10 border-neon-cyan" : "bg-black/60 border-gray-600"}`}>
+                            <div className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-2">
+                                <span className={`w-2 h-2 rounded-full animate-pulse ${inActionPhase ? "bg-neon-cyan shadow-[0_0_8px_#0ff]" : "bg-gray-600"}`} />
+                                <span className={inActionPhase ? "text-neon-cyan" : "text-gray-500"}>PHASE</span>
                             </div>
-                            <div className="text-[10px] font-bold text-white uppercase">
-                                {inActionPhase ? "ACTION WINDOW ACQUIRING TARGET" : "DRAW PHASE REGENERATING"}
+                            <div className={`text-[11px] font-bold uppercase tracking-widest ${inActionPhase ? "text-neon-cyan animate-pulse-slow" : "text-gray-400"}`}>
+                                {inActionPhase ? "ACTION WINDOW" : "DRAW PHASE"}
                             </div>
                         </div>
 
+                        {/* Action Phase Card Grouping */}
+                        {inActionPhase && (
+                            <div className="flex gap-1 px-2 py-1.5">
+                                <div className={`flex-1 text-center text-[9px] font-bold uppercase tracking-wider px-2 py-1.5 rounded border transition-all ${
+                                    actionIntent === "MOVE" ? "bg-neon-cyan/20 text-neon-cyan border-neon-cyan" :
+                                    actionIntent === "SCAN" ? "bg-green-500/20 text-green-400 border-green-500" :
+                                    actionIntent === "ATTACK" ? "bg-red-500/20 text-red-400 border-red-500" :
+                                    "bg-gray-800 text-gray-500 border-gray-600"
+                                }`}>
+                                    {actionIntent === "MOVE" && "NAVIGATION CARDS"}
+                                    {actionIntent === "SCAN" && "SCANNING CARDS"}
+                                    {actionIntent === "ATTACK" && "COMBAT CARDS"}
+                                    {actionIntent === "SECURE" && "SECURITY CARDS"}
+                                    {(!actionIntent || actionIntent === "MOVE") && "ANY CARDS"}
+                                </div>
+                            </div>
+                        )}
+
                         {/* Event Log */}
                         <div className="glass-panel p-2 border border-white/10 bg-black/80 h-24 overflow-y-auto custom-scrollbar">
-                            <div className="space-y-1 text-[11px] text-gray-300">
+                            <div className="space-y-1 text-[11px]">
                                 {(game?.gameLog || []).filter((l: any) => l.type !== "RESOLUTION_DATA").slice().reverse().slice(0, 10).map((log: any, idx: number) => (
                                     <div key={idx} className="border-b border-white/5 pb-0.5 flex gap-2">
                                         <span className="text-[9px] text-gray-600 font-mono shrink-0 pt-0.5">{new Date(log.ts || Date.now()).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
                                         <div className="flex-1 leading-tight">
                                             <span className="text-neon-cyan font-bold mr-1 text-[10px]">{log.type}</span>
-                                            <span className="text-gray-400">{log.message}</span>
+                                            <span className={`text-gray-400 ${log.type === "ATTACK" ? "text-red-400" : ""} ${log.type === "LOOT" ? "text-yellow-400" : ""}`}>{log.message}</span>
                                         </div>
                                     </div>
                                 ))}
@@ -1303,9 +2734,44 @@ export default function GameInterface() {
 }
 
 // Sub-component for Sci-Fi Card
-// Sub-component for Sci-Fi Card
-function NavCard({ card, selected, size = "md" }: { card: any, selected?: boolean, size?: "md" | "sm" }) {
+function NavCard({
+    card,
+    selected,
+    size = "md",
+    dimensions,
+    roomEffect
+}: {
+    card: any,
+    selected?: boolean,
+    size?: "md" | "sm" | "lg",
+    dimensions?: { width: number; height: number },
+    roomEffect?: RoomEffectState
+}) {
     const isSm = size === "sm";
+    const preset = CARD_SIZE_PRESETS[size];
+    const width = dimensions?.width ?? preset.width;
+    const height = dimensions?.height ?? preset.height;
+    const padding = Math.max(4, Math.round(width * 0.1));
+    const borderRadius = Math.max(14, Math.round(width * 0.16));
+    const hoverFrameInset = Math.max(8, Math.round(width * 0.085));
+    const selectedFrameInset = Math.max(6, Math.round(width * 0.07));
+    const rankFontSize = Math.max(11, Math.round(width * 0.15));
+    const iconSize = Math.max(20, Math.round(width * 0.38));
+    const labelFontSize = Math.max(6, Math.round(width * 0.08));
+    const showLabel = !isSm && width >= 78;
+    const effectBadgeInset = Math.max(6, Math.round(width * 0.075));
+    const effectTone = roomEffect?.status === "up"
+        ? "border-green-400/70 bg-green-500/12 text-green-300"
+        : roomEffect?.status === "down"
+            ? "border-red-400/70 bg-red-500/12 text-red-300"
+            : roomEffect?.status === "neutral"
+                ? "border-white/15 bg-white/5 text-gray-300"
+                : "border-cyan-400/30 bg-cyan-500/10 text-cyan-200";
+    const effectGlow = roomEffect?.status === "up"
+        ? "inset 0 0 18px rgba(74,222,128,0.18)"
+        : roomEffect?.status === "down"
+            ? "inset 0 0 18px rgba(248,113,113,0.18)"
+            : "none";
 
     // Mothership / Sci-Fi Theme Mapping
     const suitThemes: any = {
@@ -1321,24 +2787,84 @@ function NavCard({ card, selected, size = "md" }: { card: any, selected?: boolea
 
     return (
         <div className={`
-            relative rounded-xl border-2 flex flex-col items-center justify-between overflow-hidden transition-all duration-300
+            relative border-2 flex flex-col items-center justify-between overflow-hidden transition-all duration-300 active:scale-95
             ${theme.color} ${bgColor}
-            ${selected ? "shadow-[0_0_20px_currentColor] -translate-y-4 scale-110 z-20" : "hover:border-white/60 hover:-translate-y-2"}
-            ${isSm ? "w-16 h-24 p-1" : "w-24 h-32 p-2"}
-        `}>
+            ${selected ? "z-20 brightness-110" : "group-hover:brightness-110"}
+        `}
+            style={{ width: `${width}px`, height: `${height}px`, padding: `${padding}px`, borderRadius: `${borderRadius}px` }}
+        >
             {/* Holographic Scanline Overlay */}
             <div className="absolute inset-0 bg-[url('/scanlines.png')] opacity-20 pointer-events-none" />
+            <div
+                className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-200 group-hover:opacity-10"
+                style={{
+                    background: "radial-gradient(circle at 50% 40%, currentColor 0%, transparent 72%)"
+                }}
+            />
+            <div
+                className="pointer-events-none absolute opacity-0 transition-opacity duration-200 group-hover:opacity-25"
+                style={{
+                    inset: `${hoverFrameInset}px`,
+                    borderRadius: `${Math.max(10, borderRadius - hoverFrameInset)}px`,
+                    boxShadow: "inset 0 0 0 1px currentColor, inset 0 0 18px currentColor"
+                }}
+            />
+            {selected && (
+                <>
+                    <div
+                        className="pointer-events-none absolute inset-0"
+                        style={{
+                            background: "radial-gradient(circle at 50% 42%, currentColor 0%, transparent 72%)",
+                            opacity: 0.12
+                        }}
+                    />
+                    <div
+                        className="pointer-events-none absolute"
+                        style={{
+                            inset: `${selectedFrameInset}px`,
+                            borderRadius: `${Math.max(10, borderRadius - selectedFrameInset)}px`,
+                            boxShadow: "inset 0 0 0 1.5px currentColor, inset 0 0 20px currentColor",
+                            opacity: 0.36
+                        }}
+                    />
+                </>
+            )}
+            {roomEffect && !isSm && (
+                <>
+                    <div
+                        className="pointer-events-none absolute"
+                        style={{
+                            inset: `${effectBadgeInset}px`,
+                            borderRadius: `${Math.max(10, borderRadius - effectBadgeInset)}px`,
+                            boxShadow: effectGlow,
+                            opacity: roomEffect.status === "neutral" || roomEffect.status === "unknown" ? 0.5 : 0.8
+                        }}
+                    />
+                    <div className={`absolute right-2 top-2 rounded-full border px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.14em] ${effectTone}`}>
+                        {roomEffect.modifier > 0 ? `+${roomEffect.modifier}` : roomEffect.modifier < 0 ? `${roomEffect.modifier}` : roomEffect.status === "unknown" ? "?" : "0"}
+                    </div>
+                </>
+            )}
 
             {/* Rank (Top Left) */}
-            <div className="w-full text-left font-black text-xs opacity-80">{card.rank}</div>
-
-            {/* Icon (Center) */}
-            <div className={`flex flex-col items-center justify-center opacity-80 gap-1 ${isSm ? "w-6 h-6" : "w-10 h-10"}`}>
-                {theme.icon}
-                {!isSm && <span className="text-[6px] font-bold tracking-widest">{theme.label}</span>}
+            <div className="w-full text-left font-black opacity-80" style={{ fontSize: `${rankFontSize}px`, lineHeight: 1 }}>
+                {card.rank}
             </div>
 
-
+            {/* Icon (Center) */}
+            <div className="flex flex-col items-center justify-center gap-1 opacity-80" style={{ width: `${iconSize}px`, height: `${iconSize}px` }}>
+                {theme.icon}
+                {showLabel && (
+                    <span className="font-bold tracking-widest" style={{ fontSize: `${labelFontSize}px`, lineHeight: 1 }}>
+                        {theme.label}
+                    </span>
+                )}
+            </div>
+            {roomEffect && !isSm && (
+                <div className={`w-full rounded-md border px-1.5 py-1 text-center text-[7px] font-black uppercase tracking-[0.16em] ${effectTone}`}>
+                    {roomEffect.label}
+                </div>
+            )}
         </div>
     );
 }

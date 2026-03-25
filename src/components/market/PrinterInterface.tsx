@@ -28,7 +28,7 @@ type PrinterProps = { credits: number; inventory: any[]; globalQueue: any[]; bac
 export default function PrinterInterface({ credits, inventory, globalQueue, backpackLevel: initialBackpackLevel, recentMade = [] }: PrinterProps) {
 
     const [spinning, setSpinning] = useState(false);
-    const [printerOnline, setPrinterOnline] = useState(false);
+    const [printerOnline, setPrinterOnline] = useState(true);
     const [reward, setReward] = useState<{ name: string; rarity: string; icon?: string } | null>(null);
     const [pendingRarity, setPendingRarity] = useState<string | null>(null);
     const [creditsDisplay, setCreditsDisplay] = useState(credits);
@@ -176,7 +176,7 @@ export default function PrinterInterface({ credits, inventory, globalQueue, back
         try {
             // 2. Start Request
             // Start spinning slowly to indicate working?
-            // Actually, we can start the main spin immediately if we assume minimal latency, 
+            // Actually, we can start the main spin immediately if we assume minimal latency,
             // or just hang at the start for a split second. Let's fire request.
             const reqPromise = fetch('/api/gamba', { method: 'POST' });
 
@@ -401,9 +401,14 @@ export default function PrinterInterface({ credits, inventory, globalQueue, back
                             </div>
 
                             <div className="flex justify-center">
+                                {!printerOnline && (
+                                    <div className="mb-4 px-4 py-2 bg-red-500/20 border border-red-500/50 rounded-lg text-red-400 text-sm font-semibold">
+                                        ⚠️ ComfyUI is offline. Visualizer unavailable.
+                                    </div>
+                                )}
                                 <Button
                                     onClick={handleSpin}
-                                    disabled={spinning || creditsDisplay < spinCost}
+                                    disabled={spinning || creditsDisplay < spinCost || !printerOnline}
                                     variant="primary"
                                     className="h-16 px-12 text-xl font-bold rounded-full transition-all shadow-[0_0_20px_rgba(0,243,255,0.3)] disabled:opacity-50"
                                 >
@@ -482,6 +487,12 @@ export default function PrinterInterface({ credits, inventory, globalQueue, back
                             <Loader2 className="mr-2 text-neon-cyan" /> GLOBAL PRINT QUEUE
                         </h2>
 
+                        {!printerOnline && (
+                            <div className="px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
+                                ⚠️ Visualizer worker offline - queue processing paused
+                            </div>
+                        )}
+
                         {/* ACTIVE ITEM (NOW PRINTING) */}
                         {activeItem && !queueHold && (
                             <div className={`
@@ -506,7 +517,7 @@ export default function PrinterInterface({ credits, inventory, globalQueue, back
                                                                 <ImageIcon className="w-8 h-8 text-white" />
                                                             </div>
                                                         )}
-                                                        
+
                                                         {/* Progress Overlay */}
                                                         <div className="relative z-10 flex flex-col items-center justify-center">
                                                             {isGenerating ? (
@@ -534,10 +545,10 @@ export default function PrinterInterface({ credits, inventory, globalQueue, back
                                                 </div>
                                             </div>
                                             <div className="mt-4 h-1.5 bg-black/60 rounded-full overflow-hidden border border-white/5">
-                                                <motion.div 
-                                                    className={`h-full transition-all duration-500 ${activeItem.queueType === "ITEM" ? "bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.5)]" : "bg-neon-cyan shadow-[0_0_10px_rgba(0,255,255,0.5)]"}`} 
+                                                <motion.div
+                                                    className={`h-full transition-all duration-500 ${activeItem.queueType === "ITEM" ? "bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.5)]" : "bg-neon-cyan shadow-[0_0_10px_rgba(0,255,255,0.5)]"}`}
                                                     initial={{ width: 0 }}
-                                                    animate={{ width: percent }} 
+                                                    animate={{ width: percent }}
                                                 />
                                             </div>
                                         </>
@@ -556,8 +567,8 @@ export default function PrinterInterface({ credits, inventory, globalQueue, back
                                 // Since we pulled the active item out, the visual queue position is idx + 2 (active is #1)
                                 const queuePos = activeItem ? idx + 2 : idx + 1;
                                 return (
-                                    <div 
-                                        key={item.id} 
+                                    <div
+                                        key={item.id}
                                         className={`px-3 py-3 rounded border bg-black/40 ${item.queueType === "ITEM" ? "border-amber-500/20" : "border-white/5"}`}
                                     >
                                         <div className="flex items-center justify-between gap-3">
@@ -600,8 +611,8 @@ export default function PrinterInterface({ credits, inventory, globalQueue, back
                             </h2>
                             {recentMade.length > 1 && (
                                 <div className="flex items-center gap-2">
-                                    <Button 
-                                        variant="ghost" 
+                                    <Button
+                                        variant="ghost"
                                         className="h-6 w-6 p-0 rounded-full border border-white/10 hover:bg-neon-cyan/20 hover:text-neon-cyan"
                                         onClick={() => setRecentIndex((i: number) => Math.max(0, i - 1))}
                                         disabled={recentIndex === 0}
@@ -611,8 +622,8 @@ export default function PrinterInterface({ credits, inventory, globalQueue, back
                                     <span className="text-xs text-gray-500 font-mono">
                                         {recentIndex + 1}/{recentMade.length}
                                     </span>
-                                    <Button 
-                                        variant="ghost" 
+                                    <Button
+                                        variant="ghost"
                                         className="h-6 w-6 p-0 rounded-full border border-white/10 hover:bg-neon-cyan/20 hover:text-neon-cyan"
                                         onClick={() => setRecentIndex((i: number) => Math.min((recentMade.length || 1) - 1, i + 1))}
                                         disabled={recentIndex === (recentMade.length || 1) - 1}

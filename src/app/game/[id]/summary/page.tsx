@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { soundManager } from "@/lib/soundManager";
 
 export default function SummaryPage({ params }: { params: Promise<{ id: string }> }) {
     const router = useRouter();
@@ -16,6 +17,10 @@ export default function SummaryPage({ params }: { params: Promise<{ id: string }
     const [displayScore, setDisplayScore] = useState(0);
     const [showRank, setShowRank] = useState(false);
     const [showStats, setShowStats] = useState(false);
+
+    useEffect(() => {
+        soundManager.setMusicScene("default");
+    }, []);
 
     useEffect(() => {
         fetch(`/api/game/state?gameId=${id}`)
@@ -40,6 +45,8 @@ export default function SummaryPage({ params }: { params: Promise<{ id: string }
         ? run.extracted
         : (game?.phase === "VICTORY" && player?.MapNode?.type === "START");
     const isVictory = bossDefeated;
+    const travelDistance = run?.distanceTraveled ?? player?.distanceTraveled ?? 0;
+    const travelCredits = Math.floor(travelDistance / 10);
 
     let rank = run?.rank || "F";
     let status = "MISSION ABORTED";
@@ -60,7 +67,7 @@ export default function SummaryPage({ params }: { params: Promise<{ id: string }
         color = "text-red-600";
     }
 
-    const finalScore = run?.score || (isVictory ? 2000 : 0);
+    const finalScore = run?.score || (isVictory ? 2000 : travelDistance);
 
     // Sequence Effect
     useEffect(() => {
@@ -94,7 +101,11 @@ export default function SummaryPage({ params }: { params: Promise<{ id: string }
     return (
         <div className="min-h-full bg-space-void text-white font-mono flex flex-col items-center justify-center p-4 relative overflow-hidden">
             <div className="fixed top-6 left-8 z-50">
-                <Link href="/menu" className="flex items-center text-neon-cyan hover:text-white transition-colors glass-panel px-4 py-2 rounded-full">
+                <Link
+                    href="/menu"
+                    onClick={() => soundManager.setMusicScene("default")}
+                    className="flex items-center text-neon-cyan hover:text-white transition-colors glass-panel px-4 py-2 rounded-full"
+                >
                     <ArrowLeft className="mr-2 h-4 w-4" /> Back to Bridge
                 </Link>
             </div>
@@ -138,6 +149,8 @@ export default function SummaryPage({ params }: { params: Promise<{ id: string }
                     {/* Stats List - Staggered Reveal */}
                     <div className={`flex flex-col gap-4 justify-center transition-opacity duration-1000 ${showStats ? "opacity-100" : "opacity-0"}`}>
                         <StatRow label="Credits Earned" value={`+${run?.creditsEarned ?? 0} CR`} color="text-neon-cyan" delay={0} />
+                        <StatRow label="Distance Traveled" value={`${travelDistance} SECTORS`} color="text-white" delay={120} />
+                        <StatRow label="Travel Credit Bonus" value={`+${travelCredits} CR`} color="text-green-400" delay={240} />
                         <StatRow label="Core Integrity Dmg" value={`${(100 - integrity)}%`} color="text-red-400" delay={200} />
                         <StatRow label="Hostiles Neutralized" value="N/A" color="text-white" delay={400} /> {/* Placeholder for now */}
                         <StatRow label="Boss Neutralized" value={bossDefeated ? "YES" : "NO"} color="text-white" delay={600} />
@@ -146,7 +159,14 @@ export default function SummaryPage({ params }: { params: Promise<{ id: string }
                 </div>
 
                 <div className={`flex justify-center gap-4 transition-all duration-1000 ${showRank ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
-                    <Button variant="outline" className="w-full md:w-auto px-8 py-6 text-lg border-2 hover:bg-neon-cyan hover:text-black transition-colors" onClick={() => router.push('/lobby/browse')}>
+                    <Button
+                        variant="outline"
+                        className="w-full md:w-auto px-8 py-6 text-lg border-2 hover:bg-neon-cyan hover:text-black transition-colors"
+                        onClick={() => {
+                            soundManager.setMusicScene("default");
+                            router.push('/lobby/browse');
+                        }}
+                    >
                         RETURN TO LOBBY
                     </Button>
                 </div>

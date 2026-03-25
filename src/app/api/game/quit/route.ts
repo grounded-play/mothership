@@ -28,9 +28,15 @@ export async function POST(req: Request) {
             include: { GameLobby: true }
         });
         if (!game) return NextResponse.json({ error: "Game not found" }, { status: 404 });
+        const gamePlayer = await (prisma as any).gamePlayer.findFirst({
+            where: { gameId, characterId: character.id }
+        });
 
         const isHost = game.GameLobby.hostId === character.id;
         const isVictory = reason === "VICTORY" || game.phase === "VICTORY";
+        const isFailure = reason === "FAILED" || game.phase === "FAILED" || game.phase === "DEFEAT";
+        const travelDistance = gamePlayer?.distanceTraveled ?? 0;
+        const travelCredits = Math.floor(travelDistance / 10);
 
         // 3. Score Calculation
         const now = new Date();
@@ -40,9 +46,9 @@ export async function POST(req: Request) {
         const difficulty = game.GameLobby.difficulty; // "NORMAL" or "HARD"
         const multiplier = difficulty === "HARD" ? 2 : 1;
 
-        const baseScore = isVictory ? 100 : 10;
+        const baseScore = isVictory ? 100 : isFailure ? 0 : 10;
         const timeBonus = isVictory ? (timeRemainingSeconds * multiplier) : 0;
-        const totalScore = baseScore + timeBonus;
+        const totalScore = baseScore + timeBonus + travelDistance;
 
         let rank = "F";
         if (isVictory) {
@@ -52,25 +58,49 @@ export async function POST(req: Request) {
             else if (totalScore >= 250) rank = "C";
         }
 
-        // Reward Credits
-        const creditsEarned = isVictory ? totalScore : 0;
-        try {
-            await (prisma as any).character.update({
-                where: { id: character.id },
+        const existingRun = await (prisma as any).gameRun.findFirst({
+            where: { gameId, characterId: character.id },
+            orderBy: { endedAt: "desc" }
+        });
+        const creditsEarned = Math.floor(totalScore / 2) + travelCredits;
+        if (!existingRun) {
+            try {
+                await (prisma as any).character.update({
+                    where: { id: character.id },
+                    data: {
+                        credits: { increment: creditsEarned },
+                        runsCompleted: { increment: isVictory ? 1 : 0 },
+                        runsFailed: { increment: isVictory ? 0 : 1 }
+                    }
+                });
+            } catch (e) { console.error("Reward Error:", e); }
+
+            await (prisma as any).gameRun.create({
                 data: {
-                    credits: { increment: creditsEarned },
-                    runsCompleted: { increment: isVictory ? 1 : 0 },
-                    runsFailed: { increment: isVictory ? 0 : 1 }
+                    gameId,
+                    difficulty,
+                    outcome: isVictory ? "VICTORY" : isFailure ? "FAILED" : "ABORTED",
+                    rank,
+                    score: totalScore,
+                    creditsEarned,
+                    distanceTraveled: travelDistance,
+                    bossDefeated: isVictory,
+                    extracted: isVictory,
+                    timeRemainingSec: timeRemainingSeconds,
+                    turns: game.currentTurn || 0,
+                    startedAt: game.createdAt,
+                    endedAt: now,
+                    character: { connect: { id: character.id } }
                 }
             });
-        } catch (e) { console.error("Reward Error:", e); }
+        }
 
         // 4. End Game if Host, or Remove Player
         if (isHost) {
             // End Game for Everyone
             await (prisma as any).gameState.update({
                 where: { id: gameId },
-                data: { phase: isVictory ? "VICTORY" : "ABORTED" }
+                data: { phase: isVictory ? "VICTORY" : isFailure ? "FAILED" : "ABORTED" }
             });
             // Also close lobby
             await (prisma as any).gameLobby.update({
@@ -125,6 +155,8 @@ export async function POST(req: Request) {
             score: totalScore,
             rank,
             creditsEarned,
+            travelDistance,
+            travelCredits,
             timeBonus,
             baseScore
         });

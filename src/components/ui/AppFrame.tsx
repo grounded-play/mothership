@@ -1,15 +1,35 @@
 "use client";
 
-// No more fixed scaling logic. The app is now fully responsive.
-// The container mimics a "device" or "window" on large screens,
-// and fills the screen on mobile devices.
+import PersistentAudioController from "@/components/audio/PersistentAudioController";
+import MiniPlayer from "@/components/audio/MiniPlayer";
+import AutoFitViewport from "@/components/layout/AutoFitViewport";
+import ResponsiveShell from "@/components/layout/ResponsiveShell";
+import { usePathname } from "next/navigation";
 
 export default function AppFrame({ children }: { children: React.ReactNode }) {
+    const pathname = usePathname();
+    const showMiniPlayer = Boolean(pathname && pathname !== "/" && !pathname.startsWith("/api/"));
+
     return (
-        <div className="app-frame w-full min-h-screen bg-stone-950 flex justify-center">
-            <div className="w-full max-w-[1700px] min-h-screen bg-black border-x border-white/5 shadow-[0_0_50px_rgba(0,0,0,0.8)] relative flex flex-col">
-                {children}
+        <ResponsiveShell>
+            <div className="relative flex h-full w-full flex-col bg-black shadow-[0_0_80px_rgba(0,0,0,0.92)]">
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(0,243,255,0.08),transparent_38%),radial-gradient(circle_at_bottom,rgba(255,0,255,0.05),transparent_30%)]" />
+                <div className="pointer-events-none absolute inset-y-0 left-0 w-px bg-white/5" />
+                <div className="pointer-events-none absolute inset-y-0 right-0 w-px bg-white/5" />
+                <PersistentAudioController />
+                <div className="relative flex-1 min-h-0 overflow-hidden">
+                    <AutoFitViewport contentKey={`${pathname ?? ""}:${showMiniPlayer ? "dock" : "nodock"}`}>
+                        {children}
+                    </AutoFitViewport>
+                </div>
+                {showMiniPlayer && (
+                    <div className="pointer-events-none relative z-[90] flex h-[86px] shrink-0 items-end px-3 pb-3">
+                        <div className="pointer-events-auto">
+                            <MiniPlayer />
+                        </div>
+                    </div>
+                )}
             </div>
-        </div>
+        </ResponsiveShell>
     );
 }
