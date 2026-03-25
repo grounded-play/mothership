@@ -15,7 +15,8 @@ export default async function MarketplacePage() {
         include: { characters: { include: { inventory: { include: { item: true } } } } }
     });
 
-    if (!user || user.characters.length === 0) redirect("/character/create");
+    if (!user) redirect("/");
+    if (user.characters.length === 0) redirect("/character/create");
     const character = user.characters[0];
 
     // Fetch Listings

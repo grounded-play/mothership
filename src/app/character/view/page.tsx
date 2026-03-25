@@ -27,7 +27,11 @@ export default async function CharacterViewPage() {
         }
     });
 
-    if (!user || user.characters.length === 0) {
+    if (!user) {
+        redirect("/");
+    }
+
+    if (user.characters.length === 0) {
         redirect("/character/create");
     }
 

@@ -184,6 +184,218 @@ const vectorToDirection = (dx: number, dy: number, dz: number) => {
     return null;
 };
 
+type HallwayIntel = {
+    direction: string;
+    distance: number;
+    endpointType: string;
+    turns: number;
+    intersections: number;
+    branches: number;
+    truncated: boolean;
+    certainty: "LOW" | "MED" | "HIGH";
+};
+
+const directionVectors: Record<string, { x: number; y: number; z: number }> = {
+    FORWARD: { x: 0, y: 1, z: 0 },
+    BACK: { x: 0, y: -1, z: 0 },
+    LEFT: { x: -1, y: 0, z: 0 },
+    RIGHT: { x: 1, y: 0, z: 0 },
+    UP: { x: 0, y: 0, z: 1 },
+    DOWN: { x: 0, y: 0, z: -1 }
+};
+const oppositeDirections: Record<string, string> = {
+    FORWARD: "BACK",
+    BACK: "FORWARD",
+    LEFT: "RIGHT",
+    RIGHT: "LEFT",
+    UP: "DOWN",
+    DOWN: "UP"
+};
+
+const parseSecretIntel = (raw: any) => {
+    const parsed = parseJSON(raw || "{}", {});
+    if (Array.isArray(parsed)) {
+        return { leads: parsed, hallwayIntel: [] as HallwayIntel[], hallwayScanDepth: 0, hallwayStops: 0 };
+    }
+    if (!parsed || typeof parsed !== "object") {
+        return { leads: [] as any[], hallwayIntel: [] as HallwayIntel[], hallwayScanDepth: 0, hallwayStops: 0 };
+    }
+    return {
+        ...parsed,
+        leads: Array.isArray(parsed.leads) ? parsed.leads : [],
+        hallwayIntel: Array.isArray(parsed.hallwayIntel) ? parsed.hallwayIntel : [],
+        hallwayScanDepth: typeof parsed.hallwayScanDepth === "number" ? parsed.hallwayScanDepth : 0,
+        hallwayStops: typeof parsed.hallwayStops === "number" ? parsed.hallwayStops : 0
+    };
+};
+
+const isHallwayNode = (node: any) => node?.type === "CORRIDOR" || node?.type === "HUB";
+const isSecureObjectiveNode = (node: any) => !!node?.type && !isHallwayNode(node) && node.type !== "START";
+const getSecureTargetLabel = (node: any) => {
+    if (node?.type === "START") return "airlock";
+    if (node?.type === "HUB") return "junction";
+    if (node?.type === "CORRIDOR") return "hallway";
+    return `${node?.roomSuit || "UNKNOWN"} room`;
+};
+
+const nodeCoordKey = (x: number, y: number, z: number) => `${x},${y},${z}`;
+
+const directionToFacing = (direction: string, fallback: Facing): Facing => {
+    switch (direction) {
+        case "FORWARD": return "NORTH";
+        case "RIGHT": return "EAST";
+        case "BACK": return "SOUTH";
+        case "LEFT": return "WEST";
+        default: return fallback;
+    }
+};
+
+const getConnectedNode = (node: any, direction: string, nodeByCoord: Map<string, any>) => {
+    const delta = directionVectors[direction];
+    if (!delta) return null;
+    return nodeByCoord.get(nodeCoordKey(Number(node.x) + delta.x, Number(node.y) + delta.y, Number(node.z) + delta.z)) || null;
+};
+
+const getViableConnections = (node: any, nodeByCoord: Map<string, any>) => {
+    const connections = parseJSON(node?.connections || "[]", []);
+    return connections.filter((candidate: string) => {
+        const delta = directionVectors[candidate];
+        if (!delta) return false;
+        return nodeByCoord.has(nodeCoordKey(Number(node.x) + delta.x, Number(node.y) + delta.y, Number(node.z) + delta.z));
+    });
+};
+
+const getMoveCardDistance = (cards: any[]) => {
+    if (!Array.isArray(cards) || cards.length === 0) return 1;
+    return Math.max(1, ...cards.map((card: any) => {
+        const power = Number(CardRules.getCardPower(card) ?? card?.power ?? card?.rank ?? 1);
+        return Number.isFinite(power) ? power : 1;
+    }));
+};
+
+const getVisibleMoveBudget = (startNode: any, direction: string, requestedDistance: number) => {
+    if (startNode?.type === "START") return Math.max(1, requestedDistance);
+
+    const secretIntel = parseSecretIntel(startNode?.secretPaths);
+    const matchingIntel = (secretIntel.hallwayIntel || []).find((entry: HallwayIntel) => entry.direction === direction);
+    if (!matchingIntel) {
+        return Math.min(Math.max(1, requestedDistance), 1);
+    }
+
+    const revealedDistance = Math.max(1, Number(matchingIntel.distance || 1));
+    return Math.min(Math.max(1, requestedDistance), revealedDistance);
+};
+
+function traverseMovePath(params: {
+    startNode: any;
+    firstDirection: string;
+    initialFacing: Facing;
+    stepBudget: number;
+    nodeByCoord: Map<string, any>;
+}) {
+    const { startNode, firstDirection, initialFacing, stepBudget, nodeByCoord } = params;
+    const path: any[] = [];
+    let current = startNode;
+    let currentDirection = firstDirection;
+    let currentFacing = directionToFacing(firstDirection, initialFacing);
+    let hallwaySteps = 0;
+    let steps = 0;
+
+    while (steps < stepBudget) {
+        const nextNode = getConnectedNode(current, currentDirection, nodeByCoord);
+        if (!nextNode) break;
+
+        path.push(nextNode);
+        steps += 1;
+        if (current.type === "CORRIDOR" || nextNode.type === "CORRIDOR") {
+            hallwaySteps += 1;
+        }
+
+        current = nextNode;
+        currentFacing = directionToFacing(currentDirection, currentFacing);
+
+        if (current.type !== "CORRIDOR") break;
+        if (steps >= stepBudget) break;
+
+        const onward = getViableConnections(current, nodeByCoord).filter((candidate: string) => candidate !== oppositeDirections[currentDirection]);
+        if (onward.length !== 1) break;
+        currentDirection = onward[0];
+    }
+
+    return {
+        target: current,
+        newFacing: currentFacing,
+        direction: firstDirection,
+        steps,
+        hallwaySteps,
+        path
+    };
+}
+
+function buildHallwayIntel(node: any, nodeByCoord: Map<string, any>, scanDepth: number): HallwayIntel[] {
+    const connections = parseJSON(node?.connections || "[]", []);
+    return connections.map((direction: string) => {
+        let current = node;
+        let currentDirection = direction;
+        let distance = 0;
+        let turns = 0;
+        let intersections = 0;
+        let branches = 0;
+        let endpointType = "VOID";
+        let truncated = false;
+
+        while (distance < scanDepth) {
+            const delta = directionVectors[currentDirection];
+            if (!delta) break;
+
+            const nextNode = nodeByCoord.get(nodeCoordKey(current.x + delta.x, current.y + delta.y, current.z + delta.z));
+            if (!nextNode) {
+                endpointType = "VOID";
+                break;
+            }
+
+            distance += 1;
+            endpointType = nextNode.type;
+
+            const nextConnections = parseJSON(nextNode.connections || "[]", []).filter((candidate: string) => {
+                const candidateDelta = directionVectors[candidate];
+                if (!candidateDelta) return false;
+                return nodeByCoord.has(nodeCoordKey(nextNode.x + candidateDelta.x, nextNode.y + candidateDelta.y, nextNode.z + candidateDelta.z));
+            });
+            const viableOptions = nextConnections.filter((candidate: string) => candidate !== oppositeDirections[currentDirection]);
+
+            if (viableOptions.length > 1) {
+                intersections += 1;
+                branches += viableOptions.length - 1;
+            }
+
+            if (nextNode.type !== "CORRIDOR" || viableOptions.length !== 1) {
+                break;
+            }
+
+            const nextDirection = viableOptions[0];
+            if (nextDirection !== currentDirection) turns += 1;
+            currentDirection = nextDirection;
+            current = nextNode;
+        }
+
+        if (distance >= scanDepth && endpointType === "CORRIDOR") {
+            truncated = true;
+        }
+
+        return {
+            direction,
+            distance,
+            endpointType,
+            turns,
+            intersections,
+            branches,
+            truncated,
+            certainty: scanDepth >= 6 ? "HIGH" : scanDepth >= 4 ? "MED" : "LOW"
+        };
+    });
+}
+
 async function appendLog(gameId: string, existing: any, entries: LogEntry[]) {
     const log = parseJSON(existing, []) as LogEntry[];
     const merged = [...log, ...entries].slice(-50);
@@ -259,6 +471,10 @@ async function resolveReaction(gameState: any, players: any[], pending: PendingA
     const secureObjective = objectives.find((o: any) => o.id === "sub-1" || /secure/i.test(o.description || ""));
     const mainObjective = objectives.find((o: any) => o.id === "main-1" || /core|station|boss/i.test(o.description || ""));
     const securedNodeIds = new Set<string>(secureObjective?.securedNodeIds || []);
+    const allNodes = await (prisma as any).mapNode.findMany({ where: { gameId: gameState.id } });
+    const nodeByCoord = new Map<string, any>(
+        allNodes.map((entry: any) => [nodeCoordKey(Number(entry.x), Number(entry.y), Number(entry.z)), entry])
+    );
 
     // Group scans by node
     const scansByNode = new Map<string, PendingAction[]>();
@@ -305,6 +521,15 @@ async function resolveReaction(gameState: any, players: any[], pending: PendingA
         const integrityDrop = success ? 0 : 5;
         const integrityGain = success ? Math.min(100, (node.integrity || 100) + 5) : Math.max(0, (node.integrity || 100) - integrityDrop);
 
+        const scanDepth = success
+            ? Math.min(8, Math.max(2, 2 + Math.floor((effectiveStrength - nodePower) / 2)))
+            : 1;
+        const hallwayIntel = buildHallwayIntel(node, nodeByCoord, scanDepth);
+        const secretIntel = parseSecretIntel(node.secretPaths);
+        const nextLeads = success && bestStrength >= nodePower + 4
+            ? Array.from(new Set([...(secretIntel.leads || []).map((lead: any) => JSON.stringify(lead)), JSON.stringify({ to: "BOSS" })])).map((lead) => JSON.parse(lead))
+            : secretIntel.leads;
+
         updates.push((prisma as any).mapNode.update({
             where: { id: nodeId },
             data: {
@@ -313,11 +538,33 @@ async function resolveReaction(gameState: any, players: any[], pending: PendingA
                 integrity: integrityGain,
                 roomPower: success ? nodePower : nodePower + 1,
                 security: success ? Math.max(node.security || 0, 1) : Math.max(0, (node.security || 0) - 1),
-                secretPaths: success && bestStrength >= nodePower + 4 ? JSON.stringify([{ to: "BOSS" }]) : JSON.stringify(parseJSON(node.secretPaths || "[]", []))
+                secretPaths: JSON.stringify({
+                    ...secretIntel,
+                    leads: nextLeads,
+                    hallwayIntel,
+                    hallwayScanDepth: scanDepth
+                })
             }
         }));
 
         const winnerName = players.find(p => p.characterId === (winner?.playerId || ""))?.Character?.name || "Unknown";
+        const detectedEnemies = parseJSON(node.enemies || "[]", []).length;
+        logs.push({
+            ts: now,
+            type: "RESOLUTION_DATA",
+            message: JSON.stringify({
+                type: "SCAN",
+                playerId: winner?.playerId || null,
+                playerName: winnerName,
+                strength: effectiveStrength,
+                nodePower,
+                success,
+                roomSuit: node.roomSuit,
+                scanDepth,
+                combined,
+                detectedEnemies
+            })
+        });
         if (success) {
             if (winner) {
                 const player = players.find(p => p.characterId === winner.playerId)!;
@@ -333,6 +580,13 @@ async function resolveReaction(gameState: any, players: any[], pending: PendingA
                 }
             }
             logs.push({ ts: now, type: "SCAN", message: `${winnerName} scanned ${node.roomSuit} room (P${nodePower})${combined ? " with assist" : ""}: SUCCESS` });
+            if (hallwayIntel.length > 0) {
+                logs.push({
+                    ts: now,
+                    type: "SCAN",
+                    message: `Hallway profile: ${hallwayIntel.map((intel) => `${intel.direction} ${intel.distance}${intel.truncated ? "+" : ""}`).join(" | ")}`
+                });
+            }
             if (bestStrength >= nodePower + 4) {
                 logs.push({ ts: now, type: "SCAN", message: `Secret tunnel mapped near ${node.roomSuit} sector.` });
             }
@@ -356,7 +610,14 @@ async function resolveReaction(gameState: any, players: any[], pending: PendingA
         const playerName = player.Character?.name || "Unknown";
 
         if (action.intent === "SECURE") {
+            const secretIntel = parseSecretIntel(node.secretPaths);
+            const hallwayTarget = isHallwayNode(node);
             const newIntegrity = Math.min(100, (node.integrity || 100) + (success ? 15 : 0));
+            const nextSecurity = success
+                ? hallwayTarget
+                    ? Math.max(node.security || 0, strength, 2)
+                    : Math.max(node.security || 0, strength)
+                : node.security;
 
             // V20: Armor "Scare" Logic
             let enemiesRemoved = false;
@@ -370,15 +631,20 @@ async function resolveReaction(gameState: any, players: any[], pending: PendingA
             updates.push((prisma as any).mapNode.update({
                 where: { id: node.id },
                 data: {
-                    security: success ? Math.max(node.security || 0, strength) : node.security,
+                    security: nextSecurity,
                     integrity: success ? newIntegrity : Math.max(0, (node.integrity || 100) - 5),
                     scanned: true,
                     isExplored: true,
+                    secretPaths: hallwayTarget && success
+                        ? JSON.stringify({ ...secretIntel, hallwayStops: 0 })
+                        : node.secretPaths,
                     enemies: enemiesRemoved ? "[]" : node.enemies
                 }
             }));
 
-            let msg = `${playerName} secured ${node.roomSuit} room: ${success ? "STABLE" : "UNSTABLE"}`;
+            let msg = hallwayTarget
+                ? `${playerName} stabilized ${getSecureTargetLabel(node)}: ${success ? "STABLE" : "UNSTABLE"}`
+                : `${playerName} secured ${getSecureTargetLabel(node)}: ${success ? "STABLE" : "UNSTABLE"}`;
             if (success && enemiesRemoved) msg += " (Hostiles routed)";
 
             // V22: Detailed Log
@@ -402,7 +668,7 @@ async function resolveReaction(gameState: any, players: any[], pending: PendingA
                 })
             });
 
-            if (success && secureObjective && !securedNodeIds.has(node.id)) {
+            if (success && secureObjective && isSecureObjectiveNode(node) && !securedNodeIds.has(node.id)) {
                 securedNodeIds.add(node.id);
                 const target = typeof secureObjective.target === "number" ? secureObjective.target : 5;
                 secureObjective.current = securedNodeIds.size;
@@ -490,7 +756,8 @@ async function resolveReaction(gameState: any, players: any[], pending: PendingA
             const facing = (player.facing || "NORTH") as Facing;
             const nodeConnections = parseJSON(node.connections || "[]", []);
             const candidateDirections = emergencyMove ? ["BACK", "LEFT", "RIGHT", "FORWARD"] : [action.direction || "FORWARD"];
-            let moveResult: { target: any; newFacing: Facing; direction: string } | null = null;
+            const moveDistance = getMoveCardDistance(action.cards);
+            let moveResult: { target: any; newFacing: Facing; direction: string; steps: number; hallwaySteps: number; path: any[] } | null = null;
 
             if (!emergencyMove && !node.scanned && node.type !== "START") {
                 logs.push({ ts: now, type: "MOVE", message: `${playerName} attempted to move but the room is unscanned.` });
@@ -502,13 +769,28 @@ async function resolveReaction(gameState: any, players: any[], pending: PendingA
                 const absDir = vectorToDirection(dx, dy, dz);
                 if (absDir && !nodeConnections.includes(absDir)) continue;
 
-                const target = await (prisma as any).mapNode.findFirst({
-                    where: { gameId: gameState.id, x: node.x + dx, y: node.y + dy, z: node.z + dz }
-                });
+                const target = nodeByCoord.get(nodeCoordKey(Number(node.x) + dx, Number(node.y) + dy, Number(node.z) + dz));
                 if (!target) continue;
                 if (emergencyMove && !target.scanned && target.type !== "START") continue;
+                const visibleMoveBudget = emergencyMove ? moveDistance : getVisibleMoveBudget(node, absDir || dir, moveDistance);
 
-                moveResult = { target, newFacing, direction: dir };
+                const traversed = traverseMovePath({
+                    startNode: node,
+                    firstDirection: absDir || dir,
+                    initialFacing: newFacing,
+                    stepBudget: visibleMoveBudget,
+                    nodeByCoord
+                });
+                if (!traversed.path.length) continue;
+
+                moveResult = {
+                    target: traversed.target,
+                    newFacing: traversed.newFacing,
+                    direction: dir,
+                    steps: traversed.steps,
+                    hallwaySteps: traversed.hallwaySteps,
+                    path: traversed.path
+                };
                 break;
             }
 
@@ -528,53 +810,188 @@ async function resolveReaction(gameState: any, players: any[], pending: PendingA
                 logs.push({ ts: now, type: "MOVE", message: `${playerName} triggered emergency escape: -1 HP.` });
             }
 
-            if ((node.security ?? 0) < 1) {
+            const moveFatigue = moveResult.hallwaySteps;
+            if (moveFatigue > 0) {
+                const nextStress = Math.max(0, (player.stress ?? 0) - moveFatigue);
+                updates.push((prisma as any).gamePlayer.update({ where: { id: player.id }, data: { stress: nextStress } }));
+                player.stress = nextStress;
+                logs.push({ ts: now, type: "MOVE", message: `${playerName} burned ${moveFatigue} energy traversing the hallway.` });
+            }
+
+            if (!isHallwayNode(node) && node.type !== "START" && (node.security ?? 0) < 1) {
                 const nextStress = Math.max(0, (player.stress ?? 0) - 1);
                 updates.push((prisma as any).gamePlayer.update({ where: { id: player.id }, data: { stress: nextStress } }));
                 player.stress = nextStress;
                 logs.push({ ts: now, type: "MOVE", message: `${playerName} left an unsecured room: -1 energy.` });
             }
 
-            updates.push((prisma as any).mapNode.update({
-                where: { id: moveResult.target.id },
-                data: { isExplored: true }
-            }));
+            let collapsedHallway = false;
+            if (isHallwayNode(moveResult.target)) {
+                const targetSecretIntel = parseSecretIntel(moveResult.target.secretPaths);
+                if ((moveResult.target.security ?? 0) >= 2) {
+                    if (targetSecretIntel.hallwayStops > 0) {
+                        const stabilizedIntel = { ...targetSecretIntel, hallwayStops: 0 };
+                        updates.push((prisma as any).mapNode.update({
+                            where: { id: moveResult.target.id },
+                            data: { secretPaths: JSON.stringify(stabilizedIntel) }
+                        }));
+                        moveResult.target.secretPaths = JSON.stringify(stabilizedIntel);
+                    }
+                } else {
+                    const hallwayStops = (targetSecretIntel.hallwayStops || 0) + 1;
+                    const nextSecretIntel = { ...targetSecretIntel, hallwayStops };
+                    updates.push((prisma as any).mapNode.update({
+                        where: { id: moveResult.target.id },
+                        data: { secretPaths: JSON.stringify(nextSecretIntel) }
+                    }));
+                    moveResult.target.secretPaths = JSON.stringify(nextSecretIntel);
+
+                    if (hallwayStops >= 2) {
+                        collapsedHallway = true;
+                        phaseOverride = "FAILED";
+                    }
+                }
+            }
+
+            const traversedNodeIds = Array.from(new Set(moveResult.path.map((entry: any) => entry.id)));
+            if (traversedNodeIds.length > 0) {
+                updates.push((prisma as any).mapNode.updateMany({
+                    where: { id: { in: traversedNodeIds } },
+                    data: { isExplored: true }
+                }));
+            }
+            const playerMoveUpdate: any = {
+                MapNode: { connect: { id: moveResult.target.id } },
+                facing: moveResult.newFacing,
+                distanceTraveled: { increment: moveResult.steps }
+            };
+            if (collapsedHallway) {
+                playerMoveUpdate.hp = 0;
+            }
             updates.push((prisma as any).gamePlayer.update({
                 where: { id: player.id },
-                data: { nodeId: moveResult.target.id, facing: moveResult.newFacing }
+                data: playerMoveUpdate
             }));
             player.MapNode = moveResult.target;
             player.nodeId = moveResult.target.id;
             player.facing = moveResult.newFacing;
-            logs.push({ ts: now, type: "MOVE", message: `${playerName} moved ${moveResult.direction}.` });
+            player.distanceTraveled = (player.distanceTraveled ?? 0) + moveResult.steps;
+            if (collapsedHallway) {
+                player.hp = 0;
+            }
+            logs.push({
+                ts: now,
+                type: "MOVE",
+                message: `${playerName} moved ${moveResult.direction}${moveResult.steps > 1 ? ` ${moveResult.steps} sectors` : ""}.`
+            });
+            if (collapsedHallway) {
+                logs.push({
+                    ts: now,
+                    type: "MOVE",
+                    message: `${playerName} stopped in the same unstable ${getSecureTargetLabel(moveResult.target)} twice. The hull ruptured and they were lost to vacuum.`
+                });
+            } else if (isHallwayNode(moveResult.target) && (moveResult.target.security ?? 0) < 2) {
+                logs.push({
+                    ts: now,
+                    type: "MOVE",
+                    message: `${playerName} strained the unstable ${getSecureTargetLabel(moveResult.target)}. Stabilize it before stopping here again.`
+                });
+            }
+            logs.push({
+                ts: now,
+                type: "MOVE_DATA",
+                message: JSON.stringify({
+                    playerId: action.playerId,
+                    direction: moveResult.direction,
+                    steps: moveResult.steps,
+                    hallwaySteps: moveResult.hallwaySteps,
+                    fromFacing: facing,
+                    toFacing: moveResult.newFacing,
+                    from: {
+                        id: node.id,
+                        x: node.x,
+                        y: node.y,
+                        z: node.z,
+                        type: node.type,
+                        roomSuit: node.roomSuit,
+                        roomPower: node.roomPower,
+                        security: node.security,
+                        scanned: node.scanned,
+                        isExplored: node.isExplored,
+                        integrity: node.integrity,
+                        connections: node.connections,
+                        enemies: node.enemies,
+                        secretPaths: node.secretPaths
+                    },
+                    to: {
+                        id: moveResult.target.id,
+                        x: moveResult.target.x,
+                        y: moveResult.target.y,
+                        z: moveResult.target.z,
+                        type: moveResult.target.type,
+                        roomSuit: moveResult.target.roomSuit,
+                        roomPower: moveResult.target.roomPower,
+                        security: moveResult.target.security,
+                        scanned: moveResult.target.scanned,
+                        isExplored: moveResult.target.isExplored,
+                        integrity: moveResult.target.integrity,
+                        connections: moveResult.target.connections,
+                        enemies: moveResult.target.enemies,
+                        secretPaths: moveResult.target.secretPaths
+                    },
+                    hallway: moveResult.hallwaySteps > 0,
+                    path: moveResult.path.map((entry: any) => ({
+                        id: entry.id,
+                        x: entry.x,
+                        y: entry.y,
+                        z: entry.z,
+                        type: entry.type,
+                        roomSuit: entry.roomSuit,
+                        roomPower: entry.roomPower,
+                        security: entry.security,
+                        scanned: entry.scanned,
+                        isExplored: entry.isExplored,
+                        integrity: entry.integrity,
+                        connections: entry.connections,
+                        enemies: entry.enemies,
+                        secretPaths: entry.secretPaths
+                    }))
+                })
+            });
 
             if (!gameState.deadline && !startedDeadline) {
                 const diff = lobbyDifficulty || "NORMAL";
                 const minutes = diff === "HARD" ? 10 : diff === "EASY" ? 20 : 15;
                 startedDeadline = new Date(Date.now() + minutes * 60000);
             }
+
+            if (collapsedHallway) {
+                break;
+            }
         }
     }
 
     // V24: Move Collision Detection
-    const nodeOccupancy = new Map<string, string[]>();
-    players.forEach(p => {
-        const nid = p.nodeId;
-        if (!nid) return;
-        const list = nodeOccupancy.get(nid) || [];
-        list.push(p.Character?.name || "Unknown");
-        nodeOccupancy.set(nid, list);
-    });
+    if (!phaseOverride) {
+        const nodeOccupancy = new Map<string, string[]>();
+        players.forEach(p => {
+            const nid = p.nodeId;
+            if (!nid) return;
+            const list = nodeOccupancy.get(nid) || [];
+            list.push(p.Character?.name || "Unknown");
+            nodeOccupancy.set(nid, list);
+        });
 
-    for (const [nid, names] of nodeOccupancy.entries()) {
-        if (names.length > 1) {
-            logs.push({ ts: now, type: "COLLISION", message: `COLLISION: ${names.join(", ")} bumped into each other! -1 Energy.` });
-            // Apply stress penalty to all players involved
-            for (const name of names) {
-                const p = players.find(pl => pl.Character?.name === name);
-                if (p) {
-                    const nextStress = Math.max(0, (p.stress ?? 0) - 1);
-                    updates.push((prisma as any).gamePlayer.update({ where: { id: p.id }, data: { stress: nextStress } }));
+        for (const [nid, names] of nodeOccupancy.entries()) {
+            if (names.length > 1) {
+                logs.push({ ts: now, type: "COLLISION", message: `COLLISION: ${names.join(", ")} bumped into each other! -1 Energy.` });
+                // Apply stress penalty to all players involved
+                for (const name of names) {
+                    const p = players.find(pl => pl.Character?.name === name);
+                    if (p) {
+                        const nextStress = Math.max(0, (p.stress ?? 0) - 1);
+                        updates.push((prisma as any).gamePlayer.update({ where: { id: p.id }, data: { stress: nextStress } }));
+                    }
                 }
             }
         }
@@ -584,11 +1001,11 @@ async function resolveReaction(gameState: any, players: any[], pending: PendingA
 
     // V23: Endgame Handling (Defeat Check)
     if (!phaseOverride && nextIntegrity <= 0) {
-        phaseOverride = "DEFEAT"; // Or "ABORTED" if we differentiate. Let's use DEFEAT for hull collapse.
+        phaseOverride = "FAILED";
         logs.push({ ts: now, type: "MAIN", message: "CRITICAL FAILURE: Hull Integrity compromised. Mission failed." });
     }
 
-    if (mainObjective?.isComplete && players.every(p => p.MapNode?.type === "START")) {
+    if (!phaseOverride && mainObjective?.isComplete && players.every(p => p.MapNode?.type === "START")) {
         phaseOverride = "VICTORY";
         logs.push({ ts: now, type: "MAIN", message: "Squad extracted. Mission complete." });
     }
@@ -600,6 +1017,8 @@ async function resolveReaction(gameState: any, players: any[], pending: PendingA
 
         // Finalize Run for each player
         for (const p of players) {
+            const travelDistance = p.distanceTraveled ?? 0;
+            const travelCredits = Math.floor(travelDistance / 10);
             // Calculate Score
             let score = 1000;
             if (isVictory) {
@@ -612,6 +1031,8 @@ async function resolveReaction(gameState: any, players: any[], pending: PendingA
             } else {
                 score = Math.floor(score * 0.1); // Participation trophy
             }
+            score += travelDistance;
+            const creditsEarned = Math.floor(score / 2) + travelCredits;
 
             // Determine Rank
             let rank = "F";
@@ -624,21 +1045,30 @@ async function resolveReaction(gameState: any, players: any[], pending: PendingA
                 rank = "F";
             }
 
+            const existingRun = await (prisma as any).gameRun.findFirst({
+                where: { gameId: gameState.id, characterId: p.characterId },
+                orderBy: { endedAt: "desc" }
+            });
+            if (existingRun) {
+                continue;
+            }
+
             // Create GameRun Result
             await (prisma as any).gameRun.create({
                 data: {
                     gameId: gameState.id,
-                    characterId: p.characterId,
                     difficulty: lobbyDifficulty || "NORMAL",
                     outcome: phaseOverride,
                     rank,
                     score,
-                    creditsEarned: Math.floor(score / 2),
+                    creditsEarned,
+                    distanceTraveled: travelDistance,
                     bossDefeated: isVictory, // Simplification
                     extracted: isVictory, // Simplification
                     turns: turnCount,
                     startedAt: gameState.createdAt, // Approx
-                    endedAt: new Date()
+                    endedAt: new Date(),
+                    character: { connect: { id: p.characterId } }
                 }
             });
 
@@ -646,7 +1076,7 @@ async function resolveReaction(gameState: any, players: any[], pending: PendingA
             const charUpdates: any = {
                 runsCompleted: { increment: isVictory ? 1 : 0 },
                 runsFailed: { increment: isVictory ? 0 : 1 },
-                credits: { increment: Math.floor(score / 2) }
+                credits: { increment: creditsEarned }
             };
             await (prisma as any).character.update({
                 where: { id: p.characterId },
@@ -715,6 +1145,56 @@ export async function POST(req: Request) {
 
             const item = inv[idx];
             const updates: Promise<any>[] = [];
+            const isCycleableLoot = String(item?.type || "").toUpperCase() === "LOOT" || /recovered tech|salvage|cache/i.test(item?.name || "");
+
+            if (isCycleableLoot) {
+                const deck = parseJSON(gameState.roomDeck || "[]", []);
+                const hand = parseJSON(player.hand || "[]", []);
+                const drawCard = deck.length > 0 ? deck.shift() : null;
+
+                if (drawCard) {
+                    hand.push(drawCard);
+                    CardRules.sortHand(hand);
+                }
+
+                if ((item.qty ?? 1) > 1) {
+                    inv[idx].qty = Math.max(0, (item.qty ?? 1) - 1);
+                    if (inv[idx].qty <= 0) inv.splice(idx, 1);
+                } else {
+                    inv.splice(idx, 1);
+                }
+
+                updates.push((prisma as any).gamePlayer.update({
+                    where: { id: player.id },
+                    data: {
+                        inventory: JSON.stringify(inv),
+                        hand: JSON.stringify(hand)
+                    }
+                }));
+                updates.push((prisma as any).gameState.update({
+                    where: { id: gameId },
+                    data: {
+                        roomDeck: JSON.stringify(deck)
+                    }
+                }));
+
+                await Promise.all(updates);
+
+                const message = drawCard
+                    ? `${item.name} cycled into a hard draw: ${drawCard.rank} ${drawCard.suit}.`
+                    : `${item.name} cycled, but the deck was dry.`;
+                await appendLog(gameId, gameState.gameLog, [
+                    { ts: Date.now(), type: "ITEM", message },
+                    { ts: Date.now(), type: "DRAW", message: drawCard ? `${character.name} forced a salvage draw.` : `${character.name} cycled salvage without a draw.` }
+                ]);
+                return NextResponse.json({
+                    success: true,
+                    message,
+                    drawnCard: drawCard,
+                    inventory: inv,
+                    hand
+                });
+            }
 
             // V19: Generic Item Usage Tracking
             // If item has maxUses, we must track usages.

@@ -35,8 +35,18 @@ export async function GET(req: Request) {
             return NextResponse.json({ error: "Lobby expired" }, { status: 410 });
         }
 
-        // Identify current user's member status
+        // Identify current user's member status and current player
         const currentUserMember = lobby.members.find((m: any) => m.characterId === character?.id);
+
+        // Set isCurrentPlayer flag for all lobby members
+        const allMembers = lobby.members.map((m: any) => ({
+            ...m,
+            isCurrentPlayer: currentUserMember?.characterId === m.characterId
+        }));
+
+        // Determine current player based on lobby state or active player index
+        // For simplicity, we'll identify the current player by checking if their card is on the table
+        const currentPlayer = allMembers.find((m: any) => m.isCurrentPlayer);
 
         const inventory = character ? await prisma.inventoryItem.findMany({
             where: { characterId: character.id },
@@ -44,7 +54,10 @@ export async function GET(req: Request) {
         }) : [];
 
         return NextResponse.json({
-            lobby,
+            lobby: {
+                ...lobby,
+                members: allMembers
+            },
             currentUser: {
                 id: character?.id,
                 isReady: currentUserMember?.isReady || false,

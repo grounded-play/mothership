@@ -3,10 +3,17 @@ export interface Card {
     id: string;
     suit: "COMMAND" | "VOID" | "BIOTECH" | "PLASMA" | "ANOMALY";
     rank: number; // 1-9 for normal cards
-    power: number; // align to rank for simplicity; jokers are high
+    power: number; // effective combat power
     name: string;
     description: string;
     deckId: number;
+    effects?: CardEffect[]; // Tactical variety
+}
+
+interface CardEffect {
+    type: "attack" | "defense" | "utility" | "scouting" | "loot";
+    value: number;
+    description: string;
 }
 
 export class DeckGenerator {
@@ -18,11 +25,12 @@ export class DeckGenerator {
         for (let d = 0; d < 2; d++) {
             for (const suit of suits) {
                 for (let rank = 1; rank <= 9; rank++) {
+                    const power = this.getCardPower(rank);
                     deck.push({
                         id: crypto.randomUUID(),
                         suit,
                         rank,
-                        power: rank,
+                        power,
                         name: this.getCardName(rank, suit),
                         description: this.getFlavorText(suit),
                         deckId: d
@@ -54,6 +62,19 @@ export class DeckGenerator {
             default: return "Unknown";
         }
     }
+
+    static getCardPower(rank: number): number {
+        // Non-linear curve: 9s are significantly stronger than 1s
+        // Power = sqrt(rank) * 10 + base (weighted toward higher ranks)
+        return Math.floor(Math.sqrt(rank) * 15);
+    }
+
+    static getDepthMultiplier(depth: number): number {
+        // Small bonus for deeper rooms: 1.0x at start, 1.3x at depth 10, 1.5x at depth 20+
+        if (depth < 10) return 1.0;
+        if (depth < 20) return 1.15 + (depth - 10) * 0.015;
+        return 1.3 + Math.min(depth - 20, 10) * 0.02;
+    }
 }
 
 export class CardRules {
@@ -68,17 +89,27 @@ export class CardRules {
         }
     }
 
-    static getCardPower(card: Card, roomType: string | null = null): number {
-        let val = card.power * 10 + this.getSuitValue(card.suit);
+    static getCardPower(card: Card, roomType: string | null = null, depth: number = 0): number {
+        let val = card.power * 10;
+
+        // Depth scaling
+        const depthMult = DeckGenerator.getDepthMultiplier(depth);
+        val = Math.floor(val * depthMult);
+
+        // Suit value (improved: COMMAND now has value)
+        val += this.getSuitValue(card.suit);
+
+        // Room bonus - tighter (+3-5 instead of +10)
         if (roomType && roomType.includes(card.suit)) {
-            val += 10; // +1 effective rank
+            val += 5;
         }
+
         return val;
     }
 
-    static sortHand(hand: Card[], roomType: string | null = null): Card[] {
+    static sortHand(hand: Card[], roomType: string | null = null, depth: number = 0): Card[] {
         return hand.sort((a, b) => {
-            return this.getCardPower(b, roomType) - this.getCardPower(a, roomType);
+            return this.getCardPower(b, roomType, depth) - this.getCardPower(a, roomType, depth);
         });
     }
 }

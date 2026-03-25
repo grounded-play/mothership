@@ -1,12 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, Volume2, Monitor, Bell } from "lucide-react";
-import { useState } from "react";
+import { ArrowLeft, Monitor } from "lucide-react";
+import AudioSettingsPanel from "@/components/audio/AudioSettingsPanel";
 
 export default function SettingsPage() {
-    const [volume, setVolume] = useState(70);
-
     return (
         <div className="min-h-full flex items-center justify-center p-4 bg-space-void relative">
             <div className="fixed top-6 left-8 z-50">
@@ -21,23 +19,10 @@ export default function SettingsPage() {
                 </header>
 
                 <div className="space-y-8">
-                    {/* Audio */}
                     <div className="space-y-4">
-                        <h3 className="text-neon-blue font-bold flex items-center upper"><Volume2 className="mr-2" /> Audio Levels</h3>
-                        <div className="flex items-center gap-4">
-                            <span className="text-sm w-12 text-gray-400">Master</span>
-                            <input
-                                type="range"
-                                min="0" max="100"
-                                value={volume}
-                                onChange={(e) => setVolume(Number(e.target.value))}
-                                className="w-full accent-neon-cyan bg-gray-700 h-1 appearance-none rounded"
-                            />
-                            <span className="w-8 text-right font-mono text-neon-cyan">{volume}%</span>
-                        </div>
+                        <AudioSettingsPanel />
                     </div>
 
-                    {/* Graphics */}
                     <div className="space-y-4">
                         <h3 className="text-neon-magenta font-bold flex items-center upper"><Monitor className="mr-2" /> Display</h3>
                         <div className="flex justify-between items-center p-4 bg-white/5 rounded border border-white/5">

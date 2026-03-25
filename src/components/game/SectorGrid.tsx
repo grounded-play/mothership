@@ -5,7 +5,19 @@ interface SectorGridProps {
     currentPlayerNodeId: string;
     activeZ?: number;
     rotation?: number;
-    facing?: string; // "NORTH", "EAST", "SOUTH", "WEST"
+    facing?: string;
+    fullMap?: boolean;
+    fullMapFocusZ?: number;
+    selectedNodeId?: string | null;
+    onNodeHover?: (nodeId: string | null) => void;
+    onNodeSelect?: (nodeId: string) => void;
+    recentMovement?: {
+        from: { x: number; y: number; z: number };
+        to: { x: number; y: number; z: number };
+        direction?: string | null;
+        durationMs?: number;
+        ts: number;
+    } | null;
     playerMarkers?: {
         id: string;
         x: number;
@@ -15,264 +27,649 @@ interface SectorGridProps {
     }[];
 }
 
+type PlayerMarker = {
+    id: string;
+    x: number;
+    y: number;
+    z: number;
+    isCurrent?: boolean;
+};
+
 function parseJSON(raw: any, fallback: any) {
     try { return JSON.parse(raw); } catch { return fallback; }
 }
 
-export default function SectorGrid({ nodes, currentPlayerNodeId, activeZ, rotation = 0, facing = "NORTH", playerMarkers }: SectorGridProps) {
-    const SIZE = 7;
-    const layers = typeof activeZ === "number" ? [activeZ] : [2, 1, 0];
+function normalizeConnections(raw: any) {
+    if (Array.isArray(raw)) return raw;
+    return parseJSON(raw || "[]", []);
+}
+
+function getBounds(nodes: any[], markers: PlayerMarker[], centerX: number, centerY: number, fullMap: boolean) {
+    if (!fullMap) {
+        return {
+            minX: centerX - 3,
+            maxX: centerX + 3,
+            minY: centerY - 3,
+            maxY: centerY + 3,
+            width: 7,
+            height: 7
+        };
+    }
+
+    const xs = [...nodes.map((node) => Number(node.x)), ...markers.map((marker) => Number(marker.x)), 1];
+    const ys = [...nodes.map((node) => Number(node.y)), ...markers.map((marker) => Number(marker.y)), -1];
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+
+    return {
+        minX,
+        maxX,
+        minY,
+        maxY,
+        width: maxX - minX + 1,
+        height: maxY - minY + 1
+    };
+}
+
+function getCellSize(fullMap: boolean, width: number, height: number) {
+    if (!fullMap) return 40;
+
+    const longestSide = Math.max(width, height);
+    if (longestSide >= 11) return 18;
+    if (longestSide >= 9) return 22;
+    if (longestSide >= 7) return 26;
+    return 30;
+}
+
+const DIRECTION_VECTORS: Record<string, { x: number; y: number; z: number }> = {
+    FORWARD: { x: 0, y: 1, z: 0 },
+    BACK: { x: 0, y: -1, z: 0 },
+    LEFT: { x: -1, y: 0, z: 0 },
+    RIGHT: { x: 1, y: 0, z: 0 },
+    UP: { x: 0, y: 0, z: 1 },
+    DOWN: { x: 0, y: 0, z: -1 }
+};
+
+function getMarkerTravelAnimation(direction?: string | null) {
+    switch (direction) {
+        case "FORWARD": return "markerTravelForward";
+        case "BACK": return "markerTravelBack";
+        case "LEFT": return "markerTravelLeft";
+        case "RIGHT": return "markerTravelRight";
+        case "UP": return "markerTravelUp";
+        case "DOWN": return "markerTravelDown";
+        default: return "markerHop";
+    }
+}
+
+function isNodeScanComplete(node: any) {
+    return Boolean(node && (node.type === "START" || node.scanned));
+}
+
+function isNodeSecureComplete(node: any) {
+    return Boolean(node && (node.type === "START" || Number(node.security ?? 0) >= 2));
+}
+
+function getGridCellPosition(x: number, y: number, bounds: { minX: number; maxY: number }, cellSize: number, gap: number) {
+    return {
+        left: 8 + (x - bounds.minX) * (cellSize + gap),
+        top: 8 + (bounds.maxY - y) * (cellSize + gap)
+    };
+}
+
+export default function SectorGrid({
+    nodes,
+    currentPlayerNodeId,
+    activeZ,
+    rotation = 0,
+    facing = "NORTH",
+    fullMap = false,
+    fullMapFocusZ,
+    selectedNodeId,
+    onNodeHover,
+    onNodeSelect,
+    recentMovement,
+    playerMarkers
+}: SectorGridProps) {
     const suitColors: Record<string, { text: string; border: string }> = {
         COMMAND: { text: "text-green-400", border: "border-green-500/40" },
         BIOTECH: { text: "text-red-400", border: "border-red-500/40" },
         PLASMA: { text: "text-orange-400", border: "border-orange-500/40" },
         VOID: { text: "text-purple-400", border: "border-purple-500/40" }
     };
+    const suitLineColors: Record<string, string> = {
+        COMMAND: "rgba(74, 222, 128, 0.72)",
+        BIOTECH: "rgba(248, 113, 113, 0.72)",
+        PLASMA: "rgba(251, 146, 60, 0.75)",
+        VOID: "rgba(192, 132, 252, 0.75)"
+    };
 
-    // ... (lines 28-58 unchanged)
-
-    // Helper to find node at (x,y,z)
-    const getNode = (x: number, y: number, z: number) => nodes.find(n => n.x === x && n.y === y && n.z === z);
-    const markersByKey = new Map<string, { id: string; x: number; y: number; z: number; isCurrent?: boolean; }[]>();
-
-    // Find current player position for centering
-    // If no markers, default to 1,1 (center of a 0-2 grid)
-    const currentPlayerMarker = (playerMarkers || []).find(m => m.isCurrent);
-    const centerX = currentPlayerMarker?.x ?? 1;
-    const centerY = currentPlayerMarker?.y ?? 1;
-
-    // Calculate Grid Bounds (7x7 centered on player)
-    // Grid Viewport: [centerX-3, centerX+3] x [centerY-3, centerY+3]
-    const startX = centerX - 3;
-    const startY = centerY - 3;
-
-    (playerMarkers || []).forEach(marker => {
+    const markers = playerMarkers || [];
+    const markersByKey = new Map<string, PlayerMarker[]>();
+    markers.forEach((marker) => {
         const key = `${marker.x}-${marker.y}-${marker.z}`;
         const existing = markersByKey.get(key) || [];
         existing.push(marker);
         markersByKey.set(key, existing);
     });
-    const getMarkers = (x: number, y: number, z: number) => markersByKey.get(`${x}-${y}-${z}`) || [];
 
-    // Starfield Parallax / Rotation Style
-    // ... (lines 80-141 unchanged)
+    const getMarkers = (x: number, y: number, z: number) => markersByKey.get(`${x}-${y}-${z}`) || [];
+    const getNode = (x: number, y: number, z: number) => nodes.find((node) => node.x === x && node.y === y && node.z === z);
+
+    const currentPlayerMarker = markers.find((marker) => marker.isCurrent);
+    const centerX = currentPlayerMarker?.x ?? 1;
+    const centerY = currentPlayerMarker?.y ?? 1;
+    const bounds = getBounds(nodes, markers, centerX, centerY, fullMap);
+    const cellSize = getCellSize(fullMap, bounds.width, bounds.height);
+    const gap = fullMap ? Math.max(2, Math.round(cellSize * 0.12)) : 8;
+    const layers = fullMap
+        ? Array.from(new Set(nodes.map((node) => Number(node.z ?? 0)))).sort((a, b) => b - a)
+        : typeof activeZ === "number"
+            ? [activeZ]
+            : Array.from(new Set(nodes.map((node) => Number(node.z ?? 0)))).sort((a, b) => b - a);
+    const markerSize = fullMap ? Math.max(12, Math.round(cellSize * 0.7)) : 24;
+    const squadDotSize = fullMap ? Math.max(4, Math.round(cellSize * 0.22)) : 12;
+    const roomLabelSize = fullMap ? Math.max(5, Math.round(cellSize * 0.22)) : 6;
+    const statSize = fullMap ? Math.max(5, Math.round(cellSize * 0.22)) : 8;
+    const viewLabel = fullMap ? "FULL SHIP" : `DECK ${typeof activeZ === "number" ? activeZ : currentPlayerMarker?.z ?? 0}`;
+    const fullMapCenterDeck = fullMap && typeof fullMapFocusZ === "number" && layers.includes(fullMapFocusZ)
+        ? fullMapFocusZ
+        : layers[Math.floor(layers.length / 2)] ?? 0;
+    const focusIndex = layers.indexOf(fullMapCenterDeck);
+    const middleIndex = Math.floor(layers.length / 2);
+    const layerGridHeight = bounds.height * cellSize + Math.max(0, bounds.height - 1) * gap;
+    const layerPaddingY = 16;
+    const layerGapY = 16;
+    const deckStride = Math.max(112, layerGridHeight + layerPaddingY + layerGapY);
+    const fullMapYOffset = fullMap ? (middleIndex - focusIndex) * deckStride : 0;
+    const tacticalRotation = fullMap ? 0 : rotation;
+    const uprightStyle = tacticalRotation ? { transform: `rotate(${-tacticalRotation}deg)` } : undefined;
+    const currentMarkerRotation = fullMap
+        ? ({
+            NORTH: 0,
+            EAST: 90,
+            SOUTH: 180,
+            WEST: -90
+        }[facing] || 0)
+        : -tacticalRotation;
+    const markerTravelAnimation = getMarkerTravelAnimation(recentMovement?.direction);
+    const markerTravelDurationMs = Math.max(520, Math.round(Number(recentMovement?.durationMs ?? 560) * 0.94));
 
     return (
-        <div className="flex flex-col items-center justify-center gap-4 perspective-1000 w-full h-full overflow-hidden relative bg-black">
-            {/* Star Sphere Background (CSS Procedural V13) */}
-            {/* ... (lines 115-141 unchanged) */}
+        <div className="flex flex-col items-center justify-center gap-4 w-full h-full overflow-hidden relative bg-black">
+            <style jsx global>{`
+                @keyframes markerHop {
+                    0% { transform: translateY(32%) scale(0.82); }
+                    42% { transform: translateY(-24%) scale(1.14); }
+                    100% { transform: translateY(0) scale(1); }
+                }
+                @keyframes markerTravelForward {
+                    0% { transform: translateY(88%) scale(0.76); opacity: 0.28; }
+                    52% { transform: translateY(-22%) scale(1.12); opacity: 1; }
+                    100% { transform: translateY(0) scale(1); opacity: 1; }
+                }
+                @keyframes markerTravelBack {
+                    0% { transform: translateY(-88%) scale(0.76); opacity: 0.28; }
+                    52% { transform: translateY(22%) scale(1.12); opacity: 1; }
+                    100% { transform: translateY(0) scale(1); opacity: 1; }
+                }
+                @keyframes markerTravelLeft {
+                    0% { transform: translateX(86%) translateY(10%) scale(0.76); opacity: 0.28; }
+                    52% { transform: translateX(-18%) translateY(-12%) scale(1.12); opacity: 1; }
+                    100% { transform: translateX(0) scale(1); opacity: 1; }
+                }
+                @keyframes markerTravelRight {
+                    0% { transform: translateX(-86%) translateY(10%) scale(0.76); opacity: 0.28; }
+                    52% { transform: translateX(18%) translateY(-12%) scale(1.12); opacity: 1; }
+                    100% { transform: translateX(0) scale(1); opacity: 1; }
+                }
+                @keyframes markerTravelUp {
+                    0% { transform: translateY(62%) scale(0.66); opacity: 0.26; }
+                    55% { transform: translateY(-26%) scale(1.16); opacity: 1; }
+                    100% { transform: translateY(0) scale(1); opacity: 1; }
+                }
+                @keyframes markerTravelDown {
+                    0% { transform: translateY(-62%) scale(1.12); opacity: 0.26; }
+                    55% { transform: translateY(22%) scale(0.78); opacity: 1; }
+                    100% { transform: translateY(0) scale(1); opacity: 1; }
+                }
+                @keyframes markerTraverse {
+                    0% {
+                        transform: translate(var(--from-x), var(--from-y)) scale(0.78);
+                        opacity: 0.35;
+                    }
+                    52% {
+                        transform: translate(calc((var(--from-x) + var(--to-x)) / 2), calc(((var(--from-y) + var(--to-y)) / 2) - 10px)) scale(1.14);
+                        opacity: 1;
+                    }
+                    100% {
+                        transform: translate(var(--to-x), var(--to-y)) scale(1);
+                        opacity: 1;
+                    }
+                }
+            `}</style>
+            <div
+                className="flex flex-col items-center justify-center gap-4 transition-transform duration-500 ease-out"
+                style={fullMap ? { transform: `translateY(${fullMapYOffset}px)` } : undefined}
+            >
+                {layers.map((z) => {
+                    const transitOverlay = !fullMap && recentMovement?.ts && recentMovement.from.z === z && recentMovement.to.z === z
+                        ? (() => {
+                            const markerOffset = (cellSize - markerSize) / 2;
+                            const fromCell = getGridCellPosition(recentMovement.from.x, recentMovement.from.y, bounds, cellSize, gap);
+                            const toCell = getGridCellPosition(recentMovement.to.x, recentMovement.to.y, bounds, cellSize, gap);
+                            return {
+                                fromLeft: fromCell.left + markerOffset,
+                                fromTop: fromCell.top + markerOffset,
+                                toLeft: toCell.left + markerOffset,
+                                toTop: toCell.top + markerOffset
+                            };
+                        })()
+                        : null;
 
-
-            {layers.map(z => (
+                    return (
                 <div key={z} className="relative group z-10">
-                    {/* Grid Plane */}
+                    {fullMap && (
+                        <div className="absolute -left-10 top-2 z-20 rounded-full border border-white/10 bg-black/70 px-2 py-1 text-[8px] font-bold uppercase tracking-[0.25em] text-gray-300">
+                            Deck {z}
+                        </div>
+                    )}
                     <div
-                        className="grid grid-cols-7 gap-2 p-2 bg-black/10 border border-white/5 transform transition-all duration-500 hover:rotate-x-0 group-hover:scale-105 backdrop-blur-sm"
+                        className="relative grid p-2 bg-black/10 border border-white/5 transform transition-all duration-500 backdrop-blur-sm"
                         style={{
-                            transform: `rotateX(60deg) rotateZ(45deg) translateZ(${z * 20}px)`,
-                            boxShadow: '0 10px 30px rgba(0,0,0,0.5)'
+                            gridTemplateColumns: `repeat(${bounds.width}, ${cellSize}px)`,
+                            gridAutoRows: `${cellSize}px`,
+                            gap: `${gap}px`,
+                            transform: tacticalRotation ? `rotate(${tacticalRotation}deg)` : undefined,
+                            boxShadow: fullMap ? "0 8px 24px rgba(0,0,0,0.35)" : "0 10px 24px rgba(0,0,0,0.45)"
                         }}
                     >
-                        {Array.from({ length: SIZE }).map((_, row) => {
-                            // Row 0 corresponds to max Y (North), Row 6 to min Y (South) in the 7x7 viewport
-                            // Viewport Y range: startY (bottom) to startY + SIZE - 1 (top)
-                            const y = startY + (SIZE - 1 - row);
+                        {Array.from({ length: bounds.height }).map((_, row) => {
+                            const y = bounds.maxY - row;
 
-                            return Array.from({ length: SIZE }).map((_, col) => {
-                                const x = startX + col;
-
+                            return Array.from({ length: bounds.width }).map((__, col) => {
+                                const x = bounds.minX + col;
                                 const node = getNode(x, y, z);
-                                const markers = getMarkers(x, y, z);
-                                const isCurrent = node?.id === currentPlayerNodeId; // Should match if centered correctly
+                                const cellMarkers = getMarkers(x, y, z);
+                                const hasCurrentMarker = cellMarkers.some((marker) => marker.isCurrent);
+                                const isCurrent = !transitOverlay && Boolean(node?.id === currentPlayerNodeId || hasCurrentMarker);
+                                const isSelected = Boolean(node?.id && selectedNodeId && node.id === selectedNodeId);
+                                const isMoveFrom = Boolean(node && recentMovement &&
+                                    x === recentMovement.from.x &&
+                                    y === recentMovement.from.y &&
+                                    z === recentMovement.from.z
+                                );
+                                const isMoveTo = Boolean(node && recentMovement &&
+                                    x === recentMovement.to.x &&
+                                    y === recentMovement.to.y &&
+                                    z === recentMovement.to.z
+                                );
                                 const isBoss = node?.type === 'BOSS';
-
-                                const scanned = Boolean(node?.scanned);
+                                const isStart = node?.type === 'START';
+                                const isCorridor = node?.type === "CORRIDOR";
+                                const isRoomNode = Boolean(node && !isCorridor);
+                                const scanned = isNodeScanComplete(node);
                                 const isExplored = Boolean(node?.isExplored);
-
                                 const security = node?.security ?? 0;
-                                const scanFailed = scanned && security <= 0;
-                                const secured = scanned && security >= 2;
+                                const hasEnemies = Boolean(node?.enemies && parseJSON(node.enemies || "[]", []).length > 0);
+                                const scanFailed = scanned && !isStart && security <= 0;
+                                const secured = isNodeSecureComplete(node);
                                 const suit = node?.roomSuit || "";
                                 const suitStyle = suitColors[suit] || { text: "text-gray-400", border: "border-gray-700" };
-                                const suitAbbr = suit ? suit.slice(0, 3).toUpperCase() : "";
-
-                                let statusColor = "bg-gray-800/20 border-gray-800";
-                                if (isCurrent) statusColor = "bg-neon-cyan/20 border-neon-cyan shadow-[0_0_15px_rgba(0,255,255,0.3)] z-50";
-                                else if (isBoss) statusColor = "bg-red-900/40 border-red-500/50";
-                                else if (scanned && scanFailed) statusColor = "bg-gray-900/60 border-gray-700";
-                                else if (scanned && secured) statusColor = `bg-black/80 ${suitStyle.border}`;
-                                else if (scanned) statusColor = "bg-gray-800/60 border-gray-500";
-                                else if (node?.isExplored) statusColor = "bg-gray-900/40 border-gray-700 border-dashed";
-
-                                // Fog of War: Check if visible OR if it's a neighbor (Door/Hatch)
-                                // Neighbor distance (Manhattan) = 1 (across X, Y, Z)
+                                const suitAbbr = suit ? (fullMap ? suit.slice(0, 1).toUpperCase() : suit.slice(0, 3).toUpperCase()) : "";
+                                const connectionDirections = normalizeConnections(node?.connections);
+                                const validConnectionDirections = connectionDirections.filter((direction: string) => {
+                                    const delta = DIRECTION_VECTORS[direction];
+                                    if (!delta) return false;
+                                    return Boolean(getNode(x + delta.x, y + delta.y, z + delta.z));
+                                });
                                 const zDiff = Math.abs(z - (currentPlayerMarker?.z ?? 0));
                                 const dist = Math.abs(x - centerX) + Math.abs(y - centerY) + zDiff;
                                 const isNeighbor = dist === 1;
+                                const hasDoor = Boolean(node && isNeighbor && !isExplored);
+                                const isHatch = Boolean(isNeighbor && zDiff === 1 && !isExplored && node);
+                                const connectorLength = Math.max(6, Math.round(cellSize * 0.36));
+                                const connectorThickness = Math.max(2, Math.round(cellSize * 0.12));
+                                const wallThickness = Math.max(1, Math.round(cellSize * 0.08));
+                                const wallInset = Math.max(2, Math.round(cellSize * 0.18));
+                                const connectorColor = isCurrent
+                                    ? "rgba(34, 211, 238, 0.95)"
+                                    : hasEnemies
+                                        ? "rgba(248, 113, 113, 0.82)"
+                                        : suitLineColors[suit] || "rgba(226, 232, 240, 0.55)";
+                                const wallColor = fullMap ? "rgba(71, 85, 105, 0.7)" : "rgba(30, 41, 59, 0.88)";
+                                const showsStructuralOverlay = Boolean(node && (fullMap || isExplored || scanned || isCurrent));
+                                const hasUp = validConnectionDirections.includes("UP");
+                                const hasDown = validConnectionDirections.includes("DOWN");
 
-                                const hasDoor = node && isNeighbor && !isExplored;
-                                const isHatch = isNeighbor && zDiff === 1 && !isExplored && node; // Specifically a vertical non-explored neighbor
+                                let statusColor = fullMap ? `bg-black/80 ${suitStyle.border}` : "bg-gray-800/20 border-gray-800";
+                                let dangerGlow = null;
+                                let dangerBadge = null;
 
-                                // Render empty cell if no node (void space in parallax) OR if it is the Airlock
-                                // Airlock is at (1, -1, 0).
-                                const isAirlock = x === 1 && y === -1 && z === 0;
+                                if (isCurrent) {
+                                    statusColor = "bg-neon-cyan/20 border-neon-cyan shadow-[0_0_15px_rgba(0,255,255,0.3)] z-50";
+                                } else if (isCorridor) {
+                                    statusColor = "bg-transparent border-transparent";
+                                } else if (isStart) {
+                                    statusColor = "bg-green-900/40 border-green-500/50";
+                                } else if (isBoss) {
+                                    statusColor = "bg-red-900/40 border-red-500/50";
+                                    dangerGlow = "shadow-[0_0_12px_rgba(239,68,68,0.4)]";
+                                } else if (hasEnemies) {
+                                    statusColor = "bg-red-950/30 border-red-600/50";
+                                    dangerGlow = "shadow-[0_0_8px_rgba(220,38,38,0.3)]";
+                                    dangerBadge = <span className="absolute -top-1 -right-1 text-[6px] font-bold text-red-500">!</span>;
+                                } else if (security >= 2) {
+                                    statusColor = "bg-orange-950/30 border-orange-600/50";
+                                    dangerBadge = <span className="absolute -top-1 -right-1 text-[6px] font-bold text-orange-500">⚠</span>;
+                                } else if (scanned && scanFailed) {
+                                    statusColor = "bg-gray-900/60 border-gray-700";
+                                } else if (scanned && secured) {
+                                    statusColor = `bg-black/80 ${suitStyle.border}`;
+                                } else if (scanned) {
+                                    statusColor = "bg-gray-800/60 border-gray-500";
+                                } else if (isExplored) {
+                                    statusColor = "bg-gray-900/40 border-gray-700 border-dashed";
+                                    dangerBadge = <span className="absolute -bottom-1 -left-1 text-[6px] font-bold text-yellow-500 opacity-70">?</span>;
+                                }
 
-                                // Fog Logic: Hide if not explored AND not a revealed door AND not current AND not Airlock
-                                if ((!node && !isCurrent) || isAirlock || (!isExplored && !hasDoor && !isCurrent)) {
+                                if (!fullMap && (((!node && !isCurrent) || (!isExplored && !hasDoor && !isCurrent)))) {
                                     if (hasDoor) {
-                                        // Render "Door" or "Hatch" marker for unexplored neighbor
                                         return (
-                                            <div key={`${x}-${y}-${z}`} className="w-9 h-9 md:w-10 md:h-10 flex items-center justify-center border border-dashed border-gray-700 bg-gray-900/20 opacity-50">
+                                            <div
+                                                key={`${x}-${y}-${z}`}
+                                                className="flex items-center justify-center border border-dashed border-gray-700 bg-gray-900/20 opacity-50"
+                                                style={{ width: `${cellSize}px`, height: `${cellSize}px` }}
+                                            >
                                                 {isHatch ? (
-                                                    <div className="w-6 h-6 rounded-full border border-gray-500/50 flex items-center justify-center">
-                                                        <div className="w-2 h-2 bg-gray-600 rounded-full" />
+                                                    <div className="rounded-full border border-gray-500/50 flex items-center justify-center" style={{ width: `${Math.max(10, cellSize * 0.6)}px`, height: `${Math.max(10, cellSize * 0.6)}px` }}>
+                                                        <div className="bg-gray-600 rounded-full" style={{ width: `${Math.max(4, cellSize * 0.2)}px`, height: `${Math.max(4, cellSize * 0.2)}px` }} />
                                                     </div>
                                                 ) : (
-                                                    <div className="w-4 h-4 border border-gray-600/50" />
+                                                    <div className="border border-gray-600/50" style={{ width: `${Math.max(8, cellSize * 0.4)}px`, height: `${Math.max(8, cellSize * 0.4)}px` }} />
                                                 )}
                                             </div>
                                         );
                                     }
-                                    return <div key={`${x}-${y}-${z}`} className="w-9 h-9 md:w-10 md:h-10 opacity-5 border border-white/5" />
+
+                                    return (
+                                        <div
+                                            key={`${x}-${y}-${z}`}
+                                            className="opacity-5 border border-white/5"
+                                            style={{ width: `${cellSize}px`, height: `${cellSize}px` }}
+                                        />
+                                    );
+                                }
+
+                                if (!node && !isCurrent) {
+                                    return (
+                                        <div
+                                            key={`${x}-${y}-${z}`}
+                                            className={`${fullMap ? "opacity-20 border border-white/5 bg-white/[0.02]" : "opacity-5 border border-white/5"}`}
+                                            style={{ width: `${cellSize}px`, height: `${cellSize}px` }}
+                                        />
+                                    );
                                 }
 
                                 return (
                                     <div
                                         key={`${x}-${y}-${z}`}
                                         className={`
-                                            w-9 h-9 md:w-10 md:h-10 flex items-center justify-center border transition-all duration-300 relative
+                                            flex items-center justify-center border transition-all duration-300 relative
                                             ${statusColor}
                                             ${isCurrent ? 'scale-110 translate-z-4' : ''}
+                                            ${node ? 'cursor-pointer' : ''}
+                                            ${dangerGlow || ''}
                                         `}
+                                        style={{ width: `${cellSize}px`, height: `${cellSize}px` }}
+                                        onMouseEnter={() => node && onNodeHover?.(node.id)}
+                                        onMouseLeave={() => node && onNodeHover?.(null)}
+                                        onClick={() => node && onNodeSelect?.(node.id)}
+                                        title={node ? `[${node.x}, ${node.y}, ${node.z}] ${node.type}` : undefined}
                                     >
-                                        {markers.length > 0 && (
-                                            <div className="flex items-center justify-center w-full h-full">
-                                                {markers.slice(0, 3).map((marker, idx) => {
-                                                    if (marker.isCurrent) {
-                                                        const rotClass = {
-                                                            "NORTH": "rotate-0",
-                                                            "EAST": "rotate-90",
-                                                            "SOUTH": "rotate-180",
-                                                            "WEST": "-rotate-90"
-                                                        }[facing] || "rotate-0";
+                                        {isSelected && (
+                                            <div
+                                                className="pointer-events-none absolute border border-white/80 shadow-[inset_0_0_12px_rgba(255,255,255,0.16)]"
+                                                style={{
+                                                    inset: `${Math.max(2, Math.round(cellSize * 0.12))}px`,
+                                                    borderRadius: `${Math.max(4, Math.round(cellSize * 0.18))}px`
+                                                }}
+                                            />
+                                        )}
+                                        {isMoveTo && (
+                                            <div
+                                                className="pointer-events-none absolute animate-pulse rounded-full border border-cyan-300/80 shadow-[0_0_16px_rgba(34,211,238,0.7)]"
+                                                style={{
+                                                    inset: `${Math.max(1, Math.round(cellSize * 0.08))}px`
+                                                }}
+                                            />
+                                        )}
+                                        {node && !isCurrent && (
+                                            <div
+                                                className={`pointer-events-none absolute ${
+                                                    isCorridor
+                                                        ? "border border-slate-600/80 bg-slate-950/95"
+                                                        : "border border-white/10 bg-black/45"
+                                                }`}
+                                                style={{
+                                                    inset: isCorridor
+                                                        ? `${Math.max(8, Math.round(cellSize * 0.26))}px`
+                                                        : `${Math.max(2, Math.round(cellSize * 0.12))}px`,
+                                                    borderRadius: isCorridor
+                                                        ? `${Math.max(8, Math.round(cellSize * 0.28))}px`
+                                                        : `${Math.max(4, Math.round(cellSize * 0.18))}px`
+                                                }}
+                                            />
+                                        )}
+                                        {showsStructuralOverlay && (
+                                            <>
+                                                {(["FORWARD", "BACK", "LEFT", "RIGHT"] as const).map((direction) => {
+                                                    const hasConnection = validConnectionDirections.includes(direction);
+                                                    if (hasConnection) {
+                                                        const lineStyle = direction === "FORWARD"
+                                                            ? { top: 0, left: "50%", width: `${connectorThickness}px`, height: `${connectorLength}px`, transform: "translateX(-50%)" }
+                                                            : direction === "BACK"
+                                                                ? { bottom: 0, left: "50%", width: `${connectorThickness}px`, height: `${connectorLength}px`, transform: "translateX(-50%)" }
+                                                                : direction === "LEFT"
+                                                                    ? { left: 0, top: "50%", width: `${connectorLength}px`, height: `${connectorThickness}px`, transform: "translateY(-50%)" }
+                                                                    : { right: 0, top: "50%", width: `${connectorLength}px`, height: `${connectorThickness}px`, transform: "translateY(-50%)" };
 
                                                         return (
-                                                            <div key={`${marker.id}-${idx}`} className={`relative w-8 h-8 flex items-center justify-center transition-transform duration-300 ${rotClass}`}>
-                                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6 text-orange-500 drop-shadow-[0_0_8px_rgba(249,115,22,0.8)]">
-                                                                    <path d="M12 2L2 22L12 18L22 22L12 2Z" />
-                                                                </svg>
+                                                            <div
+                                                                key={`${direction}-connector`}
+                                                                className={`absolute rounded-full opacity-90 ${isMoveFrom && recentMovement?.direction === direction ? "animate-pulse" : ""}`}
+                                                                style={{
+                                                                    ...lineStyle,
+                                                                    backgroundColor: isMoveFrom && recentMovement?.direction === direction ? "rgba(34, 211, 238, 0.98)" : connectorColor,
+                                                                    boxShadow: `0 0 ${Math.max(4, connectorThickness * 2)}px ${isMoveFrom && recentMovement?.direction === direction ? "rgba(34, 211, 238, 0.98)" : connectorColor}`
+                                                                }}
+                                                            />
+                                                        );
+                                                    }
+
+                                                    const wallStyle = direction === "FORWARD"
+                                                        ? { top: 1, left: `${wallInset}px`, width: `calc(100% - ${wallInset * 2}px)`, height: `${wallThickness}px` }
+                                                        : direction === "BACK"
+                                                            ? { bottom: 1, left: `${wallInset}px`, width: `calc(100% - ${wallInset * 2}px)`, height: `${wallThickness}px` }
+                                                            : direction === "LEFT"
+                                                                ? { left: 1, top: `${wallInset}px`, width: `${wallThickness}px`, height: `calc(100% - ${wallInset * 2}px)` }
+                                                                : { right: 1, top: `${wallInset}px`, width: `${wallThickness}px`, height: `calc(100% - ${wallInset * 2}px)` };
+
+                                                    return (
+                                                        <div
+                                                            key={`${direction}-wall`}
+                                                            className="absolute rounded-full opacity-95"
+                                                            style={{
+                                                                ...wallStyle,
+                                                                backgroundColor: wallColor
+                                                            }}
+                                                        />
+                                                    );
+                                                })}
+                                                {(hasUp || hasDown) && (
+                                                    <div
+                                                        className={`absolute font-black tracking-tight ${hasUp && hasDown ? "text-neon-cyan" : "text-gray-200"}`}
+                                                        style={{
+                                                            top: fullMap ? "38%" : "34%",
+                                                            right: fullMap ? "18%" : "12%",
+                                                            fontSize: `${Math.max(7, roomLabelSize + (fullMap ? 2 : 1))}px`,
+                                                            textShadow: "0 0 8px rgba(34,211,238,0.45)"
+                                                        }}
+                                                    >
+                                                        {hasUp && hasDown ? "⇅" : hasUp ? "↑" : "↓"}
+                                                    </div>
+                                                )}
+                                            </>
+                                        )}
+                                        {cellMarkers.length > 0 && (
+                                            <div className="flex items-center justify-center w-full h-full">
+                                                {cellMarkers.slice(0, 3).map((marker, idx) => {
+                                                    if (marker.isCurrent) {
+                                                        if (transitOverlay) return null;
+                                                        return (
+                                                            <div
+                                                                key={`${marker.id}-${idx}`}
+                                                                className="relative flex items-center justify-center"
+                                                                style={{
+                                                                    width: `${markerSize}px`,
+                                                                    height: `${markerSize}px`,
+                                                                    animation: isMoveTo && recentMovement?.ts
+                                                                        ? `${markerTravelAnimation} ${markerTravelDurationMs}ms cubic-bezier(0.22, 0.9, 0.26, 1) 1`
+                                                                        : undefined
+                                                                }}
+                                                            >
+                                                                <div
+                                                                    className="flex items-center justify-center transition-transform duration-300 ease-out"
+                                                                    style={{ transform: `rotate(${currentMarkerRotation}deg)` }}
+                                                                >
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="text-orange-500 drop-shadow-[0_0_8px_rgba(249,115,22,0.8)]" style={{ width: `${markerSize}px`, height: `${markerSize}px` }}>
+                                                                        <path d="M12 2L2 22L12 18L22 22L12 2Z" />
+                                                                    </svg>
+                                                                </div>
                                                             </div>
                                                         );
                                                     }
+
                                                     return (
-                                                        <div key={`${marker.id}-${idx}`} className="w-3 h-3 rounded-full bg-yellow-400 border border-black shadow-sm mx-[1px]" title="Squadmate" />
+                                                        <div
+                                                            key={`${marker.id}-${idx}`}
+                                                            className="rounded-full bg-yellow-400 border border-black shadow-sm"
+                                                            title="Squadmate"
+                                                            style={{ width: `${squadDotSize}px`, height: `${squadDotSize}px`, margin: fullMap ? "1px" : "0 1px" }}
+                                                        />
                                                     );
                                                 })}
                                             </div>
                                         )}
-                                        
-                                        {/* LED Status Indicators */}
-                                        {node && isExplored && ( // Only show LEDs if explored
-                                            <div className="absolute top-0 left-0 w-full h-1 flex gap-[2px] opacity-80 px-[1px]">
-                                                {/* Blue LED: Scanned */}
-                                                <div className={`h-full flex-1 rounded-full text-[4px] flex items-center justify-center transition-colors ${scanned ? "bg-neon-cyan shadow-[0_0_4px_#0ff]" : "bg-gray-800"}`} />
-                                                {/* Green LED: Secured */}
-                                                <div className={`h-full flex-1 rounded-full transition-colors ${secured ? "bg-green-500 shadow-[0_0_4px_#0f0]" : "bg-gray-800"}`} />
-                                                {/* Red LED: Enemies */}
+
+                                        {!fullMap && node && isExplored && !isCorridor && (
+                                            <div className="absolute bottom-0.5 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full border border-white/10 bg-black/80 px-1.5 py-[2px]">
+                                                <div className={`h-1.5 w-1.5 rounded-full ${scanned ? "bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.95)]" : "bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.95)]"}`} title={scanned ? "Scanned" : "Unscanned"} />
+                                                <div className={`h-1.5 w-1.5 rounded-full ${secured ? "bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.95)]" : "bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.95)]"}`} title={secured ? "Secured" : "Unsecured"} />
                                                 {parseJSON(node.enemies || "[]", []).length > 0 && (
-                                                    <div className="h-full flex-1 rounded-full bg-red-500 animate-pulse shadow-[0_0_4px_#f00]" />
+                                                    <div className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse shadow-[0_0_6px_rgba(239,68,68,0.95)]" title="Enemies present" />
                                                 )}
                                             </div>
                                         )}
 
-                                        {!isCurrent && isBoss && isExplored && <div className="text-[6px] text-red-500 font-bold">BOSS</div>} {/* Only show BOSS if explored */}
-                                        {scanned && isExplored && ( // Only show roomPower if explored
-                                            <div className="absolute bottom-0.5 right-0.5 text-[8px] font-bold text-gray-400">
+                                        {fullMap && isStart && (
+                                            <>
+                                                {!isCurrent && (
+                                                    <div className="absolute inset-0 flex items-center justify-center text-green-400 font-bold" style={{ fontSize: `${roomLabelSize}px`, ...(uprightStyle || {}) }}>
+                                                        A
+                                                    </div>
+                                                )}
+                                                <div className="absolute bottom-0.5 left-1/2 -translate-x-1/2 rounded border border-green-400/40 bg-black/80 px-1 text-[5px] font-black uppercase tracking-[0.18em] text-green-300" style={uprightStyle}>
+                                                    AIR
+                                                </div>
+                                            </>
+                                        )}
+                                        {!fullMap && isStart && !isCurrent && (
+                                            <div className="absolute inset-0 flex items-center justify-center text-green-400 font-bold tracking-[0.18em]" style={{ fontSize: `${Math.max(5, roomLabelSize - 1)}px`, ...(uprightStyle || {}) }}>
+                                                AIR
+                                            </div>
+                                        )}
+                                        {fullMap && node?.type === "ENTRY" && !isCurrent && (
+                                            <div className="absolute inset-0 flex items-center justify-center text-neon-cyan font-bold" style={{ fontSize: `${roomLabelSize}px`, ...(uprightStyle || {}) }}>
+                                                E
+                                            </div>
+                                        )}
+                                        {((fullMap && isBoss) || (!fullMap && !isCurrent && isBoss && isExplored)) && (
+                                            <div className="absolute inset-0 flex items-center justify-center text-red-500 font-bold" style={{ fontSize: `${roomLabelSize}px`, ...(uprightStyle || {}) }}>
+                                                {fullMap ? "B" : "BOSS"}
+                                            </div>
+                                        )}
+                                        {isRoomNode && (fullMap || (scanned && isExplored)) && (
+                                            <div className="absolute bottom-0.5 right-0.5 font-bold text-gray-300" style={{ fontSize: `${statSize}px`, ...(uprightStyle || {}) }}>
                                                 {node?.roomPower ?? "?"}
                                             </div>
                                         )}
-                                        {scanned && suitAbbr && (
-                                            <div className={`absolute top-1.5 left-0.5 text-[8px] font-bold ${suitStyle.text}`}>
+                                        {isRoomNode && (fullMap || scanned) && suitAbbr && (
+                                            <div className={`absolute top-0.5 left-0.5 font-bold ${suitStyle.text}`} style={{ fontSize: `${statSize}px`, ...(uprightStyle || {}) }}>
                                                 {suitAbbr}
                                             </div>
                                         )}
+                                        {isCorridor && !fullMap && !isCurrent && (
+                                            <div className="absolute inset-0 flex items-center justify-center">
+                                                <span className="rounded border border-slate-700 bg-black/80 px-1.5 py-0.5 text-[7px] font-bold uppercase tracking-[0.22em] text-slate-300" style={uprightStyle}>
+                                                    Hall
+                                                </span>
+                                            </div>
+                                        )}
+                                        {!fullMap && !isCorridor && !scanned && isExplored && !isCurrent && !hasDoor && (
+                                            <div className={`
+                                                absolute bottom-0.5 left-0.5 font-bold opacity-70
+                                                ${dist === 1 ? 'text-yellow-500' : ''}
+                                                ${dist === 2 ? 'text-orange-500' : ''}
+                                                ${dist >= 3 ? 'text-red-500' : ''}
+                                            `}
+                                                style={{ fontSize: `${Math.max(7, statSize - 1)}px`, ...(uprightStyle || {}) }}
+                                            >
+                                                {dist}
+                                            </div>
+                                        )}
+                                        {dangerBadge}
                                     </div>
                                 );
                             });
                         })}
-
-                        {/* AIRLOCK (Dynamic Placement V7) */}
-                        {z === 0 && (() => {
-                            const entryNode = getNode(1, -1, 0);
-                            const entryMarkers = getMarkers(1, -1, 0);
-                            const isCurrent = entryMarkers.some(m => m.isCurrent);
-
-                            // Calculate position relative to the viewport center (centerX, centerY)
-                            const deltaX = 1 - centerX;
-                            const deltaRows = centerY - (-1);
-
-                            // Fog of War (V10): Hide if too far
-                            if (deltaRows > 2) return null;
-
-                            // Position Fix: ~34% per cell (1/3 of container) so it moves 1:1 with grid
-                            const CELL_OFFSET_PCT = 34;
-
-                            return (
+                        {transitOverlay && (
+                            <div className="pointer-events-none absolute inset-0 z-[70]">
                                 <div
-                                    className="absolute w-10 h-10 flex items-center justify-center transition-all duration-500 z-0"
+                                    className="absolute"
                                     style={{
-                                        left: `calc(50% + ${deltaX * CELL_OFFSET_PCT}%)`,
-                                        top: `calc(50% + ${deltaRows * CELL_OFFSET_PCT}%)`,
-                                    }}
+                                        width: `${markerSize}px`,
+                                        height: `${markerSize}px`,
+                                        animation: `markerTraverse ${markerTravelDurationMs}ms cubic-bezier(0.24, 0.94, 0.3, 1) 1`,
+                                        ["--from-x" as any]: `${transitOverlay.fromLeft}px`,
+                                        ["--from-y" as any]: `${transitOverlay.fromTop}px`,
+                                        ["--to-x" as any]: `${transitOverlay.toLeft}px`,
+                                        ["--to-y" as any]: `${transitOverlay.toTop}px`
+                                    } as React.CSSProperties}
                                 >
-                                    <div className={`
-                                        w-9 h-9 md:w-10 md:h-10 flex items-center justify-center border 
-                                        transition-all duration-300 bg-green-900/40 border-green-500/50 relative
-                                        ${isCurrent ? "shadow-[0_0_15px_#0f0] border-green-400 scale-110" : ""}
-                                    `}>
-                                        <div className="text-[6px] text-green-500 font-bold">AIRLOCK</div>
-
-                                        {/* Umbilical Cord to Grid Entry */}
-                                        <div className="absolute bottom-[100%] left-1/2 -translate-x-1/2 w-1 h-[20%] bg-green-500/30" />
-
-                                        {/* Markers */}
-                                        {entryMarkers.length > 0 && (
-                                            <div className="absolute inset-0 flex items-center justify-center">
-                                                {entryMarkers.slice(0, 3).map((marker, idx) => (
-                                                    <div key={idx} className="relative w-8 h-8 flex items-center justify-center">
-                                                        {marker.isCurrent ? (
-                                                            (() => {
-                                                                const rotClass = { "NORTH": "rotate-0", "EAST": "rotate-90", "SOUTH": "rotate-180", "WEST": "-rotate-90" }[facing] || "rotate-0";
-                                                                return (
-                                                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={`w-6 h-6 text-orange-500 drop-shadow-[0_0_8px_rgba(249,115,22,0.8)] transition-transform duration-300 ${rotClass}`}>
-                                                                        <path d="M12 2L2 22L12 18L22 22L12 2Z" />
-                                                                    </svg>
-                                                                );
-                                                            })()
-                                                        ) : (
-                                                            <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
-                                                        )}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
+                                    <div className="absolute inset-0 rounded-full bg-cyan-400/10 blur-[2px] shadow-[0_0_18px_rgba(34,211,238,0.55)]" />
+                                    <div
+                                        className="relative flex h-full w-full items-center justify-center"
+                                        style={{ transform: `rotate(${currentMarkerRotation}deg)` }}
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="text-orange-400 drop-shadow-[0_0_10px_rgba(249,115,22,0.9)]" style={{ width: `${markerSize}px`, height: `${markerSize}px` }}>
+                                            <path d="M12 2L2 22L12 18L22 22L12 2Z" />
+                                        </svg>
                                     </div>
                                 </div>
-                            );
-                        })()}
+                            </div>
+                        )}
                     </div>
-                </div>
-            ))}
 
-            {/* V17: Static Deck Indicator (Bottom Left) */}
-            <div className="absolute bottom-4 left-4 text-2xl font-black font-mono text-neon-cyan tracking-widest pointer-events-none z-50 drop-shadow-[0_0_10px_rgba(34,211,238,0.8)]">
-                DECK {currentPlayerMarker?.z ?? 0}
+                </div>
+            )})}
             </div>
 
-            <style jsx>{`
-                .perspective-1000 { perspective: 1000px; }
-                .rotate-x-60 { transform: rotateX(60deg) rotateZ(-45deg); }
-            `}</style>
+            <div className="absolute bottom-4 left-4 text-2xl font-black font-mono text-neon-cyan tracking-widest pointer-events-none z-50 drop-shadow-[0_0_10px_rgba(34,211,238,0.8)]">
+                {viewLabel}
+            </div>
         </div>
     );
 }

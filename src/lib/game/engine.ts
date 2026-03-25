@@ -73,7 +73,7 @@ export class GameEngine {
                     type: gNode.type,
                     roomSuit: gNode.roomSuit,
                     roomPower: gNode.roomPower,
-                    security: 0,
+                    security: gNode.type === "START" ? 2 : 0,
                     isExplored: gNode.isExplored,
                     scanned: gNode.scanned,
                     connections: JSON.stringify(gNode.connections),
@@ -222,6 +222,11 @@ export class GameEngine {
                 }
             });
         });
+
+        // Calculate current depth from turn count (simplified)
+        // Note: turnNumber is initialized from currentTurn above
+        const turnNumber = 1; // First turn
+        const currentDepth = Math.min(turnNumber, 10);
 
         // Construct Turn Order
         // Start with the starter, then round robin (no AI card turn; environment reacts in reaction phase)

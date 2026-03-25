@@ -145,7 +145,7 @@ export default function LobbyRoom() {
     };
 
     return (
-        <div className="min-h-full p-8 pt-24 max-w-4xl mx-auto space-y-8 bg-space-void relative">
+        <div className="min-h-full max-w-4xl mx-auto space-y-8 bg-space-void px-8 pb-8 pt-24 relative">
             <div className="fixed top-6 left-8 z-50">
                 <Link href="/menu" className="flex items-center text-neon-cyan hover:text-white transition-colors glass-panel px-4 py-2 rounded-full">
                     <ArrowLeft className="mr-2 h-4 w-4" /> Back to Bridge
@@ -216,8 +216,8 @@ export default function LobbyRoom() {
                     );
                 })}
                 {Array.from({ length: 4 - lobby.members.length }).map((_, i) => (
-                    <div key={i} className="glass-panel p-4 rounded-xl flex items-center justify-center text-gray-700 border-dashed border-gray-800">
-                        <Users className="w-6 h-6 mr-2 opacity-50" /> EMPTY SLOT
+                    <div key={i} className="glass-panel p-4 rounded-xl flex items-center justify-center text-gray-600 border-dashed border-gray-800">
+                        <Users className="w-6 h-6 mr-2 opacity-50" /> Waiting for additional squad members...
                     </div>
                 ))}
             </div>
@@ -378,34 +378,35 @@ export default function LobbyRoom() {
             )}
 
             {/* Actions */}
-            <div className="fixed bottom-0 left-0 w-full glass-panel border-t border-white/10 p-4 flex justify-between items-center backdrop-blur-md z-50">
-                <div className="max-w-4xl mx-auto w-full flex justify-between">
-                    <Button variant="ghost" className="text-red-400 hover:bg-red-950/30" onClick={handleLeave}>
-                        <LogOut className="w-4 h-4 mr-2" /> ABORT MISSION
-                    </Button>
+            <div className="sticky bottom-4 z-40 pt-2">
+                <div className="glass-panel rounded-2xl border border-white/10 p-4 backdrop-blur-md shadow-[0_18px_48px_rgba(0,0,0,0.35)]">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <Button variant="ghost" className="justify-center text-red-400 hover:bg-red-950/30 md:justify-start" onClick={handleLeave}>
+                            <LogOut className="w-4 h-4 mr-2" /> ABORT MISSION
+                        </Button>
 
-                    <div className="flex gap-4">
-                        {!isHost ? (
-                            <Button
-                                onClick={handleReady}
-                                className={`w-48 ${currentUser?.isReady ? 'bg-yellow-600 hover:bg-yellow-500' : 'bg-green-600 hover:bg-green-500'}`}
-                            >
-                                {currentUser?.isReady ? "CANCEL READY" : "READY UP"}
-                            </Button>
-                        ) : (
-                            <Button
-                                onClick={handleStart}
-                                disabled={!allReady || starting}
-                                className={`w-48 ${allReady ? (starting ? 'opacity-70 cursor-wait' : 'bg-neon-cyan text-black hover:bg-cyan-400') : 'opacity-50 cursor-not-allowed'}`}
-                            >
-                                <Play className={`w-4 h-4 mr-2 ${starting ? 'animate-pulse' : ''}`} /> 
-                                {starting ? "LAUNCHING..." : "LAUNCH MISSION"}
-                            </Button>
-                        )}
+                        <div className="flex justify-end gap-4">
+                            {!isHost ? (
+                                <Button
+                                    onClick={handleReady}
+                                    className={`w-full md:w-48 ${currentUser?.isReady ? 'bg-yellow-600 hover:bg-yellow-500' : 'bg-green-600 hover:bg-green-500'}`}
+                                >
+                                    {currentUser?.isReady ? "CANCEL READY" : "READY UP"}
+                                </Button>
+                            ) : (
+                                <Button
+                                    onClick={handleStart}
+                                    disabled={!allReady || starting}
+                                    className={`w-full md:w-48 ${allReady ? (starting ? 'opacity-70 cursor-wait' : 'bg-neon-cyan text-black hover:bg-cyan-400') : 'opacity-50 cursor-not-allowed'}`}
+                                >
+                                    <Play className={`w-4 h-4 mr-2 ${starting ? 'animate-pulse' : ''}`} />
+                                    {starting ? "LAUNCHING..." : "LAUNCH MISSION"}
+                                </Button>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     );
 }
-

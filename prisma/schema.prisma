@@ -96,6 +96,7 @@ model GameRun {
   rank             String
   score            Int
   creditsEarned    Int
+  distanceTraveled Int       @default(0)
   bossDefeated     Boolean   @default(false)
   extracted        Boolean   @default(false)
   timeRemainingSec Int       @default(0)
@@ -168,6 +169,7 @@ model GamePlayer {
   backpackLevel      Int       @default(1)
   backpackCapacity   Int       @default(4)
   facing      String    @default("NORTH")
+  distanceTraveled Int  @default(0)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime
   MapNode     MapNode?  @relation(fields: [nodeId], references: [id])

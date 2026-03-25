@@ -137,50 +137,66 @@ export default function LobbyBrowser() {
                         </div>
                     )}
 
-                    {lobbies.map((lobby) => (
-                        <motion.div
-                            key={lobby.id}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="glass-panel p-6 rounded-xl flex items-center justify-between group hover:border-neon-cyan/50 transition-colors"
-                        >
-                            <div className="flex-1 flex gap-4 items-center">
-                                {/* Host Portrait */}
-                                <div className="hidden sm:flex w-16 h-16 rounded-full border border-white/20 overflow-hidden bg-gray-900 justify-center items-center">
-                                    <SafeImage
-                                        src={lobby.members.find((m: any) => m.characterId === lobby.hostId)?.character.portrait}
-                                        alt={lobby.members.find((m: any) => m.characterId === lobby.hostId)?.character.name}
-                                        className="w-full h-full object-cover"
-                                        fallback={
-                                            <span className="text-xl font-bold text-gray-500">
-                                                {lobby.members.find((m: any) => m.characterId === lobby.hostId)?.character.class?.[0] || "?"}
-                                            </span>
-                                        }
-                                    />
-                                </div>
+                    {lobbies.map((lobby) => {
+                        const currentPlayer = lobby.members.find((m: any) => m.isCurrentPlayer);
+                        return (
+                            <motion.div
+                                key={lobby.id}
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className={`glass-panel p-6 rounded-xl flex items-center justify-between group transition-all ${
+                                    currentPlayer ? 'border-neon-cyan/70 shadow-[0_0_15px_rgba(0,255,255,0.15)]' : 'border-white/10 hover:border-neon-cyan/50'
+                                }`}
+                            >
+                                <div className="flex-1 flex gap-4 items-center">
+                                    {/* Host Portrait */}
+                                    <div className={`hidden sm:flex w-16 h-16 rounded-full border overflow-hidden justify-center items-center transition-all ${
+                                        currentPlayer ? 'border-neon-cyan/80 bg-neon-cyan/5 shadow-[0_0_12px_rgba(0,255,255,0.3)]' : 'border-white/20 bg-gray-900'
+                                    }`}>
+                                        <SafeImage
+                                            src={lobby.members.find((m: any) => m.characterId === lobby.hostId)?.character.portrait}
+                                            alt={lobby.members.find((m: any) => m.characterId === lobby.hostId)?.character.name}
+                                            className="w-full h-full object-cover"
+                                            fallback={
+                                                <span className="text-xl font-bold text-gray-500">
+                                                    {lobby.members.find((m: any) => m.characterId === lobby.hostId)?.character.class?.[0] || "?"}
+                                                </span>
+                                            }
+                                        />
+                                        {/* Turn Indicator Overlay */}
+                                        {currentPlayer && (
+                                            <div className="absolute inset-0 bg-neon-cyan/10 rounded-full animate-pulse" />
+                                        )}
+                                    </div>
 
-                                <div>
-                                    <div className="flex items-center gap-3 mb-1">
-                                        <h3 className="text-xl font-bold text-white">{lobby.name}</h3>
-                                        <span className={`text-[10px] px-2 py-0.5 rounded border ${lobby.difficulty === 'HARD' ? 'border-red-500 text-red-500' :
-                                            lobby.difficulty === 'EASY' ? 'border-green-500 text-green-500' :
-                                                'border-neon-cyan text-neon-cyan'
-                                            }`}>
-                                            {lobby.difficulty}
-                                        </span>
-                                    </div>
-                                    <div className="text-sm text-gray-400 flex items-center gap-4">
-                                        <span>HOST: {lobby.members.find((m: any) => m.characterId === lobby.hostId)?.character.name || "Unknown"}</span>
-                                        <span>MEMBERS: {lobby.members.length}/4</span>
-                                        <span className="text-xs font-mono ml-2 text-gray-600">ID: {lobby.code}</span>
+                                    <div>
+                                        <div className="flex items-center gap-3 mb-1">
+                                            <h3 className="text-xl font-bold text-white">{lobby.name}</h3>
+                                            <span className={`text-[10px] px-2 py-0.5 rounded border ${lobby.difficulty === 'HARD' ? 'border-red-500 text-red-500' :
+                                                lobby.difficulty === 'EASY' ? 'border-green-500 text-green-500' :
+                                                    'border-neon-cyan text-neon-cyan'
+                                                }`}>
+                                                {lobby.difficulty}
+                                            </span>
+                                            {currentPlayer && (
+                                                <span className="text-[9px] px-2 py-0.5 rounded bg-neon-cyan text-black font-bold tracking-wider uppercase">
+                                                    Current Turn
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="text-sm text-gray-400 flex items-center gap-4">
+                                            <span>HOST: {lobby.members.find((m: any) => m.characterId === lobby.hostId)?.character.name || "Unknown"}</span>
+                                            <span>MEMBERS: {lobby.members.length}/4</span>
+                                            <span className="text-xs font-mono ml-2 text-gray-600">ID: {lobby.code}</span>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                            <Button onClick={() => handleJoin(lobby.id)}>
-                                JOIN SQUAD <Play className="w-4 h-4 ml-2" />
-                            </Button>
-                        </motion.div>
-                    ))}
+                                <Button onClick={() => handleJoin(lobby.id)}>
+                                    JOIN SQUAD <Play className="w-4 h-4 ml-2" />
+                                </Button>
+                            </motion.div>
+                        );
+                    })}
                 </div>
 
                 {/* Sidebar: Create & Join Code */}

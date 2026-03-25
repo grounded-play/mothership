@@ -2,12 +2,15 @@
 
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
+import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/Button";
 import { Play, User, Settings, LogOut, ShoppingBag, Dices, Users } from "lucide-react";
 import { signOut } from "next-auth/react";
+import { soundManager } from "@/lib/soundManager";
 
 export default function MainMenu() {
     const router = useRouter();
+    const lastHoveredItemRef = useRef<string | null>(null);
 
     const menuItems = [
         {
@@ -16,6 +19,7 @@ export default function MainMenu() {
             action: () => router.push("/lobby/browse"),
             disabled: false,
             description: "Join Runs or Start Your Own",
+            sound: { suit: "COMMAND", rank: 7 },
         },
         {
             label: "Character",
@@ -23,6 +27,7 @@ export default function MainMenu() {
             action: () => router.push("/character/view"),
             disabled: false,
             description: "View Service Record",
+            sound: { suit: "BIOTECH", rank: 5 },
         },
         {
             label: "Marketplace",
@@ -30,6 +35,7 @@ export default function MainMenu() {
             action: () => router.push("/marketplace"),
             disabled: false,
             description: "Galactic Trade Network",
+            sound: { suit: "PLASMA", rank: 6 },
         },
         {
             label: "3D Printer",
@@ -37,6 +43,7 @@ export default function MainMenu() {
             action: () => router.push("/printer"),
             disabled: false,
             description: "Weapon Fabrication",
+            sound: { suit: "VOID", rank: 4 },
         },
         {
             label: "Roster",
@@ -44,6 +51,7 @@ export default function MainMenu() {
             action: () => router.push("/roster"),
             disabled: false,
             description: "Active Personnel",
+            sound: { suit: "COMMAND", rank: 3 },
         },
         {
             label: "Settings",
@@ -51,8 +59,28 @@ export default function MainMenu() {
             action: () => router.push("/settings"),
             disabled: false,
             description: "System Configuration",
+            sound: { suit: "ANOMALY", rank: 2 },
         },
     ];
+
+    useEffect(() => {
+        soundManager.init();
+    }, []);
+
+    const handleMenuHover = (label: string) => {
+        if (lastHoveredItemRef.current === label) return;
+        lastHoveredItemRef.current = label;
+        soundManager.cardSelect();
+    };
+
+    const handleMenuLeave = () => {
+        lastHoveredItemRef.current = null;
+    };
+
+    const handleMenuClick = (action: () => void, sound?: { suit: string; rank: number }) => {
+        soundManager.cardPlay(sound, 1);
+        action();
+    };
 
     return (
         <div className="flex flex-col items-center justify-center min-h-full p-4">
@@ -77,7 +105,11 @@ export default function MainMenu() {
                             whileTap={{ scale: 0.98 }}
                         >
                             <button
-                                onClick={item.action}
+                                onClick={() => handleMenuClick(item.action, item.sound)}
+                                onMouseEnter={() => handleMenuHover(item.label)}
+                                onFocus={() => handleMenuHover(item.label)}
+                                onMouseLeave={handleMenuLeave}
+                                onBlur={handleMenuLeave}
                                 disabled={item.disabled}
                                 className={`w-full group relative flex items-center p-4 rounded-lg border transition-all duration-300 ${item.disabled
                                     ? "border-gray-800 bg-gray-900/50 opacity-50 cursor-not-allowed"
@@ -119,7 +151,14 @@ export default function MainMenu() {
                 <div className="mt-12 pt-8 border-t border-white/10 flex justify-center">
                     <Button
                         variant="ghost"
-                        onClick={() => signOut({ callbackUrl: "/" })}
+                        onMouseEnter={() => handleMenuHover("Disconnect")}
+                        onFocus={() => handleMenuHover("Disconnect")}
+                        onMouseLeave={handleMenuLeave}
+                        onBlur={handleMenuLeave}
+                        onClick={() => {
+                            soundManager.actionFail();
+                            signOut({ callbackUrl: "/" });
+                        }}
                         className="text-red-400 hover:text-red-300 hover:bg-red-950/20"
                     >
                         <LogOut className="mr-2 h-4 w-4" /> Disconnect
