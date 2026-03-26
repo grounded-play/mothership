@@ -13,11 +13,14 @@ interface Node {
 interface MiniMapProps {
     nodes: Node[];
     currentPlayerNodeId: string;
+    visualPlayerNode?: { x: number; y: number; z: number } | null;
 }
 
-export default function MiniMap({ nodes, currentPlayerNodeId }: MiniMapProps) {
+export default function MiniMap({ nodes, currentPlayerNodeId, visualPlayerNode }: MiniMapProps) {
     // Center Map on Current Player
-    const origin = nodes.find(n => n.id === currentPlayerNodeId) || { x: 0, y: 0, z: 0, type: "UNKNOWN", id: "", isExplored: true };
+    // Use visualPlayerNode when moving through hallways to prevent arrow from jumping
+    const targetNodeId = visualPlayerNode ? null : currentPlayerNodeId;
+    const origin = targetNodeId ? nodes.find(n => n.id === targetNodeId) : visualPlayerNode || { x: 0, y: 0, z: 0, type: "UNKNOWN", id: "", isExplored: true };
     const visibleNodes = nodes.filter(n => n.isExplored);
 
     const SCALE = 20;
