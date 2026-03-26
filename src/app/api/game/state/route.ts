@@ -355,68 +355,74 @@ const getSecureTargetLabel = (node: any) => {
     return `${node?.roomSuit || "UNKNOWN"} room`;
 };
 
-function buildHallwayIntel(node: any, nodeByCoord: Map<string, any>, scanDepth: number): HallwayIntel[] {
+function buildHallwayIntel(node: any, nodeByCoord: Map<string, any>, scanDepth: number, connectedDirections: string[]): HallwayIntel[] {
     const connections = parseJSON(node?.connections || "[]", []);
-    return connections.map((direction: string) => {
-        let current = node;
-        let currentDirection = direction;
-        let distance = 0;
-        let turns = 0;
-        let intersections = 0;
-        let branches = 0;
-        let endpointType = "VOID";
-        let truncated = false;
+    return connections
+        .filter((direction: string) => connectedDirections.includes(direction))
+        .map((direction: string) => {
+            let current = node;
+            let currentDirection = direction;
+            let distance = 0;
+            let turns = 0;
+            let intersections = 0;
+            let branches = 0;
+            let endpointType = "VOID";
+            let truncated = false;
 
-        while (distance < scanDepth) {
-            const delta = directionVectors[currentDirection];
-            if (!delta) break;
+            // Scale scan depth by scan strength - higher scan strength means deeper exploration
+            // Cap at a reasonable max to avoid excessive data
+            const effectiveDepth = Math.min(scanDepth, 8);
 
-            const nextNode = nodeByCoord.get(nodeCoordKey(current.x + delta.x, current.y + delta.y, current.z + delta.z));
-            if (!nextNode) {
-                endpointType = "VOID";
-                break;
+            while (distance < effectiveDepth) {
+                const delta = directionVectors[currentDirection];
+                if (!delta) break;
+
+                const nextNode = nodeByCoord.get(nodeCoordKey(current.x + delta.x, current.y + delta.y, current.z + delta.z));
+                if (!nextNode) {
+                    endpointType = "VOID";
+                    break;
+                }
+
+                distance += 1;
+                endpointType = nextNode.type;
+
+                const nextConnections = parseJSON(nextNode.connections || "[]", []).filter((candidate: string) => {
+                    const candidateDelta = directionVectors[candidate];
+                    if (!candidateDelta) return false;
+                    return nodeByCoord.has(nodeCoordKey(nextNode.x + candidateDelta.x, nextNode.y + candidateDelta.y, nextNode.z + candidateDelta.z));
+                });
+                const viableOptions = nextConnections.filter((candidate: string) => candidate !== oppositeDirections[currentDirection]);
+
+                if (viableOptions.length > 1) {
+                    intersections += 1;
+                    branches += viableOptions.length - 1;
+                }
+
+                if (nextNode.type !== "CORRIDOR" || viableOptions.length !== 1) {
+                    break;
+                }
+
+                const nextDirection = viableOptions[0];
+                if (nextDirection !== currentDirection) turns += 1;
+                currentDirection = nextDirection;
+                current = nextNode;
             }
 
-            distance += 1;
-            endpointType = nextNode.type;
-
-            const nextConnections = parseJSON(nextNode.connections || "[]", []).filter((candidate: string) => {
-                const candidateDelta = directionVectors[candidate];
-                if (!candidateDelta) return false;
-                return nodeByCoord.has(nodeCoordKey(nextNode.x + candidateDelta.x, nextNode.y + candidateDelta.y, nextNode.z + candidateDelta.z));
-            });
-            const viableOptions = nextConnections.filter((candidate: string) => candidate !== oppositeDirections[currentDirection]);
-
-            if (viableOptions.length > 1) {
-                intersections += 1;
-                branches += viableOptions.length - 1;
+            if (distance >= effectiveDepth && endpointType === "CORRIDOR") {
+                truncated = true;
             }
 
-            if (nextNode.type !== "CORRIDOR" || viableOptions.length !== 1) {
-                break;
-            }
-
-            const nextDirection = viableOptions[0];
-            if (nextDirection !== currentDirection) turns += 1;
-            currentDirection = nextDirection;
-            current = nextNode;
-        }
-
-        if (distance >= scanDepth && endpointType === "CORRIDOR") {
-            truncated = true;
-        }
-
-        return {
-            direction,
-            distance,
-            endpointType,
-            turns,
-            intersections,
-            branches,
-            truncated,
-            certainty: scanDepth >= 6 ? "HIGH" : scanDepth >= 4 ? "MED" : "LOW"
-        };
-    });
+            return {
+                direction,
+                distance,
+                endpointType,
+                turns,
+                intersections,
+                branches,
+                truncated,
+                certainty: scanDepth >= 6 ? "HIGH" : scanDepth >= 4 ? "MED" : "LOW"
+            };
+        });
 }
 
 async function autoProgress(gameState: any) {
@@ -507,7 +513,15 @@ async function autoProgress(gameState: any) {
         const scanDepth = success
             ? Math.min(8, Math.max(2, 2 + Math.floor((effectiveStrength - nodePower) / 2)))
             : 1;
-        const hallwayIntel = buildHallwayIntel(node, nodeByCoord, scanDepth);
+        const nodeConnections = parseJSON(node.connections || "[]", []);
+        const hallwayIntel = buildHallwayIntel(node, nodeByCoord, scanDepth, nodeConnections);
+
+        // Filter hallway intel to only show hallways directly connected to the scanned node
+        // This ensures scan quality dictates what gets revealed
+        const directlyConnectedHallways = hallwayIntel.filter((intel: HallwayIntel) =>
+            nodeConnections.includes(intel.direction)
+        );
+
         const secretIntel = parseSecretIntel(node.secretPaths);
         const nextLeads = success && (best?.strength || 0) >= nodePower + 4
             ? Array.from(new Set([...(secretIntel.leads || []).map((lead: any) => JSON.stringify(lead)), JSON.stringify({ to: "BOSS" })])).map((lead) => JSON.parse(lead))
@@ -524,7 +538,7 @@ async function autoProgress(gameState: any) {
                 secretPaths: JSON.stringify({
                     ...secretIntel,
                     leads: nextLeads,
-                    hallwayIntel,
+                    hallwayIntel: directlyConnectedHallways,
                     hallwayScanDepth: scanDepth
                 })
             }

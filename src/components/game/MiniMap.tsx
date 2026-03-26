@@ -20,7 +20,14 @@ export default function MiniMap({ nodes, currentPlayerNodeId, visualPlayerNode }
     // Center Map on Current Player
     // Use visualPlayerNode when moving through hallways to prevent arrow from jumping
     const targetNodeId = visualPlayerNode ? null : currentPlayerNodeId;
-    const origin = targetNodeId ? nodes.find(n => n.id === targetNodeId) : visualPlayerNode || { x: 0, y: 0, z: 0, type: "UNKNOWN", id: "", isExplored: true };
+    let origin: { x: number; y: number; z: number } | undefined;
+    if (targetNodeId) {
+        origin = nodes.find(n => n.id === targetNodeId);
+    } else if (visualPlayerNode) {
+        origin = visualPlayerNode;
+    } else {
+        origin = { x: 0, y: 0, z: 0 };
+    }
     const visibleNodes = nodes.filter(n => n.isExplored);
 
     const SCALE = 20;
@@ -30,6 +37,12 @@ export default function MiniMap({ nodes, currentPlayerNodeId, visualPlayerNode }
     // Projection: ISO-ish
     // Invert Y-axis influence so +Coord moves UP screen
     const project = (n: { x: number, y: number, z: number }) => {
+        if (!origin) {
+            return {
+                left: CENTER_X,
+                top: CENTER_Y
+            };
+        }
         const dx = n.x - origin.x;
         const dy = n.y - origin.y;
         const dz = n.z - origin.z;
