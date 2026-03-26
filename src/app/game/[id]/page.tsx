@@ -1046,13 +1046,16 @@ export default function GameInterface() {
         path.forEach((node: any, index: number) => {
             const fromNode = index === 0 ? payload.from : path[index - 1];
             const stepDirection = movementDirectionFromDelta(fromNode, node) || payload.direction || null;
-            const stepFacing = directionToFacing(stepDirection, rollingFacing);
+            const stepStartFacing = rollingFacing;
+            const stepFacing = directionToFacing(stepDirection, stepStartFacing);
             rollingFacing = stepFacing;
             const remainingSteps = Math.max(0, path.length - (index + 1));
             const stepDurationMs = stepDurations[index] || ROOM_STEP_INTERVAL_MS;
             const shouldPlayFootstep = path.length > 1 || fromNode?.type === "CORRIDOR" || node?.type === "CORRIDOR" || Number(fromNode?.z) !== Number(node?.z);
+            const startAtMs = elapsedMs;
+            const finishAtMs = startAtMs + stepDurationMs;
 
-            const timeout = setTimeout(() => {
+            const stepStartTimeout = setTimeout(() => {
                 setRecentMovement({
                     from: { x: fromNode.x, y: fromNode.y, z: fromNode.z, type: fromNode.type },
                     to: { x: node.x, y: node.y, z: node.z, type: node.type },
@@ -1063,27 +1066,41 @@ export default function GameInterface() {
                     ts: Date.now()
                 });
                 setHallwayTraversal({
+                    currentNode: fromNode,
+                    facing: stepStartFacing,
+                    remainingSteps: Math.max(1, path.length - index),
+                    totalSteps: path.length,
+                    stepIndex: index,
+                    stepDurationMs,
+                    currentDirection: stepDirection,
+                    active: true
+                });
+                if (shouldPlayFootstep) {
+                    soundManager.hallwayStep(index, Number(payload.hallwaySteps || path.length));
+                }
+            }, startAtMs);
+
+            const stepFinishTimeout = setTimeout(() => {
+                setHallwayTraversal({
                     currentNode: node,
                     facing: stepFacing,
                     remainingSteps,
                     totalSteps: path.length,
                     stepIndex: index + 1,
                     stepDurationMs,
-                    currentDirection: stepDirection,
+                    currentDirection: remainingSteps > 0 ? stepDirection : null,
                     active: remainingSteps > 0
                 });
-                if (shouldPlayFootstep) {
-                    soundManager.hallwayStep(index, Number(payload.hallwaySteps || path.length));
-                }
                 if (index === path.length - 1) {
                     const finishTimeout = setTimeout(() => {
                         setHallwayTraversal(null);
-                    }, Math.max(260, Math.round(stepDurationMs * 0.5)));
+                    }, 120);
                     traversalTimeoutsRef.current.push(finishTimeout);
                 }
-            }, elapsedMs);
-            traversalTimeoutsRef.current.push(timeout);
-            elapsedMs += stepDurationMs;
+            }, finishAtMs);
+
+            traversalTimeoutsRef.current.push(stepStartTimeout, stepFinishTimeout);
+            elapsedMs = finishAtMs;
         });
 
         lastMoveDataTsRef.current = latestMove.ts;
@@ -2021,21 +2038,25 @@ export default function GameInterface() {
                         </div>
 
                         {/* 2. MIDDLE: HAND */}
-                        <div className="flex-1 w-full flex flex-col items-center justify-center relative z-20 px-2 min-h-0">
-                            {roomInfo?.scanned && roomInfo?.suit && (
-                                <div className="mb-2 flex flex-wrap items-center justify-center gap-2 rounded-full border border-white/10 bg-black/35 px-3 py-1.5 text-[9px] uppercase tracking-[0.22em]">
-                                    <span className="text-gray-500">Room Effect</span>
-                                    <span className={`${roomSuitMeta?.color || "text-neon-cyan"} font-bold`}>
-                                        {roomInfo.suit} +1
-                                    </span>
-                                    {roomOpposingSuit && (
-                                        <span className="font-bold text-red-300">
-                                            {roomOpposingSuit} -1
+                        <div className="flex-none h-[340px] w-full relative z-20 px-2">
+                            <div className="mb-2 flex h-9 items-center justify-center">
+                                {roomInfo?.scanned && roomInfo?.suit ? (
+                                    <div className="flex flex-wrap items-center justify-center gap-2 rounded-full border border-white/10 bg-black/35 px-3 py-1.5 text-[9px] uppercase tracking-[0.22em]">
+                                        <span className="text-gray-500">Room Effect</span>
+                                        <span className={`${roomSuitMeta?.color || "text-neon-cyan"} font-bold`}>
+                                            {roomInfo.suit} +1
                                         </span>
-                                    )}
-                                </div>
-                            )}
-                            <div className="w-full flex flex-wrap items-center justify-center gap-2 px-2 pb-3">
+                                        {roomOpposingSuit && (
+                                            <span className="font-bold text-red-300">
+                                                {roomOpposingSuit} -1
+                                            </span>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="h-6" />
+                                )}
+                            </div>
+                            <div className="flex h-[52px] w-full flex-wrap items-center justify-center gap-2 px-2 pb-3">
                                 <div className="text-[9px] text-gray-500 uppercase tracking-[0.3em]">Hand Filter</div>
                                 {HAND_FILTER_ORDER.map((filter) => {
                                     const isActive = cardFilter === filter;
@@ -2071,7 +2092,7 @@ export default function GameInterface() {
                                 </div>
                             </div>
 
-                            <div ref={handViewportRef} className="h-[248px] md:h-[264px] w-full overflow-hidden px-2 -mt-3 pt-1 pb-12 md:-mt-4 md:pt-0 md:pb-14">
+                            <div ref={handViewportRef} className="h-[248px] md:h-[252px] w-full overflow-hidden px-2 pt-1 pb-10">
                                 <div className="flex items-end justify-center w-full perspective-[1000px]" style={{ gap: `${handLayout.gap}px` }}>
                                     <AnimatePresence initial={false}>
                                         {visibleHandEntries.length > 0 ? visibleHandEntries.map(({ card, index }) => (

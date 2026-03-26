@@ -10,6 +10,8 @@ function parseJSON(raw: any, fallback: any) {
     try { return JSON.parse(raw); } catch { return fallback; }
 }
 
+const TERMINAL_PHASES = new Set(["FAILED", "VICTORY", "DEFEAT"]);
+
 const suitOpposites: Record<string, string> = { COMMAND: "VOID", VOID: "COMMAND", BIOTECH: "PLASMA", PLASMA: "BIOTECH" };
 const computeBasePool = (count: number) => 3 + Math.max(0, count - 1);
 const normalizeSuit = (suit?: string | null) => (suit || "").toUpperCase();
@@ -34,6 +36,88 @@ const getBackpackCapacityForPlayer = (player: any) => {
 };
 
 const getSlotsUsed = (inv: any[]) => inv.reduce((sum, item) => sum + (item?.slotSize || 1), 0);
+
+async function expireMissionIfNeeded(gameState: any) {
+    const deadlineMs = gameState?.deadline ? new Date(gameState.deadline).getTime() : null;
+    const phase = String(gameState?.phase || "").toUpperCase();
+    const roundPhase = String(gameState?.roundPhase || "").toUpperCase();
+    if (!deadlineMs || deadlineMs > Date.now() || TERMINAL_PHASES.has(phase) || TERMINAL_PHASES.has(roundPhase)) {
+        return false;
+    }
+
+    const players = await (prisma as any).gamePlayer.findMany({
+        where: { gameId: gameState.id },
+        include: { MapNode: true, Character: true }
+    });
+    const lobbyDifficulty = gameState?.GameLobby?.difficulty || "NORMAL";
+    const turnCount = gameState.currentTurn || 0;
+    const nextIntegrity = gameState.integrity ?? 100;
+    const logs = [
+        {
+            ts: Date.now(),
+            type: "MAIN",
+            message: "MISSION CLOCK EXPIRED: the round is over and the squad was lost before extraction."
+        }
+    ];
+
+    for (const p of players) {
+        const existingRun = await (prisma as any).gameRun.findFirst({
+            where: { gameId: gameState.id, characterId: p.characterId },
+            orderBy: { endedAt: "desc" }
+        });
+        if (existingRun) continue;
+
+        const travelDistance = p.distanceTraveled ?? 0;
+        const travelCredits = Math.floor(travelDistance / 10);
+        let score = Math.floor(1000 * 0.1);
+        score += travelDistance;
+        const creditsEarned = Math.floor(score / 2) + travelCredits;
+
+        await (prisma as any).gameRun.create({
+            data: {
+                gameId: gameState.id,
+                difficulty: lobbyDifficulty,
+                outcome: "FAILED",
+                rank: "F",
+                score,
+                creditsEarned,
+                distanceTraveled: travelDistance,
+                bossDefeated: false,
+                extracted: false,
+                turns: turnCount,
+                startedAt: gameState.createdAt,
+                endedAt: new Date(),
+                character: { connect: { id: p.characterId } }
+            }
+        });
+
+        await (prisma as any).character.update({
+            where: { id: p.characterId },
+            data: {
+                runsCompleted: { increment: 0 },
+                runsFailed: { increment: 1 },
+                credits: { increment: creditsEarned }
+            }
+        });
+    }
+
+    const basePool = computeBasePool(players.length);
+    await (prisma as any).gameState.update({
+        where: { id: gameState.id },
+        data: {
+            roundPhase: "FAILED",
+            phase: "FAILED",
+            integrity: nextIntegrity,
+            sharedAp: basePool,
+            sharedApMax: basePool,
+            pendingActions: "[]",
+            actionDeadline: null,
+            gameLog: JSON.stringify([...(parseJSON(gameState.gameLog || "[]", [])), ...logs].slice(-50))
+        }
+    });
+
+    return true;
+}
 
 function cardStrength(cards: any[], roomSuit?: string, integrity?: number, ctx?: SuitContext) {
     const normalizedRoomSuit = normalizeSuit(roomSuit);
@@ -894,6 +978,25 @@ export async function GET(req: Request) {
         });
 
         if (!gameState) return NextResponse.json({ error: "Game not found" }, { status: 404 });
+
+        const missionExpired = await expireMissionIfNeeded(gameState);
+        if (missionExpired) {
+            gameState = await (prisma as any).gameState.findUnique({
+                where: { id: gameId },
+                include: {
+                    GamePlayer: {
+                        include: {
+                            Character: {
+                                include: { user: true }
+                            },
+                            MapNode: true
+                        }
+                    },
+                    GameLobby: true,
+                    MapNode: true
+                }
+            });
+        }
 
         await autoProgress(gameState);
         // refetch after auto progression
