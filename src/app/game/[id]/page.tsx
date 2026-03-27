@@ -2346,16 +2346,28 @@ export default function GameInterface() {
                                             {/* Action Timer Overlay */}
                                             {hasActionTimer && inActionPhase && (
                                                 <>
-                                                    {/* Action Expiring Warning - Appears when time is low and no action selected */}
+                                                    {/* Subtle Expiry Warning - Appears when time is low and no action selected */}
                                                     {actionTimeLeft <= 10 && !actionIntent && !isActing && (
-                                                        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center rounded-full bg-red-950/40 backdrop-blur-sm animate-pulse">
-                                                            <div className="text-red-500 text-xs font-bold tracking-widest uppercase mb-1 animate-pulse">
+                                                        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center rounded-full bg-red-950/30 backdrop-blur-sm">
+                                                            <div className="text-red-400 text-[10px] font-bold tracking-[0.18em] uppercase animate-pulse">
                                                                 Turn Expiring
                                                             </div>
-                                                            <div className="text-3xl font-black font-mono tracking-widest text-red-500 animate-pulse">
+                                                            <div className={`text-4xl font-black font-mono tracking-[0.15em] mt-1 animate-pulse ${
+                                                                actionTimeLeft <= 5 ? 'text-red-500' : 'text-red-400'
+                                                            }`}>
                                                                 {actionTimeLeft}
                                                             </div>
-                                                            <div className="text-[10px] text-red-400/70 mt-1">Select Action</div>
+                                                        </div>
+                                                    )}
+                                                    {/* Countdown Badge - Subtle ring indicator */}
+                                                    {actionTimeLeft <= 8 && !actionIntent && !isActing && (
+                                                        <div className="absolute inset-0 z-50 flex items-center justify-center">
+                                                            <div className="w-full h-full rounded-full border-2 border-red-500/30 animate-ping" />
+                                                            <div className="absolute inset-0 flex items-center justify-center">
+                                                                <div className="text-4xl font-black font-mono tracking-widest text-red-500 animate-pulse">
+                                                                    {actionTimeLeft}
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                     )}
                                                     {/* Standard Timer Display */}
