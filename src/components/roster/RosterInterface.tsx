@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Filter, Shield, Zap, User, Crosshair } from "lucide-react";
 import SafeImage from "@/components/ui/SafeImage";
@@ -25,6 +26,7 @@ interface RosterInterfaceProps {
 }
 
 export default function RosterInterface({ initialCharacters }: RosterInterfaceProps) {
+    const router = useRouter();
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedClass, setSelectedClass] = useState<string | null>(null);
     const [minLevel, setMinLevel] = useState(0);
@@ -116,6 +118,7 @@ export default function RosterInterface({ initialCharacters }: RosterInterfacePr
                                         exit={{ opacity: 0, scale: 0.9 }}
                                         layout
                                         className="relative group h-80 rounded-xl overflow-hidden border border-white/10 bg-black cursor-pointer shadow-lg hover:shadow-[0_0_25px_rgba(0,243,255,0.2)] transition-all duration-500"
+                                        onClick={() => router.push(`/character/view?id=${char.id}`)}
                                     >
                                         {/* Full Size Background Image */}
                                         {char.portrait ? (
@@ -218,7 +221,11 @@ export default function RosterInterface({ initialCharacters }: RosterInterfacePr
 
                     <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-3 min-h-0">
                         {ranked.map((char, idx) => (
-                            <div key={char.id} className="flex items-center justify-between bg-black/40 border border-white/5 rounded-lg px-3 py-2 hover:bg-white/5 transition-colors">
+                            <div
+                                key={char.id}
+                                className="flex items-center justify-between bg-black/40 border border-white/5 rounded-lg px-3 py-2 hover:bg-white/5 transition-colors cursor-pointer"
+                                onClick={() => router.push(`/character/view?id=${char.id}`)}
+                            >
                                 <div className="flex items-center gap-3 min-w-0">
                                     <div className={`text-[10px] font-mono w-6 text-center font-bold ${idx < 3 ? "text-neon-cyan" : "text-gray-600"}`}>#{idx + 1}</div>
                                     <div className="min-w-0">

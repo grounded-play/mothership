@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Box, Shield, Activity } from "lucide-react";
 import CurrencyDisplay from "@/components/ui/CurrencyDisplay";
@@ -9,7 +10,7 @@ import CurrencyDisplay from "@/components/ui/CurrencyDisplay";
 import CharacterProfile from "@/components/character/CharacterProfile";
 import InventoryInspect from "@/components/character/InventoryInspect";
 
-export default async function CharacterViewPage() {
+export default async function CharacterViewPage({ searchParams }: { searchParams: { id?: string } }) {
     const session = await getServerSession(authOptions);
 
     if (!session?.user?.email) redirect("/");
@@ -35,7 +36,18 @@ export default async function CharacterViewPage() {
         redirect("/character/create");
     }
 
-    const character = user.characters[0];
+    // Check if a specific character ID is provided in query params
+    const characterId = searchParams.id;
+    let character = user.characters[0];
+
+    if (characterId) {
+        const found = user.characters.find((c: any) => c.id === characterId);
+        if (!found) {
+            notFound();
+        }
+        character = found;
+    }
+
     const scrapCount = character.inventory?.find((inv: any) => inv.item?.name === "Scrap Metal")?.quantity ?? 0;
     const pasteCount = character.inventory?.find((inv: any) => inv.item?.name === "Nutrient Paste")?.quantity ?? 0;
     const runsFailed = (character as any).runsFailed ?? 0;
