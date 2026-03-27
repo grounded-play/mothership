@@ -78,7 +78,7 @@ export default function StatusPanel(props: StatusPanelProps) {
                 <div className="min-w-0">
                     <div className="text-white font-bold truncate tracking-widest uppercase text-sm">{character?.name || "UNIDENTIFIED"}</div>
                     <div className="text-[10px] text-neon-cyan/80 font-mono tracking-tighter flex items-center gap-1 uppercase">
-                        <Shield className="w-2.5 h-2.5" /> Season Rank: {rank}
+                        <Shield className="w-2.5 h-2.5" /> Roster Rank: #{rank}
                     </div>
                 </div>
             </div>

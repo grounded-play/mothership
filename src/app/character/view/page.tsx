@@ -111,7 +111,7 @@ export default async function CharacterViewPage({ searchParams }: { searchParams
 
                         <div className="glass-panel p-6 rounded-xl border-t-2 border-neon-cyan">
                             <h2 className="text-xl font-bold text-neon-cyan mb-4 flex items-center uppercase tracking-wider text-sm">
-                                <Shield className="mr-2 w-4 h-4" /> Service Record
+                                <Shield className="mr-2 w-4 h-4" /> Roster Record
                             </h2>
                             <div className="space-y-2 text-xs text-gray-300">
                                 <div className="flex justify-between">

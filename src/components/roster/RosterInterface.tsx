@@ -45,17 +45,48 @@ export default function RosterInterface({ initialCharacters }: RosterInterfacePr
         { id: "teamster", icon: Shield }
     ];
 
-    const seasonLabel = "Season 0";
-    const ranked = [...initialCharacters].sort((a, b) => {
-        const aRuns = a.runsCompleted ?? 0;
-        const bRuns = b.runsCompleted ?? 0;
-        if (bRuns !== aRuns) return bRuns - aRuns;
-        const aDepth = a.deepestLevel ?? 0;
-        const bDepth = b.deepestLevel ?? 0;
-        if (bDepth !== aDepth) return bDepth - aDepth;
-        if (b.level !== a.level) return b.level - a.level;
-        return a.name.localeCompare(b.name);
-    }).slice(0, 10);
+    // Dynamic season system based on most recent activity
+    const getSeasonLabel = () => {
+        const allRuns = initialCharacters
+            .map(c => c.runsCompleted ?? 0)
+            .reduce((acc, runs) => acc + runs, 0);
+
+        if (allRuns === 0) return "Season 0";
+
+        const maxLevel = Math.max(...initialCharacters.map(c => c.level || 0));
+
+        if (maxLevel > 0) {
+            return `Season ${Math.floor(maxLevel / 5)}`;
+        }
+
+        return "Season 0";
+    };
+
+    const seasonLabel = getSeasonLabel();
+
+    // Calculate score: weighted combination of runs, depth, and recent performance
+    const calculateScore = (char: Character) => {
+        const runs = char.runsCompleted ?? 0;
+        const depth = char.deepestLevel ?? 0;
+        const recentBonus = (char.runsCompleted ?? 0) * 0.1; // Bonus for consistent activity
+
+        // Weight: 50% runs, 30% depth, 20% recent performance
+        return runs * 50 + depth * 30 + recentBonus * 20;
+    };
+
+    const ranked = [...initialCharacters]
+        .map(char => ({ ...char, score: calculateScore(char) }))
+        .sort((a, b) => {
+            if (b.score !== a.score) return b.score - a.score;
+            const aRuns = a.runsCompleted ?? 0;
+            const bRuns = b.runsCompleted ?? 0;
+            if (bRuns !== aRuns) return bRuns - aRuns;
+            const aDepth = a.deepestLevel ?? 0;
+            const bDepth = b.deepestLevel ?? 0;
+            if (bDepth !== aDepth) return bDepth - aDepth;
+            return a.name.localeCompare(b.name);
+        })
+        .slice(0, 10);
 
     const rosterTotals = initialCharacters.reduce((acc, char) => {
         acc.runs += char.runsCompleted ?? 0;
