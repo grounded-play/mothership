@@ -32,6 +32,9 @@ model Character {
   runsCompleted Int             @default(0)
   runsFailed    Int             @default(0)
   deepestLevel  Int             @default(0)
+  serviceRecord String? @default("[]")
+  loadoutContext String? @default("{}")
+  loreNotes String? @default("")
   userId        String
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt

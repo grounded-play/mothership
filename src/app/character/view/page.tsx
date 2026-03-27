@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Box, Shield, Activity } from "lucide-react";
+import { ArrowLeft, Box, Shield, Activity, FileText } from "lucide-react";
 import CurrencyDisplay from "@/components/ui/CurrencyDisplay";
 
 import CharacterProfile from "@/components/character/CharacterProfile";
@@ -77,7 +77,7 @@ export default async function CharacterViewPage({ searchParams }: { searchParams
 
                     {/* Left Column: Profile Card */}
                     <div className="lg:col-span-4 space-y-6">
-                        <CharacterProfile character={character} />
+                        <CharacterProfile character={character} isTutorialGuide={character.name === 'Amy'} />
 
                         {/* Stats Panel (Moved here for better layout) */}
                         <div className="glass-panel p-6 rounded-xl border-t-2 border-neon-blue">
@@ -134,6 +134,42 @@ export default async function CharacterViewPage({ searchParams }: { searchParams
                         </div>
                     </div>
 
+                    {/* Right Column: Inventory & Loadout */}
+                    <div className="lg:col-span-8 space-y-6">
+                        {/* Dossier Panel */}
+                        <div className="glass-panel p-6 rounded-xl border-t-2 border-neon-cyan">
+                            <h2 className="text-xl font-bold text-neon-cyan mb-4 flex items-center uppercase tracking-wider text-sm">
+                                <FileText className="mr-2 w-4 h-4" /> Personnel Dossier
+                            </h2>
+                            <div className="space-y-4">
+                                {character.loreNotes && (
+                                    <div>
+                                        <div className="text-[10px] text-gray-500 uppercase tracking-widest mb-1">Lore Notes</div>
+                                        <p className="text-xs text-gray-300 font-mono">{character.loreNotes}</p>
+                                    </div>
+                                )}
+                                <div>
+                                    <div className="text-[10px] text-gray-500 uppercase tracking-widest mb-1">Special Trait</div>
+                                    <p className="text-xs text-gray-300 font-mono">{typeof character.loadoutContext === 'string' ? JSON.parse(character.loadoutContext).specialTrait : (character.loadoutContext as any)?.specialTrait || "N/A"}</p>
+                                </div>
+                                <div>
+                                    <div className="text-[10px] text-gray-500 uppercase tracking-widest mb-1">Backpack</div>
+                                    <div className="flex flex-wrap gap-1">
+                                        {(typeof character.loadoutContext === 'string' ? JSON.parse(character.loadoutContext).backpack : (character.loadoutContext as any)?.backpack || []).map((item: string, idx: number) => (
+                                            <span key={idx} className="bg-black/40 border border-white/5 rounded px-2 py-1 text-xs text-neon-cyan font-mono">{item}</span>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="glass-panel p-6 rounded-xl border-t-2 border-neon-cyan relative min-h-[500px]">
+                            <h2 className="text-xl font-bold text-neon-cyan mb-6 flex items-center uppercase tracking-wider text-sm">
+                                <Box className="mr-2 w-4 h-4" /> Cargo Manifest
+                            </h2>
+                            <InventoryInspect inventory={character.inventory} />
+                        </div>
+                    </div>
                     {/* Right Column: Inventory & Loadout */}
                     <div className="lg:col-span-8 space-y-6">
                         <div className="glass-panel p-6 rounded-xl border-t-2 border-neon-cyan relative min-h-[500px]">

@@ -19,6 +19,7 @@ interface Character {
     runsFailed?: number;
     deathCount?: number;
     deepestLevel?: number;
+    loreNotes?: string;
 }
 
 interface RosterInterfaceProps {
@@ -171,7 +172,14 @@ export default function RosterInterface({ initialCharacters }: RosterInterfacePr
 
                                         {/* Always Visible: Name & Class (Bottom) */}
                                         <div className="absolute bottom-0 left-0 right-0 p-4 z-20 transform transition-transform duration-300 group-hover:-translate-y-2">
-                                            <h3 className="text-2xl font-black text-white uppercase tracking-tighter truncate drop-shadow-md">{char.name}</h3>
+                                            <h3 className="text-2xl font-black text-white uppercase tracking-tighter truncate drop-shadow-md">
+                                                {char.name}
+                                                {char.name === 'Amy' && (
+                                                    <span className="ml-2 px-2 py-0.5 bg-neon-cyan/30 border border-neon-cyan/50 text-neon-cyan text-[9px] font-bold uppercase tracking-widest rounded">
+                                                        Tutorial Guide
+                                                    </span>
+                                                )}
+                                            </h3>
                                             <div className="flex items-center gap-2">
                                                 {(() => {
                                                     const cls = (char.class || "").toLowerCase();
