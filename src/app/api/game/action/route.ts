@@ -647,8 +647,8 @@ async function resolveReaction(gameState: any, players: any[], pending: PendingA
                 : `${playerName} secured ${getSecureTargetLabel(node)}: ${success ? "STABLE" : "UNSTABLE"}`;
             if (success && enemiesRemoved) msg += " (Hostiles routed)";
 
-            // V22: Detailed Log
-            const detailMsg = `[Base ${breakdown.base}${breakdown.weapon ? `+Wpn` : ''}${breakdown.roomMod ? `${breakdown.roomMod > 0 ? '+' : ''}Rm` : ''}]`;
+            // V22: Enhanced Detailed Log - explain WHY secure failed
+            const detailMsg = `[Base ${breakdown.base}${breakdown.weapon ? `+${breakdown.weapon} Weapon` : ''}${breakdown.classMod ? `+${breakdown.classMod} Class` : ''}${breakdown.roomMod > 0 ? `+${breakdown.roomMod} Room` : ''}${breakdown.integrity ? `${breakdown.integrity} Damaged Room` : ''}]`;
             logs.push({ ts: now, type: "SECURE", message: `${msg} ${detailMsg} (${strength} vs ${nodePower})` });
 
             // V22: Visual Data Payload (Hidden from standard log, read by UI)
@@ -682,7 +682,17 @@ async function resolveReaction(gameState: any, players: any[], pending: PendingA
                 const pInv = parseJSON(player.inventory || "[]", []);
                 const hasWeapon = pInv.some((i: any) => i.isEquipped && (i.type === "weapon" || i.item?.type === "weapon"));
                 if (!hasWeapon) {
-                    logs.push({ ts: now, type: "ATTACK", message: `${playerName} tried to attack without a weapon!` });
+                    const suggestion = node.type === "BOSS" ? "Scan the boss room to reveal weapons" : "Scan this room to find weapons";
+                    logs.push({ ts: now, type: "ATTACK", message: `${playerName} tried to attack without a weapon. ${suggestion}` });
+                    continue;
+                }
+            }
+
+            // V22: Validate target presence
+            if (!success && node.type !== "BOSS") {
+                const nodeEnemies = parseJSON(node.enemies || "[]", []);
+                if (nodeEnemies.length === 0) {
+                    logs.push({ ts: now, type: "ATTACK", message: `${playerName} attacked, but no hostiles present in this room.` });
                     continue;
                 }
             }
@@ -730,9 +740,9 @@ async function resolveReaction(gameState: any, players: any[], pending: PendingA
                     }));
                 }
             } else {
-                // V22: Detailed Log
-                const detailMsg = `[Base ${breakdown.base}${breakdown.weapon ? `+Wpn` : ''}${breakdown.roomMod ? `${breakdown.roomMod > 0 ? '+' : ''}Rm` : ''}]`;
-                logs.push({ ts: now, type: "ATTACK", message: `⚠️ ${playerName} vs HOSTILES: ${strength} < ${nodePower}. ATTACK FAILED. ${detailMsg}` });
+                // V22: Enhanced Detailed Log - explain WHY attack failed
+                const detailMsg = `[Base ${breakdown.base}${breakdown.weapon ? `+${breakdown.weapon} Weapon` : ''}${breakdown.classMod ? `+${breakdown.classMod} Class` : ''}${breakdown.roomMod > 0 ? `+${breakdown.roomMod} Room` : ''}${breakdown.integrity ? `${breakdown.integrity} Damaged Room` : ''}]`;
+                logs.push({ ts: now, type: "ATTACK", message: `⚠️ ${playerName} vs HOSTILES: ${strength} vs ${nodePower} (${node.roomSuit}). ATTACK FAILED. ${detailMsg}` });
 
                 // V22: Visual Data Payload
                 logs.push({
@@ -760,7 +770,7 @@ async function resolveReaction(gameState: any, players: any[], pending: PendingA
             let moveResult: { target: any; newFacing: Facing; direction: string; steps: number; hallwaySteps: number; path: any[] } | null = null;
 
             if (!emergencyMove && !node.scanned && node.type !== "START") {
-                logs.push({ ts: now, type: "MOVE", message: `${playerName} attempted to move but the room is unscanned.` });
+                logs.push({ ts: now, type: "MOVE", message: `${playerName} can't move without a scan. Scan this room to see where you can go.` });
                 continue;
             }
 
