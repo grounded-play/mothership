@@ -93,6 +93,20 @@ export default function CreateCharacterForm() {
                     <p className="text-neon-cyan/70 uppercase text-xs tracking-[0.2em]">{selectedClass} CLASS INTAKE</p>
                 </div>
 
+                {/* Lore Warning for Scientist Class */}
+                {selectedClass === "scientist" && (
+                    <div className="glass-panel p-4 rounded-lg border-l-2 border-neon-magenta">
+                        <p className="text-[10px] text-neon-magenta/90 uppercase tracking-wider font-bold mb-1">
+                            ⚠️ Class-Specific Lore
+                        </p>
+                        <p className="text-xs text-gray-300 leading-relaxed">
+                            As a <span className="text-white font-bold">Scientist</span>, you are part of a legacy that began with
+                            Dr. Aris Thorne—a signal physicist who received the Mothership transmission. She believed the signal was
+                            a source of knowledge. She was wrong. The signal was a trap. Learn the truth in your service record.
+                        </p>
+                    </div>
+                )}
+
                 <form onSubmit={onSubmit} className="space-y-5">
                     <div className="space-y-2">
                         <label className="text-xs text-gray-400 uppercase tracking-wide">Codename</label>

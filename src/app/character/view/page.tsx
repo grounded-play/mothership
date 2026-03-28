@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Box, Shield, Activity, FileText } from "lucide-react";
+import { ArrowLeft, Box, Shield, Activity, FileText, Zap } from "lucide-react";
 import CurrencyDisplay from "@/components/ui/CurrencyDisplay";
 
 import CharacterProfile from "@/components/character/CharacterProfile";
@@ -142,9 +142,31 @@ export default async function CharacterViewPage({ searchParams }: { searchParams
                                 <FileText className="mr-2 w-4 h-4" /> Personnel Dossier
                             </h2>
                             <div className="space-y-4">
+                                {/* Scientist Class Lore - Prominent Warning */}
+                                {character.class === "scientist" && (
+                                    <div className="bg-black/40 border border-neon-magenta/30 rounded-lg p-4">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <Zap className="h-4 w-4 text-neon-magenta" />
+                                            <span className="text-[10px] text-neon-magenta uppercase tracking-wider font-bold">
+                                                SCIENTIST CLASS WARNING
+                                            </span>
+                                        </div>
+                                        <div className="space-y-2 text-xs text-gray-300 leading-relaxed">
+                                            <p>
+                                                <span className="text-white font-bold">Dr. Aris Thorne</span> received the Mothership signal—a structured
+                                                transmission she believed was knowledge. She was wrong. The signal was engineered by infernal
+                                                djinns as a linguistic trap, a key that lures curious beings aboard to be condemned.
+                                            </p>
+                                            <p>
+                                                The lesson from Aris's fate: <span className="text-white font-bold">be careful what you wish for</span>.
+                                                The djinns understand language better than any of us. Every word can be a cage.
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
                                 {character.loreNotes && (
                                     <div>
-                                        <div className="text-[10px] text-gray-500 uppercase tracking-widest mb-1">Lore Notes</div>
+                                        <div className="text-[10px] text-gray-500 uppercase tracking-widest mb-1">Service Record</div>
                                         <p className="text-xs text-gray-300 font-mono">{character.loreNotes}</p>
                                     </div>
                                 )}

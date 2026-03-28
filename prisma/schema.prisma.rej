@@ -1,0 +1,12 @@
+--- prisma/schema.prisma
++++ prisma/schema.prisma
+@@ -43,6 +43,9 @@ model Character {
+   runsFailed    Int             @default(0)
+   deepestLevel  Int             @default(0)
+   userId        String
++  serviceRecord String? @default("[]")
++  loadoutContext String? @default("{}")
++  loreNotes String? @default("")
+   createdAt     DateTime        @default(now())
+   updatedAt     DateTime        @updatedAt
+   portraitUpdatedAt DateTime?
