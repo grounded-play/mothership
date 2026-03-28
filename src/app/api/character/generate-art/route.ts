@@ -73,9 +73,10 @@ export async function POST(req: Request) {
 
             if (imagePath) {
                 const normalizedPath = normalizePublicPath(imagePath) || imagePath;
+                const completedAt = new Date();
                 await prisma.character.update({
                     where: { id: characterId },
-                    data: { portrait: textPath(normalizedPath), portraitStatus: "READY" }
+                    data: { portrait: textPath(normalizedPath), portraitStatus: "READY", portraitUpdatedAt: completedAt }
                 });
             } else {
                 await prisma.character.update({ where: { id: characterId }, data: { portraitStatus: "FAILED" } });

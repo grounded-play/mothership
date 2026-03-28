@@ -175,15 +175,15 @@ const normalizeQueue = async () => {
 
     // Items
     await prisma.inventoryItem.updateMany({
-        where: { 
+        where: {
             OR: [{ customImage: null }, { customImage: "" }, { customImage: "null" }],
-            imageStatus: { startsWith: "GENERATING" }, 
-            updatedAt: { lt: staleBefore } 
+            imageStatus: { startsWith: "GENERATING" },
+            updatedAt: { lt: staleBefore }
         },
         data: { imageStatus: "FAILED" }
     });
     await prisma.inventoryItem.updateMany({
-        where: { 
+        where: {
             AND: [
                 { OR: [{ customImage: null }, { customImage: "" }, { customImage: "null" }] },
                 { OR: [{ imageStatus: "READY" }, { imageStatus: "" }] }
@@ -194,15 +194,15 @@ const normalizeQueue = async () => {
 
     // Characters (V23)
     await prisma.character.updateMany({
-        where: { 
+        where: {
             OR: [{ portrait: null }, { portrait: "" }, { portrait: "null" }],
-            portraitStatus: { startsWith: "GENERATING" }, 
-            updatedAt: { lt: staleBefore } 
+            portraitStatus: { startsWith: "GENERATING" },
+            updatedAt: { lt: staleBefore }
         },
         data: { portraitStatus: "FAILED" }
     });
     await prisma.character.updateMany({
-        where: { 
+        where: {
             AND: [
                 { OR: [{ portrait: null }, { portrait: "" }, { portrait: "null" }] },
                 { OR: [
@@ -245,17 +245,19 @@ const runGeneration = async (state: WorkerState, id: string, type: 'item' | 'cha
             console.log(`[PRINTER WORKER] ✅ FABRICATION COMPLETE: ${type.toUpperCase()}[${id}] -> Saved to ${iconPath}`);
             const normalizedPath = normalizePublicPath(iconPath) || iconPath;
             if (type === 'item') {
+                const completedAt = new Date();
                 await prisma.inventoryItem.update({
                     where: { id },
-                    data: { customImage: normalizedPath, imageStatus: "READY", updatedAt: new Date() }
+                    data: { customImage: normalizedPath, imageStatus: "READY", imageUpdatedAt: completedAt, updatedAt: completedAt }
                 });
             } else {
+                const completedAt = new Date();
                 await (prisma as any).$executeRaw`
                     UPDATE "Character"
                     SET portrait = ${normalizedPath},
                         portraitStatus = 'READY',
-                        portraitUpdatedAt = ${new Date()},
-                        updatedAt = ${new Date()}
+                        portraitUpdatedAt = ${completedAt},
+                        updatedAt = ${completedAt}
                     WHERE id = ${id}
                 `;
             }
@@ -283,7 +285,7 @@ const autoReplenishQueue = async () => {
     // This is called when the processor finds nothing actively QUEUED.
     // It triggers normalization to ensure the backlog is populated.
     await normalizeMissingImages();
-    return true; 
+    return true;
 };
 
 const buildCharacterPrompt = (char: any) => {
@@ -309,7 +311,7 @@ const processNextItem = async (state: WorkerState) => {
                 AND: [
                     { OR: [{ portrait: null }, { portrait: "" }, { portrait: "null" }] },
                     { OR: [
-                        { portraitStatus: "QUEUED" }, 
+                        { portraitStatus: "QUEUED" },
                         { portraitStatus: "FAILED" },
                         { portraitStatus: "ERROR" }
                     ]}
@@ -323,7 +325,7 @@ const processNextItem = async (state: WorkerState) => {
                 AND: [
                     { OR: [{ customImage: null }, { customImage: "" }, { customImage: "null" }] },
                     { OR: [
-                        { imageStatus: "QUEUED" }, 
+                        { imageStatus: "QUEUED" },
                         { imageStatus: "FAILED" },
                         { imageStatus: "ERROR" }
                     ]}
@@ -345,7 +347,7 @@ const processNextItem = async (state: WorkerState) => {
     if (nextChar && nextItem) {
         const charTs = new Date(nextChar.updatedAt).getTime();
         const itemTs = new Date(nextItem.updatedAt).getTime();
-        
+
         if (charTs < itemTs) {
             console.log(`[PRINTER WORKER] 🕒 FIFO PICK: CHARACTER[${nextChar.name}] (Oldest: ${new Date(charTs).toISOString()})`);
             const locked = await lockItem(nextChar.id, 'character');
@@ -380,7 +382,7 @@ const processNextItem = async (state: WorkerState) => {
 export const ensurePrinterWorker = () => {
     if (typeof window !== "undefined") return;
     const state = ensureState();
-    
+
     if (state.timer) {
         console.log("[PRINTER WORKER] ♻️ Periodic Sync: Worker already running.");
         return;
@@ -388,18 +390,18 @@ export const ensurePrinterWorker = () => {
 
     state.started = true;
     console.log("[PRINTER WORKER] 🔋 Global Printer Background Service Initialized");
-    
+
     const runPulse = async () => {
         if (state.running) return;
         state.running = true;
         state.pulseCount++;
         state.lastPulse = Date.now();
-        
+
         try {
             workerLog(`[PRINTER WORKER] 💓 Heartbeat #${state.pulseCount}`);
             await normalizeMissingImages();
             await resetStaleGenerating(state);
-            
+
             const online = await checkComfyOnline(state);
             if (!online) {
                 const now = Date.now();
@@ -408,7 +410,7 @@ export const ensurePrinterWorker = () => {
                 }
                 return;
             }
-            
+
             await processNextItem(state);
         } catch (err: any) {
             workerLog(`[PRINTER WORKER] 🚨 CRITICAL LOOP ERROR: ${err.message}`);

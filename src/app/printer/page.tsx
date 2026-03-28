@@ -119,8 +119,8 @@ export default async function PrinterPage() {
         SELECT c.id, c.name, c.class, c.portrait, c.portraitUpdatedAt, u.email as "userEmail"
         FROM "Character" c
         JOIN "User" u ON c.userId = u.id
-        WHERE c.portrait IS NOT NULL 
-          AND c.portrait != '' 
+        WHERE c.portrait IS NOT NULL
+          AND c.portrait != ''
           AND c.portraitStatus = 'READY'
           AND c.portraitUpdatedAt IS NOT NULL
         ORDER BY c.portraitUpdatedAt DESC
@@ -138,7 +138,7 @@ export default async function PrinterPage() {
 
     const recentMade = [
         ...recentReadyItems.map((item: any) => ({
-            id: item.id,
+            id: `item-${item.id}-${item.imageUpdatedAt}`,
             queueType: "ITEM",
             title: item.item?.name || "Item",
             owner: item.character?.name || "Unknown",
@@ -147,7 +147,7 @@ export default async function PrinterPage() {
             characterClass: item.character?.class
         })),
         ...recentReadyChars.map((char: any) => ({
-            id: char.id,
+            id: `portrait-${char.id}-${char.portraitUpdatedAt}`,
             queueType: "PORTRAIT",
             title: char.name,
             owner: char.user?.email || char.name,

@@ -2,15 +2,24 @@
 
 import { useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 
-const BASE_WIDTH = 1920;
-const BASE_HEIGHT = 1080;
+const BASE_PRESETS = [
+    { width: 1920, height: 1080, minWidth: 1720, minHeight: 940 },
+    { width: 1600, height: 900, minWidth: 1366, minHeight: 768 },
+    { width: 1280, height: 720, minWidth: 960, minHeight: 540 },
+    { width: 960, height: 540, minWidth: 0, minHeight: 0 },
+] as const;
 const ROTATE_MAX_WIDTH = 900;
+
+function getAdaptiveBaseSize(width: number, height: number) {
+    return BASE_PRESETS.find((preset) => width >= preset.minWidth && height >= preset.minHeight) ?? BASE_PRESETS[BASE_PRESETS.length - 1];
+}
 
 export default function ResponsiveShell({ children }: { children: ReactNode }) {
     const [isMobilePortrait, setIsMobilePortrait] = useState(false);
     const [viewportScale, setViewportScale] = useState(1);
     const [viewportOffset, setViewportOffset] = useState({ x: 0, y: 0 });
-    const [scaledSize, setScaledSize] = useState({ width: BASE_WIDTH, height: BASE_HEIGHT });
+    const [baseSize, setBaseSize] = useState({ width: 1920, height: 1080 });
+    const [scaledSize, setScaledSize] = useState({ width: 1920, height: 1080 });
     const [isMeasured, setIsMeasured] = useState(false);
 
     useEffect(() => {
@@ -52,11 +61,13 @@ export default function ResponsiveShell({ children }: { children: ReactNode }) {
             if (typeof window === "undefined") return;
             const width = window.visualViewport?.width ?? window.innerWidth;
             const height = window.visualViewport?.height ?? window.innerHeight;
-            const scale = Math.min(width / BASE_WIDTH, height / BASE_HEIGHT);
-            const scaledWidth = BASE_WIDTH * scale;
-            const scaledHeight = BASE_HEIGHT * scale;
+            const nextBase = getAdaptiveBaseSize(width, height);
+            const scale = Math.min(width / nextBase.width, height / nextBase.height);
+            const scaledWidth = nextBase.width * scale;
+            const scaledHeight = nextBase.height * scale;
             const offsetX = Math.max(0, (width - scaledWidth) / 2);
             const offsetY = Math.max(0, (height - scaledHeight) / 2);
+            setBaseSize({ width: nextBase.width, height: nextBase.height });
             setViewportScale(scale);
             setViewportOffset({ x: offsetX, y: offsetY });
             setScaledSize({ width: scaledWidth, height: scaledHeight });
@@ -98,8 +109,8 @@ export default function ResponsiveShell({ children }: { children: ReactNode }) {
                 <div
                     className="absolute top-0 left-0"
                     style={{
-                        width: `${BASE_WIDTH}px`,
-                        height: `${BASE_HEIGHT}px`,
+                        width: `${baseSize.width}px`,
+                        height: `${baseSize.height}px`,
                         transform: `scale(${viewportScale})`,
                         transformOrigin: "top left",
                         willChange: "transform"

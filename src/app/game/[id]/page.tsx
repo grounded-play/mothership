@@ -10,6 +10,7 @@ import RoomScanner from "@/components/game/RoomScanner";
 import MissionLog from "@/components/game/MissionLog";
 import ResolutionOverlay from "@/components/game/ResolutionOverlay";
 import AudioSettingsPanel from "@/components/audio/AudioSettingsPanel";
+import { useAmyGuide, type AmyGuideTransmission } from "@/components/guide/AmyGuideContext";
 import { useToast } from "@/components/ui/Toast";
 import SafeImage from "@/components/ui/SafeImage";
 import { soundManager } from "@/lib/soundManager";
@@ -200,6 +201,7 @@ const getRoomEffectForCard = (card: any, roomSuit?: string | null, roomKnown = f
 export default function GameInterface() {
     const params = useParams();
     const router = useRouter();
+    const { setOverride, clearOverride } = useAmyGuide();
     const [gameState, setGameState] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [selectedCardIndices, setSelectedCardIndices] = useState<number[]>([]);
@@ -555,6 +557,84 @@ export default function GameInterface() {
     // Hoisted Logic for Hooks
     const inActionPhase = game?.roundPhase === "ACTION";
     const hasActionTimer = !!game?.actionDeadline;
+
+    useEffect(() => {
+        if (!game || !player) return;
+        const source = `game:${String(params.id)}`;
+        const dynamicMessages: AmyGuideTransmission[] = [];
+
+        if (hallwayTraversal) {
+            dynamicMessages.push({
+                kind: "guide",
+                title: "Transit Relay",
+                text: `Moving ${toCardinalDirection(hallwayTraversal.currentDirection || "FORWARD")} through the hull. ${hallwayTraversal.remainingSteps} sectors remain before the path resolves.`
+            });
+        } else if (!roomInfo?.scanned) {
+            dynamicMessages.push({
+                kind: "warning",
+                title: "Unscanned Room",
+                text: "You are inside an unresolved chamber. Scan first so the connected hallways reveal with actual depth instead of guesswork."
+            });
+        } else {
+            dynamicMessages.push({
+                kind: "guide",
+                title: "Local Telemetry",
+                text: `${toEndpointLabel(visualPlayerNode?.type)} node, suit ${roomInfo?.suit || "UNKNOWN"}, power ${roomInfo?.power ?? "?"}. ${visibleRoomHallwayIntel.length} scanned exits in the current readout.`
+            });
+        }
+
+        if (hasEnemies) {
+            dynamicMessages.push({
+                kind: "warning",
+                title: "Hostile Contact",
+                text: `${roomEnemies.length} hostile signature${roomEnemies.length === 1 ? "" : "s"} in this sector. Attack lines are live even if your weapon loadout is weak.`
+            });
+        } else if (typeof airlockDistance === "number") {
+            dynamicMessages.push({
+                kind: "guide",
+                title: "Extraction Vector",
+                text: airlockDistance === 0
+                    ? "You are sitting on the airlock. Return to ship if the run has paid out enough."
+                    : `Airlock is ${airlockDistance} sector${airlockDistance === 1 ? "" : "s"} away. Keep an extraction route in hand before mission time collapses.`
+            });
+        }
+
+        if (inActionPhase && !actionIntent && actionTimeLeft > 0 && actionTimeLeft <= 8) {
+            dynamicMessages.unshift({
+                kind: "warning",
+                title: "Turn Expiring",
+                text: `${actionTimeLeft}s left to lock an action. If you do nothing, the turn burns and the run bleeds tempo.`
+            });
+        } else if (missionTimeLeft > 0) {
+            dynamicMessages.push({
+                kind: missionTimeLeft <= 60 ? "warning" : "lore",
+                title: missionTimeLeft <= 60 ? "Mission Clock" : "Archive Fragment",
+                text: missionTimeLeft <= 60
+                    ? `${missionTimeLeft}s remain on the mission clock. If it reaches zero, the run is over immediately.`
+                    : "Celeste heard the blueprint signal first. Elias kept insisting that every word about it needed to be based in something real, or the ship would swallow the meaning."
+            });
+        }
+
+        setOverride({ source, messages: dynamicMessages.slice(0, 4) });
+        return () => clearOverride(source);
+    }, [
+        actionIntent,
+        actionTimeLeft,
+        airlockDistance,
+        clearOverride,
+        game,
+        hallwayTraversal,
+        hasEnemies,
+        inActionPhase,
+        missionTimeLeft,
+        params.id,
+        player,
+        roomEnemies.length,
+        roomInfo,
+        setOverride,
+        visibleRoomHallwayIntel.length,
+        visualPlayerNode?.type,
+    ]);
 
     // Fetch Game State
     useEffect(() => {
@@ -2016,6 +2096,29 @@ export default function GameInterface() {
                                     ) : null}
                                 </div>
                             )}
+                            {(hasEnemies || isBossRoom) && (
+                                <div className="pointer-events-none absolute right-4 top-[5.25rem] z-20 flex items-center gap-3 rounded-2xl border border-red-500/35 bg-black/80 px-3 py-2 shadow-[0_0_18px_rgba(239,68,68,0.16)]">
+                                    <div className="h-16 w-16 overflow-hidden rounded-xl border border-red-500/25 bg-red-950/20">
+                                        <SafeImage
+                                            src="/ui/enemy-placeholder.png"
+                                            alt="Hostile contact"
+                                            className="h-full w-full object-cover"
+                                            fallback={<div className="flex h-full w-full items-center justify-center text-red-400 text-xs font-black">THREAT</div>}
+                                        />
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="text-[9px] font-bold uppercase tracking-[0.3em] text-red-300">
+                                            {isBossRoom ? "Core Hostile" : "Hostile Room"}
+                                        </div>
+                                        <div className="mt-1 text-xs font-black uppercase text-white">
+                                            {isBossRoom ? "Boss Contact" : `${roomEnemies.length} Attack Target${roomEnemies.length === 1 ? "" : "s"}`}
+                                        </div>
+                                        <div className="text-[10px] text-red-200/70">
+                                            Weapons or fists. Do not walk in blind.
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                             {/* Inner Scanner Container - Scale to fit */}
                             <div className="w-full h-full p-4 pt-24">
                                 <RoomScanner
@@ -2346,28 +2449,16 @@ export default function GameInterface() {
                                             {/* Action Timer Overlay */}
                                             {hasActionTimer && inActionPhase && (
                                                 <>
-                                                    {/* Subtle Expiry Warning - Appears when time is low and no action selected */}
+                                                    {/* Action Expiring Warning - Appears when time is low and no action selected */}
                                                     {actionTimeLeft <= 10 && !actionIntent && !isActing && (
-                                                        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center rounded-full bg-red-950/30 backdrop-blur-sm">
-                                                            <div className="text-red-400 text-[10px] font-bold tracking-[0.18em] uppercase animate-pulse">
+                                                        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center rounded-full bg-red-950/40 backdrop-blur-sm animate-pulse">
+                                                            <div className="text-red-500 text-xs font-bold tracking-widest uppercase mb-1 animate-pulse">
                                                                 Turn Expiring
                                                             </div>
-                                                            <div className={`text-4xl font-black font-mono tracking-[0.15em] mt-1 animate-pulse ${
-                                                                actionTimeLeft <= 5 ? 'text-red-500' : 'text-red-400'
-                                                            }`}>
+                                                            <div className="text-3xl font-black font-mono tracking-widest text-red-500 animate-pulse">
                                                                 {actionTimeLeft}
                                                             </div>
-                                                        </div>
-                                                    )}
-                                                    {/* Countdown Badge - Subtle ring indicator */}
-                                                    {actionTimeLeft <= 8 && !actionIntent && !isActing && (
-                                                        <div className="absolute inset-0 z-50 flex items-center justify-center">
-                                                            <div className="w-full h-full rounded-full border-2 border-red-500/30 animate-ping" />
-                                                            <div className="absolute inset-0 flex items-center justify-center">
-                                                                <div className="text-4xl font-black font-mono tracking-widest text-red-500 animate-pulse">
-                                                                    {actionTimeLeft}
-                                                                </div>
-                                                            </div>
+                                                            <div className="text-[10px] text-red-400/70 mt-1">Select Action</div>
                                                         </div>
                                                     )}
                                                     {/* Standard Timer Display */}

@@ -6,16 +6,15 @@ import { Button } from "@/components/ui/Button";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import SafeImage from "@/components/ui/SafeImage";
-import { User, Zap, RefreshCw, Shield, Crosshair, FileText } from "lucide-react";
+import { User, Zap, RefreshCw, Shield, Crosshair } from "lucide-react";
 import { motion } from "framer-motion";
 
 
 interface CharacterProfileProps {
     character: any; // Type accurately if possible
-    isTutorialGuide?: boolean;
 }
 
-export default function CharacterProfile({ character, isTutorialGuide = false }: CharacterProfileProps) {
+export default function CharacterProfile({ character }: CharacterProfileProps) {
     const router = useRouter();
     const [generating, setGenerating] = useState(false);
     const [progress, setProgress] = useState(0);
@@ -99,19 +98,6 @@ export default function CharacterProfile({ character, isTutorialGuide = false }:
                             {/* Class Selection */}
                             <div className="space-y-2">
                                 <label className="text-[10px] uppercase text-gray-500">Specialization</label>
-
-                                {/* Service Record Display */}
-                                <div className="bg-black/30 rounded-lg p-3 border border-white/10">
-                                    <div className="text-[10px] text-gray-500 uppercase tracking-widest mb-2">Service Record</div>
-                                    <div className="space-y-2 text-xs">
-                                        {(typeof character.serviceRecord === 'string' ? JSON.parse(character.serviceRecord) : character.serviceRecord || []).map((record: any, idx: number) => (
-                                            <div key={idx} className="flex justify-between border-b border-white/5 pb-1">
-                                                <span className="text-gray-400">{record.event}</span>
-                                                <span className="text-gray-500 font-mono">{record.date}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
                                 <div className="grid grid-cols-2 gap-2">
                                     {classes.map((c) => (
                                         <div
@@ -183,16 +169,8 @@ export default function CharacterProfile({ character, isTutorialGuide = false }:
                 {/* Overlay Text (Hidden when editing) */}
                 {!isEditing && (
                     <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/60 to-transparent p-6 pt-12 pointer-events-none">
-                        <div className="flex items-center gap-2 mb-1">
-                            <h2 className="text-3xl font-bold text-white uppercase tracking-tighter leading-none">{character.name}</h2>
-                            {isTutorialGuide && (
-                                <span className="px-2 py-0.5 bg-neon-cyan/30 border border-neon-cyan/50 text-neon-cyan text-[9px] font-bold uppercase tracking-widest rounded">
-                                    Tutorial Guide
-                                </span>
-                            )}
-                        </div>
+                        <h2 className="text-3xl font-bold text-white uppercase tracking-tighter leading-none">{character.name}</h2>
                         <p className="text-neon-cyan text-sm uppercase tracking-[0.2em] mt-1">{character.class} | Lvl {character.level}</p>
-                        <p className="text-gray-300 text-xs mt-1 font-mono">{character.loreNotes?.split('.')[0] || ''}</p>
                     </div>
                 )}
 

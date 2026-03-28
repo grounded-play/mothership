@@ -9,11 +9,13 @@ import Link from "next/link";
 import { Users, Shield, Play, LogOut, ArrowLeft } from "lucide-react";
 import { getBackpackCapacity } from "@/lib/game/backpack";
 import { normalizePublicPath } from "@/lib/imagePath";
+import { useAmyGuide, type AmyGuideTransmission } from "@/components/guide/AmyGuideContext";
 
 
 export default function LobbyRoom() {
     const { id } = useParams();
     const router = useRouter();
+    const { setOverride, clearOverride } = useAmyGuide();
     const [lobby, setLobby] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
@@ -143,6 +145,35 @@ export default function LobbyRoom() {
         if (s === "VOID") return { name: "VOID", color: "text-purple-400", border: "border-purple-500/30", bg: "bg-purple-900/20" };
         return null;
     };
+
+    useEffect(() => {
+        if (!lobby) return;
+        const source = `lobby:${String(id)}`;
+        const readyCount = Array.isArray(lobby.members) ? lobby.members.filter((member: any) => member.isReady).length : 0;
+        const memberCount = Array.isArray(lobby.members) ? lobby.members.length : 0;
+        const dynamicMessages: AmyGuideTransmission[] = [
+            {
+                kind: "guide",
+                title: "Launch Checklist",
+                text: `${readyCount}/${memberCount} crew ready. Confirm loadout, then mark ready so the host can spin up the breach.`
+            },
+            {
+                kind: equippedWeapon ? "guide" : "warning",
+                title: equippedWeapon ? "Primary Armament" : "Unarmed Warning",
+                text: equippedWeapon
+                    ? `${equippedWeapon.item?.name || "Primary weapon"} is equipped. Armor ${equippedArmor?.item?.name || "not locked"}; backpack capacity ${backpackCapacity}.`
+                    : `You can still fight unarmed, but this launch is cleaner with a weapon locked before you deploy.`
+            },
+            {
+                kind: "lore",
+                title: "Amy On Comms",
+                text: "I stay on the channel during prep now. Think of me as the ship guide, not just another roster body waiting for a mission slot."
+            }
+        ];
+
+        setOverride({ source, messages: dynamicMessages });
+        return () => clearOverride(source);
+    }, [backpackCapacity, clearOverride, equippedArmor, equippedWeapon, id, lobby, setOverride]);
 
     return (
         <div className="min-h-full max-w-4xl mx-auto space-y-8 bg-space-void px-8 pb-8 pt-24 relative">

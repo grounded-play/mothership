@@ -95,7 +95,7 @@ export async function POST(req: Request) {
                     // 2. Update DB with Progress (Throttled: every 10% or if complete)
                     if (isInstance && (percentage - lastProgress >= 10 || percentage === 100)) {
                         lastProgress = percentage;
-                        // Fire and forget DB update to avoid blocking stream heavily? 
+                        // Fire and forget DB update to avoid blocking stream heavily?
                         // Better to await to ensure consistency, but keep it fast.
                         try {
                             await prisma.inventoryItem.update({
@@ -111,9 +111,10 @@ export async function POST(req: Request) {
                 if (iconPath) {
                     const normalizedIconPath = normalizePublicPath(iconPath) || iconPath;
                     if (isInstance) {
+                        const completedAt = new Date();
                         await prisma.inventoryItem.update({
                             where: { id: targetId },
-                            data: { customImage: iconPath, imageStatus: "READY", updatedAt: new Date() }
+                            data: { customImage: normalizedIconPath, imageStatus: "READY", imageUpdatedAt: completedAt, updatedAt: completedAt }
                         });
                     } else {
                         await prisma.item.update({

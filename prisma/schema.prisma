@@ -32,9 +32,6 @@ model Character {
   runsCompleted Int             @default(0)
   runsFailed    Int             @default(0)
   deepestLevel  Int             @default(0)
-  serviceRecord String? @default("[]")
-  loadoutContext String? @default("{}")
-  loreNotes String? @default("")
   userId        String
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
@@ -232,18 +229,18 @@ model MapNode {
 
 model MarketTransaction {
   id          String    @id @default(cuid())
-  
+
   sellerId    String
   seller      Character @relation("Seller", fields: [sellerId], references: [id])
-  
+
   buyerId     String
   buyer       Character @relation("Buyer", fields: [buyerId], references: [id])
-  
+
   itemId      String
   item        Item      @relation(fields: [itemId], references: [id])
-  
+
   price       Int
   currency    String    @default("CREDITS")
-  
+
   timestamp   DateTime  @default(now())
 }

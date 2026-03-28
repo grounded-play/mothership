@@ -10,6 +10,19 @@ export default async function RosterPage() {
     const session = await getServerSession(authOptions);
     if (!session?.user?.email) redirect("/");
 
+    const viewer = await prisma.user.findUnique({
+        where: { email: session.user.email },
+        select: {
+            id: true,
+            characters: {
+                select: { id: true },
+                take: 1
+            }
+        }
+    });
+
+    if (!viewer) redirect("/");
+
     const charactersData = await prisma.character.findMany({
         select: {
             id: true,
@@ -50,7 +63,10 @@ export default async function RosterPage() {
                 </header>
 
             <div className="mt-8">
-                <RosterInterface initialCharacters={characters} />
+                <RosterInterface
+                    initialCharacters={characters}
+                    currentCharacterId={viewer.characters[0]?.id ?? null}
+                />
             </div>
           </div>
         </div>
