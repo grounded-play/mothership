@@ -2144,7 +2144,7 @@ export default function GameInterface() {
                         </div>
 
                         {/* 2. MIDDLE: HAND */}
-                        <div className="relative z-20 h-[340px] w-full flex-none px-2">
+                        <div className="relative z-20 h-[236px] w-full flex-none px-2">
                             <div className="mb-2 flex h-9 items-center justify-center">
                                 {roomInfo?.scanned && roomInfo?.suit ? (
                                     <div className="flex flex-wrap items-center justify-center gap-2 rounded-full border border-white/10 bg-black/35 px-3 py-1.5 text-[9px] uppercase tracking-[0.22em]">
@@ -2198,7 +2198,7 @@ export default function GameInterface() {
                                 </div>
                             </div>
 
-                            <div ref={handViewportRef} className="h-[252px] w-full overflow-hidden px-2 pb-8 pt-1">
+                            <div ref={handViewportRef} className="h-[160px] w-full overflow-hidden px-2 pb-6 pt-1">
                                 <div className="flex items-end justify-center w-full perspective-[1000px]" style={{ gap: `${handLayout.gap}px` }}>
                                     <AnimatePresence initial={false}>
                                         {visibleHandEntries.length > 0 ? visibleHandEntries.map(({ card, index }) => (
@@ -2840,54 +2840,6 @@ export default function GameInterface() {
                             AP {game?.sharedAp ?? 0}/{game?.sharedApMax ?? 0}
                         </div>
 
-                    </div>
-
-                    {/* Event Log & Phase (Stacked Bottom) */}
-                    <div className="w-full max-w-2xl shrink-0 flex flex-col gap-1">
-                        {/* Phase Indicator (Enhanced) */}
-                        <div className={`flex items-center justify-between px-3 py-2 border-l-2 backdrop-blur-sm transition-all duration-300 ${inActionPhase ? "bg-neon-cyan/10 border-neon-cyan" : "bg-black/60 border-gray-600"}`}>
-                            <div className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-2">
-                                <span className={`w-2 h-2 rounded-full animate-pulse ${inActionPhase ? "bg-neon-cyan shadow-[0_0_8px_#0ff]" : "bg-gray-600"}`} />
-                                <span className={inActionPhase ? "text-neon-cyan" : "text-gray-500"}>PHASE</span>
-                            </div>
-                            <div className={`text-[11px] font-bold uppercase tracking-widest ${inActionPhase ? "text-neon-cyan animate-pulse-slow" : "text-gray-400"}`}>
-                                {inActionPhase ? "ACTION WINDOW" : "DRAW PHASE"}
-                            </div>
-                        </div>
-
-                        {/* Action Phase Card Grouping */}
-                        {inActionPhase && (
-                            <div className="flex gap-1 px-2 py-1.5">
-                                <div className={`flex-1 text-center text-[9px] font-bold uppercase tracking-wider px-2 py-1.5 rounded border transition-all ${
-                                    actionIntent === "MOVE" ? "bg-neon-cyan/20 text-neon-cyan border-neon-cyan" :
-                                    actionIntent === "SCAN" ? "bg-green-500/20 text-green-400 border-green-500" :
-                                    actionIntent === "ATTACK" ? "bg-red-500/20 text-red-400 border-red-500" :
-                                    "bg-gray-800 text-gray-500 border-gray-600"
-                                }`}>
-                                    {actionIntent === "MOVE" && "NAVIGATION CARDS"}
-                                    {actionIntent === "SCAN" && "SCANNING CARDS"}
-                                    {actionIntent === "ATTACK" && "COMBAT CARDS"}
-                                    {actionIntent === "SECURE" && "SECURITY CARDS"}
-                                    {(!actionIntent || actionIntent === "MOVE") && "ANY CARDS"}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Event Log */}
-                        <div className="glass-panel p-2 border border-white/10 bg-black/80 h-24 overflow-y-auto custom-scrollbar">
-                            <div className="space-y-1 text-[11px]">
-                                {(game?.gameLog || []).filter((l: any) => l.type !== "RESOLUTION_DATA").slice().reverse().slice(0, 10).map((log: any, idx: number) => (
-                                    <div key={idx} className="border-b border-white/5 pb-0.5 flex gap-2">
-                                        <span className="text-[9px] text-gray-600 font-mono shrink-0 pt-0.5">{new Date(log.ts || Date.now()).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
-                                        <div className="flex-1 leading-tight">
-                                            <span className="text-neon-cyan font-bold mr-1 text-[10px]">{log.type}</span>
-                                            <span className={`text-gray-400 ${log.type === "ATTACK" ? "text-red-400" : ""} ${log.type === "LOOT" ? "text-yellow-400" : ""}`}>{log.message}</span>
-                                        </div>
-                                    </div>
-                                ))}
-                                {(game?.gameLog || []).length === 0 && <div className="text-gray-600 text-[10px] italic p-2">Listening for subspace signals...</div>}
-                            </div>
-                        </div>
                     </div>
 
                 </div>
