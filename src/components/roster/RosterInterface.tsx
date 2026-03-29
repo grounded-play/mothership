@@ -36,6 +36,18 @@ const parseStats = (stats: Character["stats"]): CharacterStats => {
     }
 };
 
+const getStatValue = (stats: CharacterStats, ...keys: string[]) => {
+    for (const key of keys) {
+        const rawValue = stats[key];
+        if (typeof rawValue === "number" && Number.isFinite(rawValue)) return rawValue;
+        if (typeof rawValue === "string") {
+            const numeric = Number(rawValue);
+            if (Number.isFinite(numeric)) return numeric;
+        }
+    }
+    return 0;
+};
+
 export default function RosterInterface({ initialCharacters, currentCharacterId = null }: RosterInterfaceProps) {
     const router = useRouter();
     const [searchTerm, setSearchTerm] = useState("");
@@ -204,15 +216,15 @@ export default function RosterInterface({ initialCharacters, currentCharacterId 
                                                             <>
                                                                 <div className="bg-white/5 rounded p-2 border border-white/10">
                                                                     <div className="text-red-400 font-bold mb-1">STR</div>
-                                                                    <div className="font-mono text-white text-lg">{stats?.strength || stats?.str || 0}</div>
+                                                                    <div className="font-mono text-white text-lg">{getStatValue(stats, "strength", "str")}</div>
                                                                 </div>
                                                                 <div className="bg-white/5 rounded p-2 border border-white/10">
                                                                     <div className="text-green-400 font-bold mb-1">SPD</div>
-                                                                    <div className="font-mono text-white text-lg">{stats?.speed || stats?.agility || 0}</div>
+                                                                    <div className="font-mono text-white text-lg">{getStatValue(stats, "speed", "agility")}</div>
                                                                 </div>
                                                                 <div className="bg-white/5 rounded p-2 border border-white/10">
                                                                     <div className="text-blue-400 font-bold mb-1">INT</div>
-                                                                    <div className="font-mono text-white text-lg">{stats?.intellect || stats?.int || 0}</div>
+                                                                    <div className="font-mono text-white text-lg">{getStatValue(stats, "intellect", "int")}</div>
                                                                 </div>
                                                             </>
                                                         )
@@ -375,15 +387,15 @@ export default function RosterInterface({ initialCharacters, currentCharacterId 
                                     <div className="grid grid-cols-3 gap-3">
                                         <div className="rounded-2xl border border-white/10 bg-black/35 p-4 text-center">
                                             <div className="text-[10px] font-bold uppercase tracking-[0.28em] text-red-400">STR</div>
-                                            <div className="mt-2 text-2xl font-black text-white">{selectedStats?.strength || selectedStats?.str || 0}</div>
+                                            <div className="mt-2 text-2xl font-black text-white">{getStatValue(selectedStats, "strength", "str")}</div>
                                         </div>
                                         <div className="rounded-2xl border border-white/10 bg-black/35 p-4 text-center">
                                             <div className="text-[10px] font-bold uppercase tracking-[0.28em] text-green-400">SPD</div>
-                                            <div className="mt-2 text-2xl font-black text-white">{selectedStats?.speed || selectedStats?.agility || 0}</div>
+                                            <div className="mt-2 text-2xl font-black text-white">{getStatValue(selectedStats, "speed", "agility")}</div>
                                         </div>
                                         <div className="rounded-2xl border border-white/10 bg-black/35 p-4 text-center">
                                             <div className="text-[10px] font-bold uppercase tracking-[0.28em] text-blue-400">INT</div>
-                                            <div className="mt-2 text-2xl font-black text-white">{selectedStats?.intellect || selectedStats?.int || 0}</div>
+                                            <div className="mt-2 text-2xl font-black text-white">{getStatValue(selectedStats, "intellect", "int")}</div>
                                         </div>
                                     </div>
 

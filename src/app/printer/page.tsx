@@ -5,11 +5,30 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import PrinterInterface from "@/components/market/PrinterInterface";
-import { existsSync } from "fs";
-import path from "path";
+import AutoFitViewport from "@/components/layout/AutoFitViewport";
 import { normalizePublicPath } from "@/lib/imagePath";
 
-const NO_PRINT_ITEM_NAMES = ["Scrap Metal", "Nutrient Paste"];
+const toSortTimestamp = (value: unknown) => {
+    if (value instanceof Date) return value.getTime();
+    if (typeof value === "bigint") {
+        const numeric = Number(value);
+        return Number.isFinite(numeric) ? (numeric < 1_000_000_000_000 ? numeric * 1000 : numeric) : 0;
+    }
+    if (typeof value === "number") {
+        return Number.isFinite(value) ? (value < 1_000_000_000_000 ? value * 1000 : value) : 0;
+    }
+    if (typeof value === "string") {
+        const trimmed = value.trim();
+        if (!trimmed) return 0;
+        const numeric = Number(trimmed);
+        if (Number.isFinite(numeric)) {
+            return numeric < 1_000_000_000_000 ? numeric * 1000 : numeric;
+        }
+        const parsed = Date.parse(trimmed);
+        return Number.isFinite(parsed) ? parsed : 0;
+    }
+    return 0;
+};
 
 export default async function PrinterPage() {
     const session = await getServerSession(authOptions);
@@ -23,17 +42,6 @@ export default async function PrinterPage() {
     if (!user) redirect("/");
     if ((user as any).characters.length === 0) redirect("/character/create");
     const character = (user as any).characters[0];
-
-    const hasLocalImage = (value?: string | null) => {
-        if (!value) return false;
-        const trimmed = String(value).trim();
-        if (!trimmed) return false;
-        if (trimmed.startsWith("data:") || /^https?:\/\//i.test(trimmed)) return true;
-        const normalized = normalizePublicPath(trimmed);
-        if (!normalized) return false;
-        const filePath = path.join(process.cwd(), "public", normalized.replace(/^\//, ""));
-        return existsSync(filePath);
-    };
 
     // Fetch Global Queue (items + character portraits waiting for visualization)
     const queuedItemsRaw = await (prisma as any).$queryRaw`
@@ -73,15 +81,7 @@ export default async function PrinterPage() {
     });
 
     const globalQueue = [
-        ...queuedItems.map((item: any) => ({
-            id: item.id,
-            queueType: "ITEM",
-            name: item.item?.name || "Item",
-            owner: item.character?.name || "Unknown",
-            imageStatus: item.imageStatus === "READY" ? "QUEUED" : (item.imageStatus || "QUEUED"),
-            queuedAt: item.updatedAt || item.createdAt,
-            characterClass: item.character?.class
-        })),
+        ...queuedItems,
         ...queuedCharacters.map((char: any) => ({
             id: char.id,
             queueType: "CHARACTER",
@@ -101,9 +101,8 @@ export default async function PrinterPage() {
         WHERE ii.customImage IS NOT NULL
           AND ii.customImage != ''
           AND ii.imageStatus = 'READY'
-          AND ii.imageUpdatedAt IS NOT NULL
-        ORDER BY ii.imageUpdatedAt DESC
-        LIMIT 10
+        ORDER BY ii.updatedAt DESC
+        LIMIT 40
     `;
 
     const recentReadyItems = (recentReadyItemsRaw as any[]).map(item => ({
@@ -116,15 +115,14 @@ export default async function PrinterPage() {
     }));
 
     const recentReadyCharsRaw = await (prisma as any).$queryRaw`
-        SELECT c.id, c.name, c.class, c.portrait, c.portraitUpdatedAt, u.email as "userEmail"
+        SELECT c.id, c.name, c.class, c.portrait, c.portraitUpdatedAt, c.updatedAt, u.email as "userEmail"
         FROM "Character" c
         JOIN "User" u ON c.userId = u.id
         WHERE c.portrait IS NOT NULL
           AND c.portrait != ''
           AND c.portraitStatus = 'READY'
-          AND c.portraitUpdatedAt IS NOT NULL
-        ORDER BY c.portraitUpdatedAt DESC
-        LIMIT 10
+        ORDER BY c.updatedAt DESC
+        LIMIT 40
     `;
 
     const recentReadyChars = (recentReadyCharsRaw as any[]).map(char => ({
@@ -133,6 +131,7 @@ export default async function PrinterPage() {
         class: char.class,
         portrait: char.portrait,
         portraitUpdatedAt: char.portraitUpdatedAt,
+        updatedAt: char.updatedAt,
         user: { email: char.userEmail }
     }));
 
@@ -143,7 +142,7 @@ export default async function PrinterPage() {
             title: item.item?.name || "Item",
             owner: item.character?.name || "Unknown",
             preview: normalizePublicPath(item.customImage) || item.customImage,
-            completedAt: item.imageUpdatedAt,
+            completedAt: item.imageUpdatedAt ?? item.updatedAt,
             characterClass: item.character?.class
         })),
         ...recentReadyChars.map((char: any) => ({
@@ -152,12 +151,12 @@ export default async function PrinterPage() {
             title: char.name,
             owner: char.user?.email || char.name,
             preview: normalizePublicPath(char.portrait) || char.portrait,
-            completedAt: char.portraitUpdatedAt,
+            completedAt: char.portraitUpdatedAt ?? char.updatedAt,
             characterClass: char.class
         }))
     ].sort((a, b) => {
-        const timeA = new Date(a.completedAt).getTime();
-        const timeB = new Date(b.completedAt).getTime();
+        const timeA = toSortTimestamp(a.completedAt);
+        const timeB = toSortTimestamp(b.completedAt);
         if (timeA !== timeB) return timeB - timeA;
         return b.id.localeCompare(a.id); // Stable tie-breaker
     }); // Newest first
@@ -170,13 +169,17 @@ export default async function PrinterPage() {
                 </Link>
             </div>
 
-            <PrinterInterface
-                credits={(character as any).credits}
-                inventory={(character as any).inventory}
-                backpackLevel={(character as any).backpackLevel ?? 1}
-                globalQueue={globalQueue}
-                recentMade={recentMade}
-            />
+            <AutoFitViewport contentKey={`printer-${globalQueue.length}-${recentMade.length}`}>
+                <div className="h-full min-h-[760px] w-full">
+                    <PrinterInterface
+                        credits={(character as any).credits}
+                        inventory={(character as any).inventory}
+                        backpackLevel={(character as any).backpackLevel ?? 1}
+                        globalQueue={globalQueue}
+                        recentMade={recentMade}
+                    />
+                </div>
+            </AutoFitViewport>
         </div>
     );
 }

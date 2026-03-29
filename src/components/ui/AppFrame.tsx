@@ -94,27 +94,23 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
                         <div
                             className="grid h-full w-full"
                             style={{
-                                gridTemplateRows: showDock ? "minmax(0,1fr) 76px" : "minmax(0,1fr)",
+                                gridTemplateRows: showDock ? "56px minmax(0,1fr)" : "minmax(0,1fr)",
                             }}
                         >
-                            <div className="relative min-h-0 overflow-hidden">
-                                {children}
-                            </div>
-
                             {showDock && (
-                                <div className="relative z-[40] flex items-end justify-center px-4 pb-4">
-                                    <div ref={compactLauncherRef} className="relative flex items-center justify-center gap-2 rounded-full border border-white/10 bg-black/88 px-2.5 py-2 shadow-[0_12px_32px_rgba(0,0,0,0.48)] backdrop-blur-xl">
+                                <div className="relative z-[40] flex items-start justify-end px-4 pt-4">
+                                    <div ref={compactLauncherRef} className="relative flex items-center justify-center gap-2 rounded-full border border-white/10 bg-black/88 px-2 py-1.5 shadow-[0_12px_32px_rgba(0,0,0,0.48)] backdrop-blur-xl">
                                         <button
                                             type="button"
                                             onClick={() => toggleCompactPanel("player")}
-                                            className={`flex items-center gap-2 rounded-full border px-3 py-2 font-bold uppercase tracking-[0.22em] transition-colors ${
+                                            className={`flex h-9 w-9 items-center justify-center rounded-full border transition-colors ${
                                                 compactPanel === "player"
                                                     ? "border-neon-cyan bg-cyan-500/15 text-neon-cyan"
                                                     : "border-white/10 bg-black/70 text-white"
-                                            } ${isCompactViewport ? "text-[10px]" : "text-[11px]"}`}
+                                            }`}
+                                            aria-label="Toggle audio panel"
                                         >
-                                            <Volume2 className="h-3.5 w-3.5" />
-                                            Audio
+                                            <Volume2 className={`${isCompactViewport ? "h-3.5 w-3.5" : "h-4 w-4"}`} />
                                         </button>
                                         <button
                                             type="button"
@@ -130,7 +126,7 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
                                         </button>
 
                                         {compactPanel && (
-                                            <div className="absolute bottom-[calc(100%+0.75rem)] left-1/2 z-[90] -translate-x-1/2">
+                                            <div className="absolute right-0 top-[calc(100%+0.75rem)] z-[90]">
                                                 <div ref={compactPanelRef} className="relative flex justify-center">
                                                     <button
                                                         type="button"
@@ -147,6 +143,10 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
                                     </div>
                                 </div>
                             )}
+
+                            <div className="relative min-h-0 overflow-hidden">
+                                {children}
+                            </div>
                         </div>
                     </div>
                 </FitCanvas>

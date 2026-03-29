@@ -70,6 +70,10 @@ export default function PrinterInterface({ credits, inventory, globalQueue, back
     }, [initialBackpackLevel]);
 
     useEffect(() => {
+        setRecentIndex(0);
+    }, [recentMade]);
+
+    useEffect(() => {
         let cancelled = false;
         const checkStatus = async () => {
             try {

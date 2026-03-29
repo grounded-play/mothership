@@ -41,6 +41,11 @@ interface StatusPanelProps {
     comfyStatus: boolean;
 }
 
+const formatRelativeTime = (value?: string | Date | null, fallback = "NEVER") => {
+    if (!value) return fallback;
+    return formatDistanceToNow(value instanceof Date ? value : new Date(value), { addSuffix: true });
+};
+
 export default function StatusPanel(props: StatusPanelProps) {
     const [data, setData] = useState(props);
 
@@ -88,7 +93,7 @@ export default function StatusPanel(props: StatusPanelProps) {
                     <div className="h-16 w-16 overflow-hidden rounded-full border-2 border-neon-cyan bg-gray-900 shadow-[0_0_10px_rgba(0,243,255,0.3)] sm:h-20 sm:w-20">
                         <SafeImage 
                             src={character?.portrait} 
-                            alt={character?.name}
+                            alt={character?.name || "Character portrait"}
                             className="w-full h-full object-cover"
                             fallback={<div className="flex items-center justify-center h-full text-gray-500 font-bold text-xl">{character?.class?.[0] || "?"}</div>}
                         />
@@ -158,10 +163,10 @@ export default function StatusPanel(props: StatusPanelProps) {
                     {/* Activity Logs */}
                     <div className="space-y-1.5 pt-1.5 border-t border-white/5">
                          {/* Last Mission */}
-                         <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between">
                             <span className="text-[10px] font-medium uppercase text-gray-400">Last Fleet Op:</span>
                             <span className="text-[10px] font-mono text-gray-500">
-                                {globalLastRun ? formatDistanceToNow(new Date(globalLastRun.endedAt), { addSuffix: true }) : 'NO RECENT OPS'}
+                                {formatRelativeTime(globalLastRun?.endedAt, "NO RECENT OPS")}
                             </span>
                         </div>
                         
@@ -169,7 +174,7 @@ export default function StatusPanel(props: StatusPanelProps) {
                         <div className="flex items-center justify-between">
                             <span className="text-[10px] font-medium uppercase text-neon-cyan">Last Print:</span>
                             <span className="text-[10px] font-mono text-gray-500">
-                                {lastPrint ? formatDistanceToNow(new Date(lastPrint.imageUpdatedAt), { addSuffix: true }) : 'NEVER'}
+                                {formatRelativeTime(lastPrint?.imageUpdatedAt)}
                             </span>
                         </div>
 
@@ -177,7 +182,7 @@ export default function StatusPanel(props: StatusPanelProps) {
                         <div className="flex items-center justify-between">
                             <span className="text-[10px] font-medium uppercase text-amber-400">Last Trade:</span>
                             <span className="text-[10px] font-mono text-gray-500">
-                                {lastTransaction ? formatDistanceToNow(new Date(lastTransaction.timestamp), { addSuffix: true }) : 'NONE'}
+                                {formatRelativeTime(lastTransaction?.timestamp, "NONE")}
                             </span>
                         </div>
                     </div>
