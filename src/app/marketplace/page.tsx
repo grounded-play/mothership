@@ -3,6 +3,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import MarketInterface from "@/components/market/MarketInterface";
+import AutoFitViewport from "@/components/layout/AutoFitViewport";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
@@ -37,12 +38,16 @@ export default async function MarketplacePage() {
             </div>
 
             <div className="mx-auto flex h-full min-h-0 w-full max-w-7xl flex-col">
-                <MarketInterface
-                    initialListings={listings}
-                    userInventory={character.inventory}
-                    credits={character.credits}
-                    voidTokens={character.voidTokens}
-                />
+                <AutoFitViewport contentKey={`market-${listings.length}-${character.inventory.length}`}>
+                    <div className="flex min-h-[760px] w-full flex-col">
+                        <MarketInterface
+                            initialListings={listings}
+                            userInventory={character.inventory}
+                            credits={character.credits}
+                            voidTokens={character.voidTokens}
+                        />
+                    </div>
+                </AutoFitViewport>
             </div>
         </div>
     );

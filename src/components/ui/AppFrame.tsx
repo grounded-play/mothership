@@ -14,10 +14,51 @@ const APP_STAGE_WIDTH = 1440;
 const APP_STAGE_HEIGHT = 810;
 type CompactPanel = "player" | "guide";
 
+const GAME_ROUTE_RE = /^\/game\/[^/]+$/;
+const SUMMARY_ROUTE_RE = /^\/game\/[^/]+\/summary$/;
+const LOBBY_ROUTE_RE = /^\/lobby\/[^/]+$/;
+
+function getRouteTitle(pathname: string | null) {
+    if (!pathname || pathname === "/" || pathname.startsWith("/api/")) return null;
+    if (pathname === "/menu") return "Main Menu";
+    if (pathname === "/roster") return "Active Roster";
+    if (pathname === "/marketplace") return "Galactic Market";
+    if (pathname === "/printer") return "Matter Fabricator";
+    if (pathname === "/settings") return "System Configuration";
+    if (pathname === "/character/view") return "Character Record";
+    if (pathname === "/character/create") return "Character Creator";
+    if (pathname === "/lobby/browse") return "Mission Control";
+    if (LOBBY_ROUTE_RE.test(pathname)) return "Launch Bay";
+    if (SUMMARY_ROUTE_RE.test(pathname)) return "Post-Mission Analysis";
+    if (GAME_ROUTE_RE.test(pathname)) return "Mission Deck";
+    return null;
+}
+
+function isFittedRoute(pathname: string | null) {
+    if (!pathname) return false;
+    return pathname === "/menu"
+        || pathname === "/roster"
+        || pathname === "/marketplace"
+        || pathname === "/printer"
+        || pathname === "/settings"
+        || pathname === "/character/view"
+        || pathname === "/character/create"
+        || SUMMARY_ROUTE_RE.test(pathname)
+        || GAME_ROUTE_RE.test(pathname);
+}
+
+function shouldShowBridgeTime(pathname: string | null) {
+    return Boolean(pathname && (GAME_ROUTE_RE.test(pathname) || SUMMARY_ROUTE_RE.test(pathname)));
+}
+
 export default function AppFrame({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const showDock = Boolean(pathname && pathname !== "/" && !pathname.startsWith("/api/"));
+    const routeTitle = getRouteTitle(pathname);
+    const fitContent = isFittedRoute(pathname);
+    const showBridgeTime = shouldShowBridgeTime(pathname);
     const [isCompactViewport, setIsCompactViewport] = useState(false);
+    const [bridgeTimeLabel, setBridgeTimeLabel] = useState("");
     const [compactPanelState, setCompactPanelState] = useState<{ panel: CompactPanel | null; pathname: string | null }>({
         panel: null,
         pathname: null,
@@ -57,6 +98,29 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
     }, []);
 
     useEffect(() => {
+        if (!showBridgeTime) {
+            setBridgeTimeLabel("");
+            return;
+        }
+
+        const formatter = new Intl.DateTimeFormat("en-US", {
+            month: "short",
+            day: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+        });
+
+        const updateBridgeTime = () => {
+            setBridgeTimeLabel(formatter.format(new Date()).toUpperCase());
+        };
+
+        updateBridgeTime();
+        const interval = window.setInterval(updateBridgeTime, 30000);
+        return () => window.clearInterval(interval);
+    }, [showBridgeTime]);
+
+    useEffect(() => {
         if (!compactPanel) return;
 
         const handlePointerDown = (event: PointerEvent) => {
@@ -94,57 +158,76 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
                         <div
                             className="grid h-full w-full"
                             style={{
-                                gridTemplateRows: showDock ? "56px minmax(0,1fr)" : "minmax(0,1fr)",
+                                gridTemplateRows: showDock ? "58px minmax(0,1fr)" : "minmax(0,1fr)",
                             }}
                         >
                             {showDock && (
-                                <div className="relative z-[40] flex items-start justify-end px-4 pt-4">
-                                    <div ref={compactLauncherRef} className="relative flex items-center justify-center gap-2 rounded-full border border-white/10 bg-black/88 px-2 py-1.5 shadow-[0_12px_32px_rgba(0,0,0,0.48)] backdrop-blur-xl">
-                                        <button
-                                            type="button"
-                                            onClick={() => toggleCompactPanel("player")}
-                                            className={`flex h-9 w-9 items-center justify-center rounded-full border transition-colors ${
-                                                compactPanel === "player"
-                                                    ? "border-neon-cyan bg-cyan-500/15 text-neon-cyan"
-                                                    : "border-white/10 bg-black/70 text-white"
-                                            }`}
-                                            aria-label="Toggle audio panel"
-                                        >
-                                            <Volume2 className={`${isCompactViewport ? "h-3.5 w-3.5" : "h-4 w-4"}`} />
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => toggleCompactPanel("guide")}
-                                            className={`flex items-center gap-2 rounded-full border px-3 py-2 font-bold uppercase tracking-[0.22em] transition-colors ${
-                                                compactPanel === "guide"
-                                                    ? "border-neon-cyan bg-cyan-500/15 text-neon-cyan"
-                                                    : "border-white/10 bg-black/70 text-white"
-                                            } ${isCompactViewport ? "text-[10px]" : "text-[11px]"}`}
-                                        >
-                                            <Radio className="h-3.5 w-3.5" />
-                                            Amy
-                                        </button>
+                                <div className="relative z-[40] flex items-center justify-end px-4 pt-3">
+                                    {routeTitle && (
+                                        <div className="pointer-events-none absolute left-1/2 top-2.5 z-0 flex max-w-[46vw] -translate-x-1/2 flex-col items-center text-center">
+                                            <div className="text-[8px] uppercase tracking-[0.34em] text-gray-600">
+                                                Mothership
+                                            </div>
+                                            <div className={`${isCompactViewport ? "text-[10px]" : "text-[12px]"} truncate font-bold uppercase tracking-[0.3em] text-white`}>
+                                                {routeTitle}
+                                            </div>
+                                        </div>
+                                    )}
 
-                                        {compactPanel && (
-                                            <div className="absolute right-0 top-[calc(100%+0.75rem)] z-[90]">
-                                                <div ref={compactPanelRef} className="relative flex justify-center">
-                                                    <button
-                                                        type="button"
-                                                        onClick={closeCompactPanel}
-                                                        className="absolute -top-3 right-0 z-10 flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-black/85 text-gray-300 shadow-[0_6px_18px_rgba(0,0,0,0.45)] transition-colors hover:border-white/25 hover:text-white"
-                                                        aria-label="Close dock panel"
-                                                    >
-                                                        <X className="h-3.5 w-3.5" />
-                                                    </button>
-                                                    {compactPanel === "player" ? <MiniPlayer /> : <AmyGuidePanel />}
-                                                </div>
+                                    <div className="relative z-[2] flex items-center justify-end gap-2">
+                                        {showBridgeTime && bridgeTimeLabel && !isCompactViewport && (
+                                            <div className="rounded-full border border-cyan-500/20 bg-black/82 px-3 py-2 text-[9px] font-bold uppercase tracking-[0.22em] text-cyan-200 shadow-[0_10px_28px_rgba(0,0,0,0.4)]">
+                                                {bridgeTimeLabel}
                                             </div>
                                         )}
+
+                                        <div ref={compactLauncherRef} className="relative flex items-center justify-center gap-2 rounded-full border border-white/10 bg-black/88 px-2 py-1.5 shadow-[0_12px_32px_rgba(0,0,0,0.48)] backdrop-blur-xl">
+                                            <button
+                                                type="button"
+                                                onClick={() => toggleCompactPanel("player")}
+                                                className={`flex h-9 w-9 items-center justify-center rounded-full border transition-colors ${
+                                                    compactPanel === "player"
+                                                        ? "border-neon-cyan bg-cyan-500/15 text-neon-cyan"
+                                                        : "border-white/10 bg-black/70 text-white"
+                                                }`}
+                                                aria-label="Toggle audio panel"
+                                            >
+                                                <Volume2 className={`${isCompactViewport ? "h-3.5 w-3.5" : "h-4 w-4"}`} />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => toggleCompactPanel("guide")}
+                                                className={`flex items-center gap-2 rounded-full border px-3 py-2 font-bold uppercase tracking-[0.22em] transition-colors ${
+                                                    compactPanel === "guide"
+                                                        ? "border-neon-cyan bg-cyan-500/15 text-neon-cyan"
+                                                        : "border-white/10 bg-black/70 text-white"
+                                                } ${isCompactViewport ? "text-[10px]" : "text-[11px]"}`}
+                                            >
+                                                <Radio className="h-3.5 w-3.5" />
+                                                Amy
+                                            </button>
+
+                                            {compactPanel && (
+                                                <div className="absolute right-0 top-[calc(100%+0.75rem)] z-[90]">
+                                                    <div ref={compactPanelRef} className="relative flex justify-center">
+                                                        <button
+                                                            type="button"
+                                                            onClick={closeCompactPanel}
+                                                            className="absolute -top-3 right-0 z-10 flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-black/85 text-gray-300 shadow-[0_6px_18px_rgba(0,0,0,0.45)] transition-colors hover:border-white/25 hover:text-white"
+                                                            aria-label="Close dock panel"
+                                                        >
+                                                            <X className="h-3.5 w-3.5" />
+                                                        </button>
+                                                        {compactPanel === "player" ? <MiniPlayer /> : <AmyGuidePanel />}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             )}
 
-                            <div className="relative min-h-0 overflow-y-scroll overflow-x-hidden custom-scrollbar hud-scrollbar">
+                            <div className={`relative min-h-0 ${fitContent ? "overflow-hidden" : "overflow-y-auto overflow-x-hidden custom-scrollbar hud-scrollbar"}`}>
                                 {children}
                             </div>
                         </div>

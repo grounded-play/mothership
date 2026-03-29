@@ -345,7 +345,7 @@ export default function MarketInterface({ initialListings, userInventory, credit
                 </div>
             </header>
 
-            <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar hud-scrollbar pr-1">
+            <div className="min-h-0 flex-1">
                 {activeTab === "market" && (
                     <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
                         {/* Listings Column */}

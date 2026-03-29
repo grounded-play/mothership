@@ -1723,7 +1723,7 @@ export default function GameInterface() {
 
 
             {/* Main Grid Layout */}
-            <main className="relative z-20 mx-auto grid h-full w-full max-w-[1900px] flex-1 min-h-0 grid-cols-[390px_minmax(0,1fr)] gap-4 overflow-y-scroll overflow-x-hidden custom-scrollbar hud-scrollbar px-4 py-4">
+            <main className="relative z-20 mx-auto grid h-full w-full max-w-[1900px] flex-1 min-h-0 grid-cols-[390px_minmax(0,1fr)] gap-4 overflow-hidden px-4 py-4">
 
 
                 {/* LEFT PANEL: Map & Info (Col Span 3) */}

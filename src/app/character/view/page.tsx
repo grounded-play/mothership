@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Box, Shield, Activity } from "lucide-react";
 import CurrencyDisplay from "@/components/ui/CurrencyDisplay";
+import AutoFitViewport from "@/components/layout/AutoFitViewport";
 
 import CharacterProfile from "@/components/character/CharacterProfile";
 import InventoryInspect from "@/components/character/InventoryInspect";
@@ -55,88 +56,86 @@ export default async function CharacterViewPage() {
             </div>
 
             <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col">
-                <header className="mb-6 flex shrink-0 flex-col gap-4 border-b border-white/10 pb-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="text-lg font-bold uppercase tracking-widest text-white">
-                        Character Record
-                    </div>
-                    <div className="flex items-center gap-4">
-                        <CurrencyDisplay credits={character.credits} voidTokens={character.voidTokens} scrap={scrapCount} paste={pasteCount} />
-                    </div>
-                </header>
+                <AutoFitViewport contentKey={`character-view-${character.id}`}>
+                    <div className="flex min-h-[780px] w-full flex-col">
+                        <header className="mb-6 flex shrink-0 justify-end border-b border-white/10 pb-4">
+                            <div className="flex items-center gap-4">
+                                <CurrencyDisplay credits={character.credits} voidTokens={character.voidTokens} scrap={scrapCount} paste={pasteCount} />
+                            </div>
+                        </header>
 
-                <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar hud-scrollbar pr-1">
-                    <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
+                        <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
 
-                        {/* Left Column: Profile Card */}
-                        <div className="space-y-6 lg:col-span-4">
-                            <CharacterProfile character={character} />
+                            {/* Left Column: Profile Card */}
+                            <div className="space-y-6 lg:col-span-4">
+                                <CharacterProfile character={character} />
 
-                            {/* Stats Panel (Moved here for better layout) */}
-                            <div className="glass-panel rounded-xl border-t-2 border-neon-blue p-6">
-                                <h2 className="mb-4 flex items-center text-sm font-bold uppercase tracking-wider text-neon-blue">
-                                    <Activity className="mr-2 h-4 w-4" /> Biometric Vitals
-                                </h2>
-                                <div className="space-y-4">
-                                    <div className="flex items-center justify-between rounded bg-black/30 p-2 px-3 text-xs uppercase ">
-                                        <span className="text-gray-400">Strength</span>
-                                        <div className="h-1.5 w-24 overflow-hidden rounded-full bg-gray-800">
-                                            <div style={{ "--w": `${stats.str * 5}%` } as React.CSSProperties} className="h-full w-[var(--w)] bg-red-500" />
+                                {/* Stats Panel (Moved here for better layout) */}
+                                <div className="glass-panel rounded-xl border-t-2 border-neon-blue p-6">
+                                    <h2 className="mb-4 flex items-center text-sm font-bold uppercase tracking-wider text-neon-blue">
+                                        <Activity className="mr-2 h-4 w-4" /> Biometric Vitals
+                                    </h2>
+                                    <div className="space-y-4">
+                                        <div className="flex items-center justify-between rounded bg-black/30 p-2 px-3 text-xs uppercase ">
+                                            <span className="text-gray-400">Strength</span>
+                                            <div className="h-1.5 w-24 overflow-hidden rounded-full bg-gray-800">
+                                                <div style={{ "--w": `${stats.str * 5}%` } as React.CSSProperties} className="h-full w-[var(--w)] bg-red-500" />
+                                            </div>
+                                            <span className="font-mono text-white">{stats.str}</span>
                                         </div>
-                                        <span className="font-mono text-white">{stats.str}</span>
+                                        <div className="flex items-center justify-between rounded bg-black/30 p-2 px-3 text-xs uppercase ">
+                                            <span className="text-gray-400">Agility</span>
+                                            <div className="h-1.5 w-24 overflow-hidden rounded-full bg-gray-800">
+                                                <div style={{ "--w": `${stats.agi * 5}%` } as React.CSSProperties} className="h-full w-[var(--w)] bg-green-500" />
+                                            </div>
+                                            <span className="font-mono text-white">{stats.agi}</span>
+                                        </div>
+                                        <div className="flex items-center justify-between rounded bg-black/30 p-2 px-3 text-xs uppercase ">
+                                            <span className="text-gray-400">Intellect</span>
+                                            <div className="h-1.5 w-24 overflow-hidden rounded-full bg-gray-800">
+                                                <div style={{ "--w": `${stats.int * 5}%` } as React.CSSProperties} className="h-full w-[var(--w)] bg-blue-500" />
+                                            </div>
+                                            <span className="font-mono text-white">{stats.int}</span>
+                                        </div>
                                     </div>
-                                    <div className="flex items-center justify-between rounded bg-black/30 p-2 px-3 text-xs uppercase ">
-                                        <span className="text-gray-400">Agility</span>
-                                        <div className="h-1.5 w-24 overflow-hidden rounded-full bg-gray-800">
-                                            <div style={{ "--w": `${stats.agi * 5}%` } as React.CSSProperties} className="h-full w-[var(--w)] bg-green-500" />
+                                </div>
+                                <div className="glass-panel rounded-xl border-t-2 border-neon-cyan p-6">
+                                    <h2 className="mb-4 flex items-center text-sm font-bold uppercase tracking-wider text-neon-cyan">
+                                        <Shield className="mr-2 h-4 w-4" /> Service Record
+                                    </h2>
+                                    <div className="space-y-2 text-xs text-gray-300">
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-400">Runs Completed</span>
+                                            <span className="font-mono text-white">{character.runsCompleted}</span>
                                         </div>
-                                        <span className="font-mono text-white">{stats.agi}</span>
-                                    </div>
-                                    <div className="flex items-center justify-between rounded bg-black/30 p-2 px-3 text-xs uppercase ">
-                                        <span className="text-gray-400">Intellect</span>
-                                        <div className="h-1.5 w-24 overflow-hidden rounded-full bg-gray-800">
-                                            <div style={{ "--w": `${stats.int * 5}%` } as React.CSSProperties} className="h-full w-[var(--w)] bg-blue-500" />
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-400">Runs Failed</span>
+                                            <span className="font-mono text-white">{runsFailed}</span>
                                         </div>
-                                        <span className="font-mono text-white">{stats.int}</span>
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-400">Death Count</span>
+                                            <span className="font-mono text-white">{character.deathCount}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-400">Deepest Level</span>
+                                            <span className="font-mono text-white">{character.deepestLevel}</span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="glass-panel rounded-xl border-t-2 border-neon-cyan p-6">
-                                <h2 className="mb-4 flex items-center text-sm font-bold uppercase tracking-wider text-neon-cyan">
-                                    <Shield className="mr-2 h-4 w-4" /> Service Record
-                                </h2>
-                                <div className="space-y-2 text-xs text-gray-300">
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-400">Runs Completed</span>
-                                        <span className="font-mono text-white">{character.runsCompleted}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-400">Runs Failed</span>
-                                        <span className="font-mono text-white">{runsFailed}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-400">Death Count</span>
-                                        <span className="font-mono text-white">{character.deathCount}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-400">Deepest Level</span>
-                                        <span className="font-mono text-white">{character.deepestLevel}</span>
-                                    </div>
+                            {/* Right Column: Inventory & Loadout */}
+                            <div className="space-y-6 lg:col-span-8">
+                                <div className="glass-panel relative flex min-h-[500px] flex-col rounded-xl border-t-2 border-neon-cyan p-6">
+                                    <h2 className="mb-6 flex items-center text-sm font-bold uppercase tracking-wider text-neon-cyan">
+                                        <Box className="mr-2 h-4 w-4" /> Cargo Manifest
+                                    </h2>
+                                    <InventoryInspect inventory={character.inventory} />
                                 </div>
                             </div>
                         </div>
-
-                        {/* Right Column: Inventory & Loadout */}
-                        <div className="space-y-6 lg:col-span-8">
-                            <div className="glass-panel relative flex min-h-[500px] flex-col rounded-xl border-t-2 border-neon-cyan p-6">
-                                <h2 className="mb-6 flex items-center text-sm font-bold uppercase tracking-wider text-neon-cyan">
-                                    <Box className="mr-2 h-4 w-4" /> Cargo Manifest
-                                </h2>
-                                <InventoryInspect inventory={character.inventory} />
-                            </div>
-                        </div>
                     </div>
-                </div>
+                </AutoFitViewport>
             </div>
         </div>
     );

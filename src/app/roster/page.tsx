@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Users } from "lucide-react";
 import RosterInterface from "@/components/roster/RosterInterface";
+import AutoFitViewport from "@/components/layout/AutoFitViewport";
 
 export default async function RosterPage() {
     const session = await getServerSession(authOptions);
@@ -55,19 +56,23 @@ export default async function RosterPage() {
             </div>
 
             <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col">
-                <header className="mb-6 flex shrink-0 items-center justify-between border-b border-white/5 pb-4 sm:mb-8">
-                    <div className="flex items-center gap-2">
-                        <Users className="w-5 h-5 text-neon-magenta" />
-                        <span className="uppercase tracking-widest text-lg font-bold text-white">Active Roster</span>
-                    </div>
-                </header>
+                <AutoFitViewport contentKey={`roster-${characters.length}`}>
+                    <div className="flex min-h-[760px] w-full flex-col">
+                        <header className="mb-6 flex shrink-0 items-center justify-between border-b border-white/5 pb-4 sm:mb-8">
+                            <div className="flex items-center gap-2">
+                                <Users className="w-5 h-5 text-neon-magenta" />
+                                <span className="uppercase tracking-widest text-lg font-bold text-white">Active Roster</span>
+                            </div>
+                        </header>
 
-                <div className="mt-4 min-h-0 flex-1 sm:mt-8">
-                    <RosterInterface
-                        initialCharacters={characters}
-                        currentCharacterId={viewer.characters[0]?.id ?? null}
-                    />
-                </div>
+                        <div className="mt-4 min-h-0 flex-1 sm:mt-8">
+                            <RosterInterface
+                                initialCharacters={characters}
+                                currentCharacterId={viewer.characters[0]?.id ?? null}
+                            />
+                        </div>
+                    </div>
+                </AutoFitViewport>
             </div>
         </div>
     );

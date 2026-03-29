@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import PrinterInterface from "@/components/market/PrinterInterface";
+import AutoFitViewport from "@/components/layout/AutoFitViewport";
 import { normalizePublicPath } from "@/lib/imagePath";
 
 const toSortTimestamp = (value: unknown) => {
@@ -169,15 +170,17 @@ export default async function PrinterPage() {
             </div>
 
             <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col">
-                <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar hud-scrollbar pr-1">
-                    <PrinterInterface
-                        credits={(character as any).credits}
-                        inventory={(character as any).inventory}
-                        backpackLevel={(character as any).backpackLevel ?? 1}
-                        globalQueue={globalQueue}
-                        recentMade={recentMade}
-                    />
-                </div>
+                <AutoFitViewport contentKey={`printer-${globalQueue.length}-${recentMade.length}`}>
+                    <div className="flex min-h-[780px] w-full flex-col">
+                        <PrinterInterface
+                            credits={(character as any).credits}
+                            inventory={(character as any).inventory}
+                            backpackLevel={(character as any).backpackLevel ?? 1}
+                            globalQueue={globalQueue}
+                            recentMade={recentMade}
+                        />
+                    </div>
+                </AutoFitViewport>
             </div>
         </div>
     );
