@@ -1,26 +1,11 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
-const BASE_PRESETS = [
-    { width: 1920, height: 1080, minWidth: 1720, minHeight: 940 },
-    { width: 1600, height: 900, minWidth: 1366, minHeight: 768 },
-    { width: 1280, height: 720, minWidth: 960, minHeight: 540 },
-    { width: 960, height: 540, minWidth: 0, minHeight: 0 },
-] as const;
 const ROTATE_MAX_WIDTH = 900;
-
-function getAdaptiveBaseSize(width: number, height: number) {
-    return BASE_PRESETS.find((preset) => width >= preset.minWidth && height >= preset.minHeight) ?? BASE_PRESETS[BASE_PRESETS.length - 1];
-}
 
 export default function ResponsiveShell({ children }: { children: ReactNode }) {
     const [isMobilePortrait, setIsMobilePortrait] = useState(false);
-    const [viewportScale, setViewportScale] = useState(1);
-    const [viewportOffset, setViewportOffset] = useState({ x: 0, y: 0 });
-    const [baseSize, setBaseSize] = useState({ width: 1920, height: 1080 });
-    const [scaledSize, setScaledSize] = useState({ width: 1920, height: 1080 });
-    const [isMeasured, setIsMeasured] = useState(false);
 
     useEffect(() => {
         const updateOrientation = () => {
@@ -56,35 +41,6 @@ export default function ResponsiveShell({ children }: { children: ReactNode }) {
         };
     }, []);
 
-    useLayoutEffect(() => {
-        const updateScale = () => {
-            if (typeof window === "undefined") return;
-            const width = window.visualViewport?.width ?? window.innerWidth;
-            const height = window.visualViewport?.height ?? window.innerHeight;
-            const nextBase = getAdaptiveBaseSize(width, height);
-            const scale = Math.min(width / nextBase.width, height / nextBase.height);
-            const scaledWidth = nextBase.width * scale;
-            const scaledHeight = nextBase.height * scale;
-            const offsetX = Math.max(0, (width - scaledWidth) / 2);
-            const offsetY = Math.max(0, (height - scaledHeight) / 2);
-            setBaseSize({ width: nextBase.width, height: nextBase.height });
-            setViewportScale(scale);
-            setViewportOffset({ x: offsetX, y: offsetY });
-            setScaledSize({ width: scaledWidth, height: scaledHeight });
-            setIsMeasured(true);
-        };
-
-        updateScale();
-        window.addEventListener("resize", updateScale);
-        window.visualViewport?.addEventListener("resize", updateScale);
-        window.visualViewport?.addEventListener("scroll", updateScale);
-        return () => {
-            window.removeEventListener("resize", updateScale);
-            window.visualViewport?.removeEventListener("resize", updateScale);
-            window.visualViewport?.removeEventListener("scroll", updateScale);
-        };
-    }, []);
-
     return (
         <div className="fixed inset-0 overflow-hidden bg-black text-white">
             {isMobilePortrait && (
@@ -96,30 +52,8 @@ export default function ResponsiveShell({ children }: { children: ReactNode }) {
                 </div>
             )}
 
-            <div
-                className="absolute top-0 left-0 overflow-hidden"
-                style={{
-                    width: `${scaledSize.width}px`,
-                    height: `${scaledSize.height}px`,
-                    transform: `translate(${viewportOffset.x}px, ${viewportOffset.y}px)`,
-                    transformOrigin: "top left",
-                    opacity: isMeasured ? 1 : 0
-                }}
-            >
-                <div
-                    className="absolute top-0 left-0"
-                    style={{
-                        width: `${baseSize.width}px`,
-                        height: `${baseSize.height}px`,
-                        transform: `scale(${viewportScale})`,
-                        transformOrigin: "top left",
-                        willChange: "transform"
-                    }}
-                >
-                    <div className="w-full h-full overflow-hidden bg-space-void">
-                        {children}
-                    </div>
-                </div>
+            <div className="absolute inset-0 overflow-hidden bg-space-void">
+                {children}
             </div>
         </div>
     );

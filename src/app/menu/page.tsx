@@ -6,6 +6,8 @@ import { redirect } from "next/navigation";
 import MainMenu from "@/components/menu/MainMenu";
 import CurrencyDisplay from "@/components/ui/CurrencyDisplay";
 import StatusPanel from "@/components/menu/StatusPanel";
+import MiniPlayer from "@/components/audio/MiniPlayer";
+import AmyGuidePanel from "@/components/guide/AmyGuidePanel";
 
 export default async function MenuPage() {
     const session = await getServerSession(authOptions);
@@ -98,25 +100,36 @@ export default async function MenuPage() {
     }
 
     return (
-        <>
-            <div className="absolute top-4 left-4 z-50">
-                <StatusPanel 
-                    character={character} 
-                    lastRun={lastRun}
-                    globalLastRun={globalLastRun}
-                    lastTransaction={lastTransaction}
-                    lastPrint={lastPrint}
-                    totalPlayers={totalPlayers}
-                    onlinePlayers={onlinePlayers}
-                    activeMissions={activeMissions}
-                    activeLobbies={activeLobbies}
-                    comfyStatus={comfyStatus}
-                />
+        <main className="h-full w-full overflow-hidden px-5 py-5">
+            <div className="grid h-full w-full grid-cols-[360px_minmax(0,1fr)] gap-6">
+                <section className="grid min-h-0 grid-rows-[minmax(0,1fr)_auto] gap-4">
+                    <StatusPanel
+                        character={character}
+                        lastRun={lastRun}
+                        globalLastRun={globalLastRun}
+                        lastTransaction={lastTransaction}
+                        lastPrint={lastPrint}
+                        totalPlayers={totalPlayers}
+                        onlinePlayers={onlinePlayers}
+                        activeMissions={activeMissions}
+                        activeLobbies={activeLobbies}
+                        comfyStatus={comfyStatus}
+                    />
+                    <div className="grid grid-cols-1 gap-3">
+                        <MiniPlayer layout="sidebar" />
+                        <AmyGuidePanel layout="sidebar" />
+                    </div>
+                </section>
+
+                <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-5">
+                    <div className="flex items-center justify-end">
+                        <CurrencyDisplay credits={character?.credits || 0} voidTokens={character?.voidTokens || 0} />
+                    </div>
+                    <div className="min-h-0 flex-1">
+                        <MainMenu />
+                    </div>
+                </section>
             </div>
-            <div className="absolute top-4 right-4 z-50">
-                <CurrencyDisplay credits={character?.credits || 0} voidTokens={character?.voidTokens || 0} />
-            </div>
-            <MainMenu />
-        </>
+        </main>
     );
 }

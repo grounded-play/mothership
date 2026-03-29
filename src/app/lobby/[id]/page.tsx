@@ -92,12 +92,8 @@ export default function LobbyRoom() {
         router.push("/lobby/browse");
     };
 
-    if (loading) return <div className="text-center pt-20 text-neon-cyan">ESTABLISHING UPLINK...</div>;
-    if (error) return <div className="text-center pt-20 text-red-500 font-bold">{error}</div>;
-    if (!lobby) return null;
-
-    const isHost = lobby.hostId === currentUser?.id;
-    const allReady = lobby.members.every((m: any) => m.isReady);
+    const isHost = lobby?.hostId === currentUser?.id;
+    const allReady = Array.isArray(lobby?.members) ? lobby.members.every((m: any) => m.isReady) : false;
     const inventory = currentUser?.inventory || [];
     const backpackLevel = currentUser?.backpackLevel ?? 1;
     const backpackCapacity = getBackpackCapacity(backpackLevel);
@@ -147,8 +143,11 @@ export default function LobbyRoom() {
     };
 
     useEffect(() => {
-        if (!lobby) return;
         const source = `lobby:${String(id)}`;
+        if (!lobby) {
+            clearOverride(source);
+            return;
+        }
         const readyCount = Array.isArray(lobby.members) ? lobby.members.filter((member: any) => member.isReady).length : 0;
         const memberCount = Array.isArray(lobby.members) ? lobby.members.length : 0;
         const dynamicMessages: AmyGuideTransmission[] = [
@@ -175,18 +174,22 @@ export default function LobbyRoom() {
         return () => clearOverride(source);
     }, [backpackCapacity, clearOverride, equippedArmor, equippedWeapon, id, lobby, setOverride]);
 
+    if (loading) return <div className="pt-20 text-center text-neon-cyan">ESTABLISHING UPLINK...</div>;
+    if (error) return <div className="pt-20 text-center font-bold text-red-500">{error}</div>;
+    if (!lobby) return null;
+
     return (
-        <div className="min-h-full max-w-4xl mx-auto space-y-8 bg-space-void px-8 pb-8 pt-24 relative">
-            <div className="fixed top-6 left-8 z-50">
-                <Link href="/menu" className="flex items-center text-neon-cyan hover:text-white transition-colors glass-panel px-4 py-2 rounded-full">
+        <div className="relative mx-auto min-h-full max-w-4xl space-y-4 bg-space-void px-3 pb-4 pt-18 sm:space-y-6 sm:px-4 sm:pb-6 sm:pt-20 md:space-y-8 md:px-8 md:pb-8 md:pt-24">
+            <div className="fixed left-3 top-3 z-50 md:left-8 md:top-6">
+                <Link href="/menu" className="glass-panel flex items-center rounded-full px-3 py-2 text-sm text-neon-cyan transition-colors hover:text-white md:px-4">
                     <ArrowLeft className="mr-2 h-4 w-4" /> Back to Bridge
                 </Link>
             </div>
             {/* Header */}
-            <div className="glass-panel p-8 rounded-xl flex justify-between items-center border-neon-cyan/30">
+            <div className="glass-panel flex flex-col gap-4 rounded-xl border-neon-cyan/30 p-4 sm:p-5 md:flex-row md:items-center md:justify-between md:p-8">
                 <div>
-                    <h1 className="text-3xl font-bold text-white mb-2">{lobby.name}</h1>
-                    <div className="flex items-center gap-4 text-sm font-mono text-neon-cyan">
+                    <h1 className="mb-2 text-2xl font-bold text-white md:text-3xl">{lobby.name}</h1>
+                    <div className="flex flex-col gap-2 text-sm font-mono text-neon-cyan sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
                         <span className="flex items-center"><Shield className="w-4 h-4 mr-2" /> CODE: <span className="text-white font-bold ml-2 select-all">{lobby.code}</span></span>
                         <span className={`px-2 py-0.5 rounded border ${lobby.difficulty === 'HARD' ? 'border-red-500 text-red-500' :
                             lobby.difficulty === 'EASY' ? 'border-green-500 text-green-500' :
@@ -194,9 +197,9 @@ export default function LobbyRoom() {
                             }`}>{lobby.difficulty}</span>
                     </div>
                 </div>
-                <div className="text-right">
+                <div className="text-left md:text-right">
                     <div className="text-xs text-gray-400 mb-1">STATUS</div>
-                    <div className="text-xl font-bold text-white tracking-widest animate-pulse">WAITING FOR SQUAD</div>
+                    <div className="animate-pulse text-lg font-bold tracking-widest text-white md:text-xl">WAITING FOR SQUAD</div>
                 </div>
             </div>
 
@@ -255,7 +258,7 @@ export default function LobbyRoom() {
 
             {/* Loadout */}
             {currentUser && (
-                <div className="glass-panel p-6 rounded-xl border border-white/10">
+                <div className="glass-panel rounded-xl border border-white/10 p-4 sm:p-5 md:p-6">
                     <div className="text-xs text-gray-400 uppercase tracking-widest mb-4">Loadout</div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="space-y-3">
@@ -409,7 +412,7 @@ export default function LobbyRoom() {
             )}
 
             {/* Actions */}
-            <div className="sticky bottom-4 z-40 pt-2">
+            <div className="sticky bottom-2 z-40 pt-2 md:bottom-4">
                 <div className="glass-panel rounded-2xl border border-white/10 p-4 backdrop-blur-md shadow-[0_18px_48px_rgba(0,0,0,0.35)]">
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                         <Button variant="ghost" className="justify-center text-red-400 hover:bg-red-950/30 md:justify-start" onClick={handleLeave}>

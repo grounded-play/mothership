@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 
 export type AmyGuideTransmissionKind = "guide" | "lore" | "warning";
 
@@ -23,20 +23,45 @@ interface AmyGuideContextValue {
 
 const AmyGuideContext = createContext<AmyGuideContextValue | null>(null);
 
+function sameOverride(a: AmyGuideOverride | null, b: AmyGuideOverride | null) {
+    if (a === b) return true;
+    if (!a || !b) return false;
+    if (a.source !== b.source) return false;
+    if (a.messages.length !== b.messages.length) return false;
+    return a.messages.every((message, index) => {
+        const next = b.messages[index];
+        return Boolean(next)
+            && message.kind === next.kind
+            && message.title === next.title
+            && message.text === next.text;
+    });
+}
+
 export function AmyGuideProvider({ children }: { children: ReactNode }) {
     const [override, setOverrideState] = useState<AmyGuideOverride | null>(null);
 
+    const setOverride = useCallback((next: AmyGuideOverride | null) => {
+        setOverrideState((current) => {
+            if (sameOverride(current, next)) {
+                return current;
+            }
+            return next;
+        });
+    }, []);
+
+    const clearOverride = useCallback((source?: string) => {
+        setOverrideState((current) => {
+            if (!current) return null;
+            if (source && current.source !== source) return current;
+            return null;
+        });
+    }, []);
+
     const value = useMemo<AmyGuideContextValue>(() => ({
         override,
-        setOverride: (next) => setOverrideState(next),
-        clearOverride: (source) => {
-            setOverrideState((current) => {
-                if (!current) return null;
-                if (!source || current.source === source) return null;
-                return current;
-            });
-        }
-    }), [override]);
+        setOverride,
+        clearOverride,
+    }), [clearOverride, override, setOverride]);
 
     return (
         <AmyGuideContext.Provider value={value}>

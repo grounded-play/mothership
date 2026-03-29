@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
@@ -12,6 +12,14 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata = {
   title: "MOTHERSHIP: Void Protocol",
   description: "Roguelike Deckbuilder Extraction Horror",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#050510",
+  interactiveWidget: "resizes-content",
 };
 
 const audioBootstrap = `
@@ -98,7 +106,7 @@ export default function RootLayout({
   ensurePrinterWorker();
   return (
     <html lang="en">
-      <body className={`${inter.className} bg-black text-white h-full w-full overflow-hidden`}>
+      <body className={`${inter.className} min-h-[100dvh] w-full overflow-hidden bg-black text-white`}>
         <Script id="mothership-audio-bootstrap" strategy="beforeInteractive">
           {audioBootstrap}
         </Script>

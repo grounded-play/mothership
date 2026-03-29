@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { ChevronLeft, ChevronRight, Radio, Sparkles } from "lucide-react";
 import { useAmyGuide, type AmyGuideTransmission } from "@/components/guide/AmyGuideContext";
@@ -115,38 +115,61 @@ const KIND_STYLES: Record<AmyGuideTransmission["kind"], string> = {
     warning: "border-amber-500/40 bg-amber-500/10 text-amber-300",
 };
 
-export default function AmyGuidePanel() {
+export default function AmyGuidePanel({ layout = "dock" }: { layout?: "dock" | "sidebar" }) {
     const pathname = usePathname();
     const { override } = useAmyGuide();
+    const hasOverrideMessages = Boolean(override?.messages?.length);
     const messages = useMemo(() => {
-        const routeMessages = getGuideMessages(pathname);
-        if (!override?.messages?.length) {
-            return routeMessages;
+        if (hasOverrideMessages) {
+            return override?.messages ?? [];
         }
-        return [...override.messages, ...routeMessages].slice(0, 5);
-    }, [override, pathname]);
+        return getGuideMessages(pathname);
+    }, [hasOverrideMessages, override?.messages, pathname]);
     const [index, setIndex] = useState(0);
     const [visibleText, setVisibleText] = useState("");
     const [isTalking, setIsTalking] = useState(false);
     const [talkFrame, setTalkFrame] = useState<0 | 1>(0);
+    const lastMessageKeyRef = useRef<string | null>(null);
 
     useEffect(() => {
         setIndex(0);
     }, [pathname, override?.source]);
 
     useEffect(() => {
-        if (messages.length <= 1) return;
+        if (hasOverrideMessages || messages.length <= 1) return;
         const interval = window.setInterval(() => {
             setIndex((current) => (current + 1) % messages.length);
         }, ROTATE_MS);
         return () => window.clearInterval(interval);
-    }, [messages]);
+    }, [hasOverrideMessages, messages]);
+
+    useEffect(() => {
+        setIndex((current) => {
+            if (messages.length === 0) return 0;
+            return Math.min(current, messages.length - 1);
+        });
+    }, [messages.length]);
 
     const current = messages[index] ?? null;
+    const currentMessageKey = current ? `${current.kind}:${current.title}:${current.text}` : null;
 
     useEffect(() => {
         if (!current) {
             setVisibleText("");
+            setIsTalking(false);
+            lastMessageKeyRef.current = null;
+            return;
+        }
+
+        if (hasOverrideMessages) {
+            setVisibleText(current.text);
+            const changed = lastMessageKeyRef.current !== currentMessageKey;
+            lastMessageKeyRef.current = currentMessageKey;
+            if (changed) {
+                setIsTalking(true);
+                const timeout = window.setTimeout(() => setIsTalking(false), 900);
+                return () => window.clearTimeout(timeout);
+            }
             setIsTalking(false);
             return;
         }
@@ -162,9 +185,10 @@ export default function AmyGuidePanel() {
                 window.setTimeout(() => setIsTalking(false), 280);
             }
         }, TYPE_SPEED_MS);
+        lastMessageKeyRef.current = currentMessageKey;
 
         return () => window.clearInterval(interval);
-    }, [current]);
+    }, [current, currentMessageKey, hasOverrideMessages]);
 
     useEffect(() => {
         if (!isTalking) {
@@ -182,10 +206,15 @@ export default function AmyGuidePanel() {
     }
 
     const portraitSrc = !isTalking ? AMY_PORTRAITS.idle : talkFrame === 0 ? AMY_PORTRAITS.talkA : AMY_PORTRAITS.talkB;
+    const sidebar = layout === "sidebar";
 
     return (
-        <div className="relative flex w-[360px] max-w-full items-center gap-3 rounded-2xl border border-white/10 bg-black/88 px-3 py-2.5 shadow-[0_12px_40px_rgba(0,0,0,0.55)] backdrop-blur-xl">
-            <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-neon-cyan/30 bg-cyan-500/5 shadow-[0_0_20px_rgba(34,211,238,0.15)]">
+        <div className={`relative flex max-w-full items-center gap-3 rounded-2xl border border-white/10 bg-black/88 shadow-[0_12px_40px_rgba(0,0,0,0.55)] backdrop-blur-xl ${
+            sidebar ? "w-full px-3 py-3" : "w-[280px] px-2.5 py-2.5 sm:w-[420px] sm:px-3.5 sm:py-3"
+        }`}>
+            <div className={`relative shrink-0 overflow-hidden rounded-xl border border-neon-cyan/30 bg-cyan-500/5 shadow-[0_0_20px_rgba(34,211,238,0.15)] ${
+                sidebar ? "h-16 w-16" : "h-12 w-12 sm:h-16 sm:w-16"
+            }`}>
                 <img src={portraitSrc} alt="Amy guide portrait" className="h-full w-full object-cover" />
                 <div className="absolute inset-x-1 bottom-1 rounded-full border border-white/10 bg-black/70 px-1.5 py-0.5 text-center text-[7px] font-bold uppercase tracking-[0.22em] text-neon-cyan">
                     {isTalking ? "Live" : "Standby"}
@@ -194,26 +223,26 @@ export default function AmyGuidePanel() {
 
             <div className="min-w-0 flex-1">
                 <div className="mb-1 flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5 text-[9px] uppercase tracking-[0.24em] text-neon-cyan">
+                    <div className={`flex items-center gap-1 uppercase tracking-[0.22em] text-neon-cyan ${sidebar ? "text-[10px]" : "text-[9px] sm:gap-1.5 sm:text-[10px] sm:tracking-[0.24em]"}`}>
                         <Radio className="h-3 w-3" />
                         Amy // Ship Comms
                     </div>
-                    <div className={`rounded-full border px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.18em] ${KIND_STYLES[current.kind]}`}>
+                    <div className={`rounded-full border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.18em] ${KIND_STYLES[current.kind]}`}>
                         {current.kind}
                     </div>
                 </div>
 
-                <div className="truncate text-xs font-bold text-white">
+                <div className={`truncate font-bold text-white ${sidebar ? "text-base" : "text-sm sm:text-base"}`}>
                     {current.title}
                 </div>
                 <div
-                    className="mt-1 text-[10px] leading-relaxed text-gray-300"
+                    className={`mt-1 leading-relaxed text-gray-300 ${sidebar ? "text-[11px]" : "text-[10px] sm:text-[11px]"}`}
                     style={{
                         display: "-webkit-box",
                         WebkitBoxOrient: "vertical",
-                        WebkitLineClamp: 3,
+                        WebkitLineClamp: sidebar ? 3 : 2,
                         overflow: "hidden",
-                        minHeight: "42px",
+                        minHeight: sidebar ? "50px" : "34px",
                     }}
                 >
                     {visibleText}
@@ -225,23 +254,27 @@ export default function AmyGuidePanel() {
                 <button
                     type="button"
                     onClick={() => setIndex((currentIndex) => (currentIndex - 1 + messages.length) % messages.length)}
-                    className="flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white transition-colors hover:border-white/25 hover:bg-white/10"
+                    className={`flex items-center justify-center rounded-full border border-white/10 bg-white/5 text-white transition-colors hover:border-white/25 hover:bg-white/10 ${
+                        sidebar ? "h-7 w-7" : "h-6 w-6 sm:h-7 sm:w-7"
+                    }`}
                     aria-label="Previous transmission"
                 >
-                    <ChevronLeft className="h-3.5 w-3.5" />
+                    <ChevronLeft className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                 </button>
                 <button
                     type="button"
                     onClick={() => setIndex((currentIndex) => (currentIndex + 1) % messages.length)}
-                    className="flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white transition-colors hover:border-white/25 hover:bg-white/10"
+                    className={`flex items-center justify-center rounded-full border border-white/10 bg-white/5 text-white transition-colors hover:border-white/25 hover:bg-white/10 ${
+                        sidebar ? "h-7 w-7" : "h-6 w-6 sm:h-7 sm:w-7"
+                    }`}
                     aria-label="Next transmission"
                 >
-                    <ChevronRight className="h-3.5 w-3.5" />
+                    <ChevronRight className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                 </button>
             </div>
 
-            <div className="pointer-events-none absolute right-10 top-2 text-fuchsia-400/50">
-                <Sparkles className="h-3.5 w-3.5" />
+            <div className="pointer-events-none absolute right-8 top-2 text-fuchsia-400/50 sm:right-10">
+                <Sparkles className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
             </div>
         </div>
     );
