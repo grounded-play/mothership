@@ -144,7 +144,7 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
                                 </div>
                             )}
 
-                            <div className="relative min-h-0 overflow-auto">
+                            <div className="relative min-h-0 overflow-y-scroll overflow-x-hidden custom-scrollbar hud-scrollbar">
                                 {children}
                             </div>
                         </div>

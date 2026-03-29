@@ -138,3 +138,42 @@ html, body {
 .scrollbar-soft::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 243, 255, 0.55);
 }
+
+.hud-scrollbar {
+  scrollbar-width: auto;
+  scrollbar-color: rgba(0, 243, 255, 0.78) rgba(3, 8, 20, 0.92);
+  scrollbar-gutter: stable both-edges;
+}
+
+.hud-scrollbar::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.hud-scrollbar::-webkit-scrollbar-track {
+  background:
+    linear-gradient(180deg, rgba(0, 243, 255, 0.06), rgba(0, 243, 255, 0.02)),
+    rgba(3, 8, 20, 0.92);
+  border-left: 1px solid rgba(0, 243, 255, 0.14);
+  border-radius: 999px;
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.55);
+}
+
+.hud-scrollbar::-webkit-scrollbar-thumb {
+  background:
+    linear-gradient(180deg, rgba(156, 246, 255, 0.95), rgba(0, 243, 255, 0.72));
+  border-radius: 999px;
+  border: 1px solid rgba(0, 0, 0, 0.42);
+  box-shadow:
+    0 0 12px rgba(0, 243, 255, 0.28),
+    inset 0 0 8px rgba(255, 255, 255, 0.16);
+}
+
+.hud-scrollbar::-webkit-scrollbar-thumb:hover {
+  background:
+    linear-gradient(180deg, rgba(198, 251, 255, 1), rgba(0, 243, 255, 0.85));
+}
+
+.hud-scrollbar::-webkit-scrollbar-corner {
+  background: rgba(3, 8, 20, 0.92);
+}
