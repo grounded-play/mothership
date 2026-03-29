@@ -1722,7 +1722,7 @@ export default function GameInterface() {
 
 
             {/* Main Grid Layout */}
-            <main className="relative z-20 mx-auto grid h-full w-full max-w-[1900px] flex-1 min-h-0 grid-cols-1 gap-3 overflow-hidden px-3 py-3 xl:grid-cols-[360px_minmax(0,1fr)] xl:gap-4 2xl:grid-cols-[400px_minmax(0,1fr)] 2xl:px-4 2xl:py-4">
+            <main className="relative z-20 mx-auto grid h-full w-full max-w-[1900px] flex-1 min-h-0 grid-cols-[390px_minmax(0,1fr)] gap-4 overflow-hidden px-4 py-4">
 
 
                 {/* LEFT PANEL: Map & Info (Col Span 3) */}
@@ -1731,7 +1731,7 @@ export default function GameInterface() {
 
                     {/* Room Intel */}
                     {roomInfo && (
-                        <div className="glass-panel shrink-0 space-y-2 border border-white/20 p-3 text-sm xl:p-4">
+                        <div className="glass-panel shrink-0 space-y-2 border border-white/20 p-4 text-sm">
                             <div className="border-b border-white/5 pb-1 text-[10px] uppercase tracking-[0.24em] text-gray-500">Room Intel</div>
                             <div className="flex items-center justify-between">
                                 <span className="text-sm text-gray-400">Power</span>
@@ -1825,7 +1825,7 @@ export default function GameInterface() {
                             <div className="shrink-0 border-b border-white/10 bg-black/35 px-3 py-2">
                                 {inspectedMapNode && (
                                     <div className="mb-2 rounded-lg border border-white/10 bg-black/55 px-2.5 py-2">
-                                        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                                        <div className="flex items-center justify-between gap-3">
                                             <div className="flex flex-wrap items-center justify-end gap-2">
                                                 <div className="text-[9px] uppercase tracking-[0.35em] text-gray-500">Map Readout</div>
                                                 <div className={`rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.22em] ${
@@ -2066,7 +2066,7 @@ export default function GameInterface() {
                                     </div>
                                 </div>
                                 {showHallwayCountdown && (
-                                    <div className="w-full rounded-xl border border-neon-cyan/30 bg-black/75 px-3 py-2 text-left shadow-[0_0_16px_rgba(34,211,238,0.16)] sm:w-auto sm:text-right">
+                                    <div className="w-auto rounded-xl border border-neon-cyan/30 bg-black/75 px-3 py-2 text-right shadow-[0_0_16px_rgba(34,211,238,0.16)]">
                                         <div className="text-[8px] uppercase tracking-[0.32em] text-neon-cyan">Transit</div>
                                         <div className="text-sm font-black uppercase text-white">
                                             {transitDirectionLabel}
@@ -2100,8 +2100,8 @@ export default function GameInterface() {
                                 </div>
                             )}
                             {(hasEnemies || isBossRoom) && (
-                                <div className="pointer-events-none absolute left-1/2 top-[7rem] z-20 flex max-w-[calc(100%-1.5rem)] -translate-x-1/2 items-center gap-2 rounded-2xl border border-red-500/35 bg-black/80 px-2.5 py-2 shadow-[0_0_18px_rgba(239,68,68,0.16)] sm:left-auto sm:right-4 sm:top-[5.25rem] sm:max-w-[340px] sm:translate-x-0 sm:gap-3 sm:px-3">
-                                    <div className="h-12 w-12 overflow-hidden rounded-xl border border-red-500/25 bg-red-950/20 sm:h-16 sm:w-16">
+                                <div className="pointer-events-none absolute right-4 top-[5.25rem] z-20 flex max-w-[340px] items-center gap-3 rounded-2xl border border-red-500/35 bg-black/80 px-3 py-2 shadow-[0_0_18px_rgba(239,68,68,0.16)]">
+                                    <div className="h-16 w-16 overflow-hidden rounded-xl border border-red-500/25 bg-red-950/20">
                                         <SafeImage
                                             src="/ui/enemy-placeholder.png"
                                             alt="Hostile contact"
@@ -2113,7 +2113,7 @@ export default function GameInterface() {
                                         <div className="text-[9px] font-bold uppercase tracking-[0.3em] text-red-300">
                                             {isBossRoom ? "Core Hostile" : "Hostile Room"}
                                         </div>
-                                        <div className="mt-1 text-[11px] font-black uppercase text-white sm:text-xs">
+                                        <div className="mt-1 text-xs font-black uppercase text-white">
                                             {isBossRoom ? "Boss Contact" : `${roomEnemies.length} Attack Target${roomEnemies.length === 1 ? "" : "s"}`}
                                         </div>
                                         <div className="text-[10px] text-red-200/70">
@@ -2144,7 +2144,7 @@ export default function GameInterface() {
                         </div>
 
                         {/* 2. MIDDLE: HAND */}
-                        <div className="relative z-20 flex-none h-[300px] w-full px-2 sm:h-[320px] xl:h-[340px]">
+                        <div className="relative z-20 h-[340px] w-full flex-none px-2">
                             <div className="mb-2 flex h-9 items-center justify-center">
                                 {roomInfo?.scanned && roomInfo?.suit ? (
                                     <div className="flex flex-wrap items-center justify-center gap-2 rounded-full border border-white/10 bg-black/35 px-3 py-1.5 text-[9px] uppercase tracking-[0.22em]">
@@ -2198,7 +2198,7 @@ export default function GameInterface() {
                                 </div>
                             </div>
 
-                            <div ref={handViewportRef} className="h-[208px] w-full overflow-hidden px-2 pb-8 pt-1 sm:h-[228px] xl:h-[252px]">
+                            <div ref={handViewportRef} className="h-[252px] w-full overflow-hidden px-2 pb-8 pt-1">
                                 <div className="flex items-end justify-center w-full perspective-[1000px]" style={{ gap: `${handLayout.gap}px` }}>
                                     <AnimatePresence initial={false}>
                                         {visibleHandEntries.length > 0 ? visibleHandEntries.map(({ card, index }) => (
@@ -2260,17 +2260,17 @@ export default function GameInterface() {
                         <div className="mx-auto flex-none w-full max-w-6xl pt-2 pb-2">
 
                             {/* The Console Chassis */}
-                            <div className="relative overflow-hidden rounded-t-3xl border-t-4 border-slate-700 bg-slate-900/90 p-3 shadow-2xl sm:p-4">
+                            <div className="relative overflow-hidden rounded-t-3xl border-t-4 border-slate-700 bg-slate-900/90 p-4 shadow-2xl">
                                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-neon-cyan to-transparent opacity-50" />
                                 <div className="mb-3 flex min-h-[28px] items-center justify-center text-center">
                                     {handStatusBanner}
                                 </div>
 
                                 {/* Console Grid */}
-                                <div className="grid items-stretch gap-4 xl:grid-cols-[1fr_auto_1fr] xl:items-end xl:gap-8">
+                                <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-8">
 
                                     {/* Left Panel: Primary Actions */}
-                                    <div className="order-2 mx-auto flex h-full w-full max-w-[560px] flex-col justify-between gap-2 rounded-xl border border-white/5 bg-black/40 p-3 xl:order-1 xl:max-w-none">
+                                    <div className="order-1 flex h-full w-full flex-col justify-between gap-2 rounded-xl border border-white/5 bg-black/40 p-3">
 
                                         {/* LOADOUT DISPLAY (Above Actions) */}
                                         <div className="flex flex-col gap-1 w-full">
@@ -2334,7 +2334,7 @@ export default function GameInterface() {
                                                     Recon / Combat / Stabilize
                                                 </div>
                                             </div>
-                                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                                            <div className="grid grid-cols-3 gap-2">
                                                 <Button
                                                     onClick={() => {
                                                         if (isActing) return;
@@ -2413,7 +2413,7 @@ export default function GameInterface() {
 
 
                                     {/* Center Panel: Navigation & Compass */}
-                                    <div className="relative order-1 flex w-full flex-col items-center gap-3 xl:order-2">
+                                    <div className="relative order-2 flex w-full flex-col items-center gap-3">
                                         {player && (
                                             <div className="w-full max-w-[292px] rounded-2xl border border-white/10 bg-black/55 px-3 py-2 shadow-[0_10px_24px_rgba(0,0,0,0.32)] backdrop-blur-sm">
                                                 <div className="flex items-center gap-3">
@@ -2520,8 +2520,8 @@ export default function GameInterface() {
                                         </div>
 
                                         {/* Navigation & Action Lock (Pushed down slightly) */}
-                                        <div className="z-10 flex w-full max-w-[292px] items-end justify-center gap-2 rounded-3xl border border-slate-600 bg-slate-800 p-2.5 pb-2 pt-8 shadow-xl sm:gap-3 sm:p-3">
-                                            <div className="flex w-full max-w-[188px] flex-col items-center gap-2 rounded-2xl border border-slate-500 bg-black/85 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] sm:gap-2.5 sm:p-2.5">
+                                        <div className="z-10 flex w-full max-w-[292px] items-end justify-center gap-3 rounded-3xl border border-slate-600 bg-slate-800 p-3 pb-2 pt-8 shadow-xl">
+                                            <div className="flex w-full max-w-[188px] flex-col items-center gap-2.5 rounded-2xl border border-slate-500 bg-black/85 p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
 
                                                 {/* Deck Controls (Up/Down) */}
                                                 <div className="flex w-full gap-2">
@@ -2548,7 +2548,7 @@ export default function GameInterface() {
                                                     if (isActing) return;
                                                     setActionIntent("MOVE");
                                                     setMoveDirection("FORWARD");
-                                                }} disabled={!canMoveForward || !player.MapNode.isExplored || isActing} className={`flex h-11 w-full min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl border px-1 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_6px_14px_rgba(0,0,0,0.18)] sm:h-12 sm:gap-1 sm:px-1.5 ${moveDirection === "FORWARD" && actionIntent === "MOVE" ? "bg-neon-cyan text-black border-cyan-300" : "bg-slate-900 text-gray-200 border-slate-600 hover:bg-slate-800"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}>
+                                                }} disabled={!canMoveForward || !player.MapNode.isExplored || isActing} className={`flex h-12 w-full min-w-0 flex-col items-center justify-center gap-1 rounded-xl border px-1.5 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_6px_14px_rgba(0,0,0,0.18)] ${moveDirection === "FORWARD" && actionIntent === "MOVE" ? "bg-neon-cyan text-black border-cyan-300" : "bg-slate-900 text-gray-200 border-slate-600 hover:bg-slate-800"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}>
                                                     <ArrowUp className="w-4 h-4 shrink-0" />
                                                     <span className="whitespace-nowrap text-[8px] font-black leading-none tracking-[0.12em]">{moveDirectionLabels.FORWARD}</span>
                                                 </Button>
@@ -2558,7 +2558,7 @@ export default function GameInterface() {
                                                     if (isActing) return;
                                                     setActionIntent("MOVE");
                                                     setMoveDirection("LEFT");
-                                                }} disabled={!canMoveLeft || !player.MapNode.isExplored || isActing} className={`flex h-11 w-full min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl border px-1 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_6px_14px_rgba(0,0,0,0.18)] sm:h-12 sm:gap-1 sm:px-1.5 ${moveDirection === "LEFT" && actionIntent === "MOVE" ? "bg-neon-cyan text-black border-cyan-300" : "bg-slate-900 text-gray-200 border-slate-600 hover:bg-slate-800"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}>
+                                                }} disabled={!canMoveLeft || !player.MapNode.isExplored || isActing} className={`flex h-12 w-full min-w-0 flex-col items-center justify-center gap-1 rounded-xl border px-1.5 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_6px_14px_rgba(0,0,0,0.18)] ${moveDirection === "LEFT" && actionIntent === "MOVE" ? "bg-neon-cyan text-black border-cyan-300" : "bg-slate-900 text-gray-200 border-slate-600 hover:bg-slate-800"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}>
                                                     <ArrowLeft className="w-4 h-4 shrink-0" />
                                                     <span className="whitespace-nowrap text-[8px] font-black leading-none tracking-[0.12em]">{moveDirectionLabels.LEFT}</span>
                                                 </Button>
@@ -2566,7 +2566,7 @@ export default function GameInterface() {
                                                     if (isActing) return;
                                                     setActionIntent("MOVE");
                                                     setMoveDirection("BACK");
-                                                }} disabled={!canMoveBack || !player.MapNode.isExplored || isActing} className={`flex h-11 w-full min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl border px-1 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_6px_14px_rgba(0,0,0,0.18)] sm:h-12 sm:gap-1 sm:px-1.5 ${moveDirection === "BACK" && actionIntent === "MOVE" ? "bg-neon-cyan text-black border-cyan-300" : "bg-slate-900 text-gray-200 border-slate-600 hover:bg-slate-800"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}>
+                                                }} disabled={!canMoveBack || !player.MapNode.isExplored || isActing} className={`flex h-12 w-full min-w-0 flex-col items-center justify-center gap-1 rounded-xl border px-1.5 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_6px_14px_rgba(0,0,0,0.18)] ${moveDirection === "BACK" && actionIntent === "MOVE" ? "bg-neon-cyan text-black border-cyan-300" : "bg-slate-900 text-gray-200 border-slate-600 hover:bg-slate-800"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}>
                                                     <ArrowDown className="w-4 h-4 shrink-0" />
                                                     <span className="whitespace-nowrap text-[8px] font-black leading-none tracking-[0.12em]">{moveDirectionLabels.BACK}</span>
                                                 </Button>
@@ -2574,7 +2574,7 @@ export default function GameInterface() {
                                                     if (isActing) return;
                                                     setActionIntent("MOVE");
                                                     setMoveDirection("RIGHT");
-                                                }} disabled={!canMoveRight || !player.MapNode.isExplored || isActing} className={`flex h-11 w-full min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl border px-1 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_6px_14px_rgba(0,0,0,0.18)] sm:h-12 sm:gap-1 sm:px-1.5 ${moveDirection === "RIGHT" && actionIntent === "MOVE" ? "bg-neon-cyan text-black border-cyan-300" : "bg-slate-900 text-gray-200 border-slate-600 hover:bg-slate-800"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}>
+                                                }} disabled={!canMoveRight || !player.MapNode.isExplored || isActing} className={`flex h-12 w-full min-w-0 flex-col items-center justify-center gap-1 rounded-xl border px-1.5 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_6px_14px_rgba(0,0,0,0.18)] ${moveDirection === "RIGHT" && actionIntent === "MOVE" ? "bg-neon-cyan text-black border-cyan-300" : "bg-slate-900 text-gray-200 border-slate-600 hover:bg-slate-800"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}>
                                                     <ArrowRight className="w-4 h-4 shrink-0" />
                                                     <span className="whitespace-nowrap text-[8px] font-black leading-none tracking-[0.12em]">{moveDirectionLabels.RIGHT}</span>
                                                 </Button>
@@ -2623,7 +2623,7 @@ export default function GameInterface() {
                                     </div>
 
                                     {/* Right Panel: Systems & Emergency */}
-                                    <div className="order-3 mx-auto flex h-full w-full max-w-[560px] flex-col justify-start gap-2 rounded-xl border border-white/5 bg-black/40 p-3 xl:max-w-none">
+                                    <div className="order-3 flex h-full w-full flex-col justify-start gap-2 rounded-xl border border-white/5 bg-black/40 p-3">
                                         <div className="rounded-lg border border-white/10 bg-black/45 p-2">
                                             <div className="flex items-center justify-between gap-2 text-[9px] uppercase tracking-[0.24em]">
                                                 <span className="text-gray-500">Airlock Range</span>
