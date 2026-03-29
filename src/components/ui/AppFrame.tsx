@@ -144,7 +144,7 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
                                 </div>
                             )}
 
-                            <div className="relative min-h-0 overflow-hidden">
+                            <div className="relative min-h-0 overflow-auto">
                                 {children}
                             </div>
                         </div>

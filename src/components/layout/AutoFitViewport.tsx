@@ -67,7 +67,7 @@ export default function AutoFitViewport({ children, contentKey }: { children: Re
         <div ref={frameRef} className="relative h-full w-full overflow-hidden">
             <div
                 ref={contentRef}
-                className="h-full w-full origin-top"
+                className="min-h-full min-w-full origin-top"
                 style={{
                     transform: `scale(${scale})`,
                     transformOrigin: "top center",

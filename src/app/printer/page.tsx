@@ -170,7 +170,7 @@ export default async function PrinterPage() {
             </div>
 
             <AutoFitViewport contentKey={`printer-${globalQueue.length}-${recentMade.length}`}>
-                <div className="h-full min-h-[760px] w-full">
+                <div className="min-h-[980px] w-full">
                     <PrinterInterface
                         credits={(character as any).credits}
                         inventory={(character as any).inventory}
