@@ -61,7 +61,7 @@ export default async function MenuPage() {
     ]);
 
     if (character) {
-        const [runs, txs, prints]: [any[], any[], any[]] = await Promise.all([
+        const [runs, txs, prints] = await Promise.all([
              prisma.gameRun.findMany({
                 where: { characterId: character.id },
                 orderBy: { endedAt: 'desc' },
@@ -72,7 +72,7 @@ export default async function MenuPage() {
                 orderBy: { timestamp: 'desc' },
                 take: 1
             }),
-            (prisma as any).$queryRaw`
+            prisma.$queryRaw<{ imageUpdatedAt: Date | null }[]>`
                 SELECT "imageUpdatedAt" 
                 FROM "InventoryItem" 
                 WHERE "characterId" = ${character.id} 
@@ -95,14 +95,14 @@ export default async function MenuPage() {
     try {
         const comfyRes = await fetch("http://127.0.0.1:8188/", { next: { revalidate: 0 } }).catch(() => null);
         comfyStatus = !!comfyRes && (comfyRes.ok || comfyRes.status === 200);
-    } catch (e) {
+    } catch {
         comfyStatus = false;
     }
 
     return (
-        <main className="h-full w-full overflow-hidden px-5 py-5">
-            <div className="grid h-full w-full grid-cols-[360px_minmax(0,1fr)] gap-6">
-                <section className="grid min-h-0 grid-rows-[minmax(0,1fr)_auto] gap-4">
+        <main className="h-full w-full overflow-auto custom-scrollbar px-4 py-4 sm:px-5 sm:py-5">
+            <div className="mx-auto flex min-h-full w-full max-w-[1500px] flex-col gap-5 xl:grid xl:grid-cols-[360px_minmax(0,1fr)] xl:items-start xl:gap-6">
+                <section className="flex min-h-0 flex-col gap-4">
                     <StatusPanel
                         character={character}
                         lastRun={lastRun}
@@ -121,11 +121,11 @@ export default async function MenuPage() {
                     </div>
                 </section>
 
-                <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-5">
-                    <div className="flex items-center justify-end">
+                <section className="flex min-h-0 flex-col gap-5">
+                    <div className="flex shrink-0 items-center justify-end">
                         <CurrencyDisplay credits={character?.credits || 0} voidTokens={character?.voidTokens || 0} />
                     </div>
-                    <div className="min-h-0 flex-1">
+                    <div className="min-h-0">
                         <MainMenu />
                     </div>
                 </section>

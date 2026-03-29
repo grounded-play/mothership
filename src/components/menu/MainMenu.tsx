@@ -83,14 +83,14 @@ export default function MainMenu() {
     };
 
     return (
-        <div className="flex h-full w-full items-stretch justify-center">
+        <div className="flex w-full justify-center">
             <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.5 }}
-                className="glass-panel flex h-full w-full max-w-[960px] flex-col rounded-[28px] border border-neon-blue/30 px-5 py-6 shadow-[0_24px_60px_rgba(0,0,0,0.4)] sm:px-7 sm:py-8 xl:max-w-[1120px] xl:px-10 xl:py-10"
+                className="glass-panel flex w-full max-w-[960px] flex-col rounded-[28px] border border-neon-blue/30 px-5 py-6 shadow-[0_24px_60px_rgba(0,0,0,0.4)] sm:px-7 sm:py-8 xl:max-w-[1120px] xl:px-10 xl:py-10"
             >
-                <div className="mb-8 text-center sm:mb-10">
+                <div className="mb-6 text-center sm:mb-8 xl:mb-10">
                     <h2 className="mb-3 text-4xl font-bold tracking-[0.18em] text-white neon-text sm:text-5xl xl:text-6xl">
                         MAIN MENU
                     </h2>
@@ -100,7 +100,7 @@ export default function MainMenu() {
                     </p>
                 </div>
 
-                <div className="grid flex-1 grid-cols-1 gap-4 xl:grid-cols-2 xl:gap-5">
+                <div className="grid grid-cols-1 gap-3 sm:gap-4 xl:grid-cols-2 xl:gap-5">
                     {menuItems.map((item) => (
                         <motion.div
                             key={item.label}
@@ -152,7 +152,7 @@ export default function MainMenu() {
                     ))}
                 </div>
 
-                <div className="mt-8 flex justify-center border-t border-white/10 pt-6 sm:mt-10 sm:pt-8">
+                <div className="mt-6 flex justify-center border-t border-white/10 pt-6 sm:mt-8 sm:pt-8">
                     <Button
                         variant="ghost"
                         onMouseEnter={() => handleMenuHover("Disconnect")}

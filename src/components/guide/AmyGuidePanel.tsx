@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -209,8 +210,8 @@ export default function AmyGuidePanel({ layout = "dock" }: { layout?: "dock" | "
     const sidebar = layout === "sidebar";
 
     return (
-        <div className={`relative flex max-w-full items-center gap-3 rounded-2xl border border-white/10 bg-black/88 shadow-[0_12px_40px_rgba(0,0,0,0.55)] backdrop-blur-xl ${
-            sidebar ? "w-full px-3 py-3" : "w-[280px] px-2.5 py-2.5 sm:w-[420px] sm:px-3.5 sm:py-3"
+        <div className={`relative flex max-w-full gap-3 rounded-2xl border border-white/10 bg-black/88 shadow-[0_12px_40px_rgba(0,0,0,0.55)] backdrop-blur-xl ${
+            sidebar ? "w-full items-start px-3 py-3" : "items-center w-[280px] px-2.5 py-2.5 sm:w-[420px] sm:px-3.5 sm:py-3"
         }`}>
             <div className={`relative shrink-0 overflow-hidden rounded-xl border border-neon-cyan/30 bg-cyan-500/5 shadow-[0_0_20px_rgba(34,211,238,0.15)] ${
                 sidebar ? "h-16 w-16" : "h-12 w-12 sm:h-16 sm:w-16"
@@ -222,7 +223,7 @@ export default function AmyGuidePanel({ layout = "dock" }: { layout?: "dock" | "
             </div>
 
             <div className="min-w-0 flex-1">
-                <div className="mb-1 flex items-center justify-between gap-2">
+                <div className="mb-1 flex items-start justify-between gap-2">
                     <div className={`flex items-center gap-1 uppercase tracking-[0.22em] text-neon-cyan ${sidebar ? "text-[10px]" : "text-[9px] sm:gap-1.5 sm:text-[10px] sm:tracking-[0.24em]"}`}>
                         <Radio className="h-3 w-3" />
                         Amy // Ship Comms
@@ -232,17 +233,17 @@ export default function AmyGuidePanel({ layout = "dock" }: { layout?: "dock" | "
                     </div>
                 </div>
 
-                <div className={`truncate font-bold text-white ${sidebar ? "text-base" : "text-sm sm:text-base"}`}>
+                <div className={`font-bold text-white ${sidebar ? "text-sm leading-tight sm:text-base" : "truncate text-sm sm:text-base"}`}>
                     {current.title}
                 </div>
                 <div
-                    className={`mt-1 leading-relaxed text-gray-300 ${sidebar ? "text-[11px]" : "text-[10px] sm:text-[11px]"}`}
-                    style={{
+                    className={`mt-1 leading-relaxed text-gray-300 ${sidebar ? "max-h-24 overflow-y-auto pr-1 text-[11px] custom-scrollbar sm:max-h-28" : "text-[10px] sm:text-[11px]"}`}
+                    style={sidebar ? undefined : {
                         display: "-webkit-box",
                         WebkitBoxOrient: "vertical",
-                        WebkitLineClamp: sidebar ? 3 : 2,
+                        WebkitLineClamp: 2,
                         overflow: "hidden",
-                        minHeight: sidebar ? "50px" : "34px",
+                        minHeight: "34px",
                     }}
                 >
                     {visibleText}

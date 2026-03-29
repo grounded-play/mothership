@@ -6,6 +6,7 @@ type FitCanvasProps = {
     width: number;
     height: number;
     maxScale?: number;
+    minScale?: number;
     padding?: number;
     children: ReactNode;
 };
@@ -14,11 +15,12 @@ export default function FitCanvas({
     width,
     height,
     maxScale = 1.2,
+    minScale = 0.55,
     padding = 16,
     children,
 }: FitCanvasProps) {
     const frameRef = useRef<HTMLDivElement | null>(null);
-    const [scale, setScale] = useState(1);
+    const [view, setView] = useState({ scale: 1, clamped: false });
 
     useLayoutEffect(() => {
         const frame = frameRef.current;
@@ -30,8 +32,17 @@ export default function FitCanvas({
             raf = 0;
             const frameWidth = Math.max(frame.clientWidth - padding * 2, 1);
             const frameHeight = Math.max(frame.clientHeight - padding * 2, 1);
-            const nextScale = Math.min(frameWidth / width, frameHeight / height, maxScale);
-            setScale(Number.isFinite(nextScale) && nextScale > 0 ? nextScale : 1);
+            const fitScale = Math.min(frameWidth / width, frameHeight / height, maxScale);
+            const resolvedScale = Number.isFinite(fitScale) && fitScale > 0
+                ? Math.min(maxScale, Math.max(minScale, fitScale))
+                : 1;
+            const clamped = resolvedScale > fitScale;
+            setView((current) => {
+                if (Math.abs(current.scale - resolvedScale) < 0.0001 && current.clamped === clamped) {
+                    return current;
+                }
+                return { scale: resolvedScale, clamped };
+            });
         };
 
         const schedule = () => {
@@ -51,21 +62,34 @@ export default function FitCanvas({
             window.removeEventListener("resize", schedule);
             window.visualViewport?.removeEventListener("resize", schedule);
         };
-    }, [height, maxScale, padding, width]);
+    }, [height, maxScale, minScale, padding, width]);
 
     return (
-        <div ref={frameRef} className="relative h-full w-full overflow-hidden">
+        <div ref={frameRef} className="relative h-full w-full overflow-auto custom-scrollbar">
             <div
-                className="absolute left-1/2 top-1/2"
-                style={{
-                    width: `${width}px`,
-                    height: `${height}px`,
-                    transform: `translate(-50%, -50%) scale(${scale})`,
-                    transformOrigin: "center center",
-                    willChange: "transform",
-                }}
+                className={`flex min-h-full min-w-full justify-center ${view.clamped ? "items-start" : "items-center"}`}
+                style={{ padding: `${padding}px` }}
             >
-                {children}
+                <div
+                    className="relative shrink-0"
+                    style={{
+                        width: `${width * view.scale}px`,
+                        height: `${height * view.scale}px`,
+                    }}
+                >
+                    <div
+                        className="absolute left-0 top-0"
+                        style={{
+                            width: `${width}px`,
+                            height: `${height}px`,
+                            transform: `scale(${view.scale})`,
+                            transformOrigin: "top left",
+                            willChange: "transform",
+                        }}
+                    >
+                        {children}
+                    </div>
+                </div>
             </div>
         </div>
     );

@@ -2,16 +2,38 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Activity, Globe, Zap, ShoppingCart, Shield, Terminal } from "lucide-react";
+import { Activity, Globe, Shield, Terminal } from "lucide-react";
 import SafeImage from "@/components/ui/SafeImage";
 import { formatDistanceToNow } from "date-fns";
 
+type StatusCharacter = {
+    portrait?: string | null;
+    name?: string | null;
+    class?: string | null;
+} | null;
+
+type LastRunRecord = {
+    rank?: string | null;
+} | null;
+
+type FleetRunRecord = {
+    endedAt?: string | Date | null;
+} | null;
+
+type TransactionRecord = {
+    timestamp?: string | Date | null;
+} | null;
+
+type PrintRecord = {
+    imageUpdatedAt?: string | Date | null;
+} | null;
+
 interface StatusPanelProps {
-    character: any;
-    lastRun: any;
-    globalLastRun: any;
-    lastTransaction: any;
-    lastPrint: any;
+    character: StatusCharacter;
+    lastRun: LastRunRecord;
+    globalLastRun: FleetRunRecord;
+    lastTransaction: TransactionRecord;
+    lastPrint: PrintRecord;
     totalPlayers: number;
     onlinePlayers: number;
     activeMissions: number;
@@ -58,7 +80,7 @@ export default function StatusPanel(props: StatusPanelProps) {
         <motion.div 
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
-            className="glass-panel h-full w-full rounded-[24px] border border-neon-cyan/20 p-4 shadow-2xl backdrop-blur-md space-y-4 sm:p-5 xl:p-6"
+            className="glass-panel w-full rounded-[24px] border border-neon-cyan/20 p-4 shadow-2xl backdrop-blur-md space-y-4 sm:p-5 xl:p-6"
         >
             {/* Player Profile Section */}
             <div className="flex items-center gap-4 border-b border-white/10 pb-3 sm:gap-5 sm:pb-4">
