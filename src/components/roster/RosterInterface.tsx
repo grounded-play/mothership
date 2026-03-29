@@ -6,6 +6,8 @@ import { Search, Shield, Zap, User, Crosshair, X, ExternalLink } from "lucide-re
 import SafeImage from "@/components/ui/SafeImage";
 import { useRouter } from "next/navigation";
 
+type CharacterStats = Record<string, unknown>;
+
 interface Character {
     id: string;
     name: string;
@@ -14,7 +16,7 @@ interface Character {
     portrait?: string;
     credits?: number;
     voidTokens?: number;
-    stats?: string | any;
+    stats?: string | CharacterStats | null;
     runsCompleted?: number;
     runsFailed?: number;
     deathCount?: number;
@@ -26,7 +28,7 @@ interface RosterInterfaceProps {
     currentCharacterId?: string | null;
 }
 
-const parseStats = (stats: Character["stats"]) => {
+const parseStats = (stats: Character["stats"]): CharacterStats => {
     try {
         return typeof stats === "string" ? JSON.parse(stats) : stats || {};
     } catch {
@@ -38,14 +40,12 @@ export default function RosterInterface({ initialCharacters, currentCharacterId 
     const router = useRouter();
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedClass, setSelectedClass] = useState<string | null>(null);
-    const [minLevel, setMinLevel] = useState(0);
     const [selectedCharacter, setSelectedCharacter] = useState<Character | null>(null);
 
     const filteredCharacters = initialCharacters.filter(char => {
         const matchesSearch = char.name.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesClass = selectedClass ? char.class.toLowerCase() === selectedClass.toLowerCase() : true;
-        const matchesLevel = char.level >= minLevel;
-        return matchesSearch && matchesClass && matchesLevel;
+        return matchesSearch && matchesClass;
     });
 
     const classes = [
@@ -85,11 +85,11 @@ export default function RosterInterface({ initialCharacters, currentCharacterId 
     const selectedStats = parseStats(selectedCharacter?.stats);
 
     return (
-        <div className="w-full max-w-7xl mx-auto">
-            <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px] gap-8">
-                <div className="space-y-8">
+        <div className="mx-auto h-full min-h-0 w-full max-w-7xl">
+            <div className="grid h-full min-h-0 grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_300px] xl:gap-8">
+                <div className="flex min-h-0 flex-col gap-6 xl:gap-8">
                     {/* Control Panel */}
-                    <div className="glass-panel p-6 rounded-xl border border-white/10 flex flex-col md:flex-row gap-6 items-center justify-between">
+                    <div className="glass-panel flex shrink-0 flex-col items-center justify-between gap-6 rounded-xl border border-white/10 p-6 md:flex-row">
 
                         {/* Search */}
                         <div className="relative w-full md:w-96">
@@ -127,7 +127,7 @@ export default function RosterInterface({ initialCharacters, currentCharacterId 
                     </div>
 
                     {/* Grid Container with Scroll */}
-                    <div className="h-[calc(100vh-240px)] overflow-y-auto custom-scrollbar pr-2">
+                    <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar pr-2">
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                             <AnimatePresence>
                                 {filteredCharacters.map((char) => (
@@ -216,7 +216,7 @@ export default function RosterInterface({ initialCharacters, currentCharacterId 
                                                                 </div>
                                                             </>
                                                         )
-                                                    } catch (e) { return null; }
+                                                    } catch { return null; }
                                                 })()}
                                             </div>
                                             <div className="mt-5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[9px] font-bold uppercase tracking-[0.24em] text-gray-300">
@@ -236,7 +236,7 @@ export default function RosterInterface({ initialCharacters, currentCharacterId 
                     </div>
                 </div>
 
-                <aside className="glass-panel p-6 rounded-xl border border-white/10 h-[calc(100vh-140px)] flex flex-col">
+                <aside className="glass-panel flex h-full min-h-0 flex-col rounded-xl border border-white/10 p-6">
                     <div className="flex-none">
                         <div className="text-[10px] text-gray-500 uppercase tracking-widest">Season Rankings</div>
                         <div className="text-xl font-bold text-white mt-1 mb-4">{seasonLabel}</div>
