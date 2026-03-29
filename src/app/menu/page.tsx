@@ -6,8 +6,6 @@ import { redirect } from "next/navigation";
 import MainMenu from "@/components/menu/MainMenu";
 import CurrencyDisplay from "@/components/ui/CurrencyDisplay";
 import StatusPanel from "@/components/menu/StatusPanel";
-import MiniPlayer from "@/components/audio/MiniPlayer";
-import AmyGuidePanel from "@/components/guide/AmyGuidePanel";
 
 export default async function MenuPage() {
     const session = await getServerSession(authOptions);
@@ -100,8 +98,8 @@ export default async function MenuPage() {
     }
 
     return (
-        <main className="h-full w-full overflow-auto custom-scrollbar px-4 py-4 sm:px-5 sm:py-5">
-            <div className="mx-auto flex min-h-full w-full max-w-[1500px] flex-col gap-5 xl:grid xl:grid-cols-[360px_minmax(0,1fr)] xl:items-start xl:gap-6">
+        <main className="h-full w-full overflow-hidden px-4 py-4 sm:px-5 sm:py-5">
+            <div className="mx-auto grid h-full w-full max-w-[1500px] min-h-0 gap-5 xl:grid-cols-[340px_minmax(0,1fr)] xl:items-start xl:gap-6">
                 <section className="flex min-h-0 flex-col gap-4">
                     <StatusPanel
                         character={character}
@@ -115,10 +113,6 @@ export default async function MenuPage() {
                         activeLobbies={activeLobbies}
                         comfyStatus={comfyStatus}
                     />
-                    <div className="grid grid-cols-1 gap-3">
-                        <MiniPlayer layout="sidebar" />
-                        <AmyGuidePanel layout="sidebar" />
-                    </div>
                 </section>
 
                 <section className="flex min-h-0 flex-col gap-5">

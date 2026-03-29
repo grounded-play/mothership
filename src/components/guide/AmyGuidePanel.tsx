@@ -211,7 +211,7 @@ export default function AmyGuidePanel({ layout = "dock" }: { layout?: "dock" | "
 
     return (
         <div className={`relative flex max-w-full gap-3 rounded-2xl border border-white/10 bg-black/88 shadow-[0_12px_40px_rgba(0,0,0,0.55)] backdrop-blur-xl ${
-            sidebar ? "w-full items-start px-3 py-3" : "items-center w-[280px] px-2.5 py-2.5 sm:w-[420px] sm:px-3.5 sm:py-3"
+            sidebar ? "w-full items-start px-3 py-3" : "w-[320px] items-start px-3 py-3 sm:w-[380px] sm:px-3.5"
         }`}>
             <div className={`relative shrink-0 overflow-hidden rounded-xl border border-neon-cyan/30 bg-cyan-500/5 shadow-[0_0_20px_rgba(34,211,238,0.15)] ${
                 sidebar ? "h-16 w-16" : "h-12 w-12 sm:h-16 sm:w-16"
@@ -233,18 +233,11 @@ export default function AmyGuidePanel({ layout = "dock" }: { layout?: "dock" | "
                     </div>
                 </div>
 
-                <div className={`font-bold text-white ${sidebar ? "text-sm leading-tight sm:text-base" : "truncate text-sm sm:text-base"}`}>
+                <div className={`font-bold text-white ${sidebar ? "text-sm leading-tight sm:text-base" : "text-sm leading-tight sm:text-base"}`}>
                     {current.title}
                 </div>
                 <div
-                    className={`mt-1 leading-relaxed text-gray-300 ${sidebar ? "max-h-24 overflow-y-auto pr-1 text-[11px] custom-scrollbar sm:max-h-28" : "text-[10px] sm:text-[11px]"}`}
-                    style={sidebar ? undefined : {
-                        display: "-webkit-box",
-                        WebkitBoxOrient: "vertical",
-                        WebkitLineClamp: 2,
-                        overflow: "hidden",
-                        minHeight: "34px",
-                    }}
+                    className={`mt-1 leading-relaxed text-gray-300 ${sidebar ? "max-h-24 overflow-y-auto pr-1 text-[11px] custom-scrollbar sm:max-h-28" : "max-h-20 overflow-y-auto pr-1 text-[10px] custom-scrollbar sm:max-h-24 sm:text-[11px]"}`}
                 >
                     {visibleText}
                     {isTalking && <span className="ml-1 inline-block h-2 w-1 animate-pulse bg-neon-cyan align-middle" />}

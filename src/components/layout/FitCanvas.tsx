@@ -15,12 +15,12 @@ export default function FitCanvas({
     width,
     height,
     maxScale = 1.2,
-    minScale = 0.55,
+    minScale = 0,
     padding = 16,
     children,
 }: FitCanvasProps) {
     const frameRef = useRef<HTMLDivElement | null>(null);
-    const [view, setView] = useState({ scale: 1, clamped: false });
+    const [scale, setScale] = useState(1);
 
     useLayoutEffect(() => {
         const frame = frameRef.current;
@@ -36,12 +36,11 @@ export default function FitCanvas({
             const resolvedScale = Number.isFinite(fitScale) && fitScale > 0
                 ? Math.min(maxScale, Math.max(minScale, fitScale))
                 : 1;
-            const clamped = resolvedScale > fitScale;
-            setView((current) => {
-                if (Math.abs(current.scale - resolvedScale) < 0.0001 && current.clamped === clamped) {
+            setScale((current) => {
+                if (Math.abs(current - resolvedScale) < 0.0001) {
                     return current;
                 }
-                return { scale: resolvedScale, clamped };
+                return resolvedScale;
             });
         };
 
@@ -65,24 +64,30 @@ export default function FitCanvas({
     }, [height, maxScale, minScale, padding, width]);
 
     return (
-        <div ref={frameRef} className="relative h-full w-full overflow-auto custom-scrollbar">
+        <div ref={frameRef} className="relative h-full w-full overflow-hidden">
             <div
-                className={`flex min-h-full min-w-full justify-center ${view.clamped ? "items-start" : "items-center"}`}
-                style={{ padding: `${padding}px` }}
+                className="absolute left-1/2 top-1/2"
+                style={{
+                    width: `${width * scale + padding * 2}px`,
+                    height: `${height * scale + padding * 2}px`,
+                    transform: "translate(-50%, -50%)",
+                }}
             >
                 <div
                     className="relative shrink-0"
                     style={{
-                        width: `${width * view.scale}px`,
-                        height: `${height * view.scale}px`,
+                        width: `${width * scale + padding * 2}px`,
+                        height: `${height * scale + padding * 2}px`,
                     }}
                 >
                     <div
                         className="absolute left-0 top-0"
                         style={{
+                            left: `${padding}px`,
+                            top: `${padding}px`,
                             width: `${width}px`,
                             height: `${height}px`,
-                            transform: `scale(${view.scale})`,
+                            transform: `scale(${scale})`,
                             transformOrigin: "top left",
                             willChange: "transform",
                         }}

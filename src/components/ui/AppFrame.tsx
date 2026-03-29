@@ -12,13 +12,11 @@ import { usePathname } from "next/navigation";
 
 const APP_STAGE_WIDTH = 1440;
 const APP_STAGE_HEIGHT = 810;
-const FULL_DOCK_HEIGHT = 110;
 type CompactPanel = "player" | "guide";
 
 export default function AppFrame({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
-    const routeOwnsDock = Boolean(pathname && pathname.startsWith("/menu"));
-    const showDock = Boolean(pathname && pathname !== "/" && !pathname.startsWith("/api/") && !routeOwnsDock);
+    const showDock = Boolean(pathname && pathname !== "/" && !pathname.startsWith("/api/"));
     const [isCompactViewport, setIsCompactViewport] = useState(false);
     const [compactPanelState, setCompactPanelState] = useState<{ panel: CompactPanel | null; pathname: string | null }>({
         panel: null,
@@ -27,7 +25,7 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
     const compactLauncherRef = useRef<HTMLDivElement | null>(null);
     const compactPanelRef = useRef<HTMLDivElement | null>(null);
     const routeKey = pathname ?? null;
-    const compactPanel = isCompactViewport && compactPanelState.pathname === routeKey ? compactPanelState.panel : null;
+    const compactPanel = compactPanelState.pathname === routeKey ? compactPanelState.panel : null;
 
     const closeCompactPanel = () => {
         setCompactPanelState({ panel: null, pathname: routeKey });
@@ -59,7 +57,7 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
     }, []);
 
     useEffect(() => {
-        if (!compactPanel || !isCompactViewport) return;
+        if (!compactPanel) return;
 
         const handlePointerDown = (event: PointerEvent) => {
             const target = event.target as Node | null;
@@ -81,7 +79,7 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
             document.removeEventListener("pointerdown", handlePointerDown, true);
             window.removeEventListener("keydown", handleKeyDown);
         };
-    }, [compactPanel, isCompactViewport, routeKey]);
+    }, [compactPanel, routeKey]);
 
     return (
         <ResponsiveShell>
@@ -96,73 +94,60 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
                         <div
                             className="grid h-full w-full"
                             style={{
-                                gridTemplateRows: showDock && !isCompactViewport
-                                    ? `minmax(0,1fr) ${FULL_DOCK_HEIGHT}px`
-                                    : "minmax(0,1fr)",
+                                gridTemplateRows: showDock ? "minmax(0,1fr) 76px" : "minmax(0,1fr)",
                             }}
                         >
-                            <div className="relative min-h-0 overflow-auto custom-scrollbar">
+                            <div className="relative min-h-0 overflow-hidden">
                                 {children}
                             </div>
 
-                            {showDock && !isCompactViewport && (
-                                <div className="flex items-end justify-between gap-4 px-4 pb-4">
-                                    <div className="min-w-0 shrink">
-                                        <MiniPlayer />
-                                    </div>
-                                    <div className="min-w-0 shrink">
-                                        <AmyGuidePanel />
+                            {showDock && (
+                                <div className="relative z-[40] flex items-end justify-center px-4 pb-4">
+                                    <div ref={compactLauncherRef} className="relative flex items-center justify-center gap-2 rounded-full border border-white/10 bg-black/88 px-2.5 py-2 shadow-[0_12px_32px_rgba(0,0,0,0.48)] backdrop-blur-xl">
+                                        <button
+                                            type="button"
+                                            onClick={() => toggleCompactPanel("player")}
+                                            className={`flex items-center gap-2 rounded-full border px-3 py-2 font-bold uppercase tracking-[0.22em] transition-colors ${
+                                                compactPanel === "player"
+                                                    ? "border-neon-cyan bg-cyan-500/15 text-neon-cyan"
+                                                    : "border-white/10 bg-black/70 text-white"
+                                            } ${isCompactViewport ? "text-[10px]" : "text-[11px]"}`}
+                                        >
+                                            <Volume2 className="h-3.5 w-3.5" />
+                                            Audio
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => toggleCompactPanel("guide")}
+                                            className={`flex items-center gap-2 rounded-full border px-3 py-2 font-bold uppercase tracking-[0.22em] transition-colors ${
+                                                compactPanel === "guide"
+                                                    ? "border-neon-cyan bg-cyan-500/15 text-neon-cyan"
+                                                    : "border-white/10 bg-black/70 text-white"
+                                            } ${isCompactViewport ? "text-[10px]" : "text-[11px]"}`}
+                                        >
+                                            <Radio className="h-3.5 w-3.5" />
+                                            Amy
+                                        </button>
+
+                                        {compactPanel && (
+                                            <div className="absolute bottom-[calc(100%+0.75rem)] left-1/2 z-[90] -translate-x-1/2">
+                                                <div ref={compactPanelRef} className="relative flex justify-center">
+                                                    <button
+                                                        type="button"
+                                                        onClick={closeCompactPanel}
+                                                        className="absolute -top-3 right-0 z-10 flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-black/85 text-gray-300 shadow-[0_6px_18px_rgba(0,0,0,0.45)] transition-colors hover:border-white/25 hover:text-white"
+                                                        aria-label="Close dock panel"
+                                                    >
+                                                        <X className="h-3.5 w-3.5" />
+                                                    </button>
+                                                    {compactPanel === "player" ? <MiniPlayer /> : <AmyGuidePanel />}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             )}
                         </div>
-
-                        {showDock && isCompactViewport && (
-                            <div className="pointer-events-none absolute inset-x-0 bottom-3 z-[40] flex justify-center px-3">
-                                <div ref={compactLauncherRef} className="pointer-events-auto relative flex items-center justify-center gap-2 rounded-full border border-white/10 bg-black/88 px-2.5 py-2 shadow-[0_12px_32px_rgba(0,0,0,0.48)] backdrop-blur-xl">
-                                    <button
-                                        type="button"
-                                        onClick={() => toggleCompactPanel("player")}
-                                        className={`flex items-center gap-2 rounded-full border px-3 py-2 text-[10px] font-bold uppercase tracking-[0.22em] transition-colors ${
-                                            compactPanel === "player"
-                                                ? "border-neon-cyan bg-cyan-500/15 text-neon-cyan"
-                                                : "border-white/10 bg-black/70 text-white"
-                                        }`}
-                                    >
-                                        <Volume2 className="h-3.5 w-3.5" />
-                                        Audio
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => toggleCompactPanel("guide")}
-                                        className={`flex items-center gap-2 rounded-full border px-3 py-2 text-[10px] font-bold uppercase tracking-[0.22em] transition-colors ${
-                                            compactPanel === "guide"
-                                                ? "border-neon-cyan bg-cyan-500/15 text-neon-cyan"
-                                                : "border-white/10 bg-black/70 text-white"
-                                        }`}
-                                    >
-                                        <Radio className="h-3.5 w-3.5" />
-                                        Amy
-                                    </button>
-
-                                    {compactPanel && (
-                                        <div className="pointer-events-none absolute bottom-[calc(100%+0.75rem)] left-1/2 z-[90] w-[min(100vw-1.5rem,28rem)] -translate-x-1/2">
-                                            <div ref={compactPanelRef} className="pointer-events-auto relative flex justify-center">
-                                                <button
-                                                    type="button"
-                                                    onClick={closeCompactPanel}
-                                                    className="absolute -top-3 right-0 z-10 flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-black/85 text-gray-300 shadow-[0_6px_18px_rgba(0,0,0,0.45)] transition-colors hover:border-white/25 hover:text-white"
-                                                    aria-label="Close dock panel"
-                                                >
-                                                    <X className="h-3.5 w-3.5" />
-                                                </button>
-                                                {compactPanel === "player" ? <MiniPlayer /> : <AmyGuidePanel />}
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        )}
                     </div>
                 </FitCanvas>
             </AmyGuideProvider>
