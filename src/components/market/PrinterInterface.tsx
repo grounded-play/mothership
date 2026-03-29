@@ -315,7 +315,7 @@ export default function PrinterInterface({ credits, inventory, globalQueue, back
     const queuedItemsList = useMemo(() => globalQueue.filter((_, idx) => idx !== activeQueueIndex), [globalQueue, activeQueueIndex]);
 
     return (
-        <div className="w-full max-w-6xl mx-auto p-4 pt-24">
+        <div className="w-full py-2">
             <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-8">
                 <div className="space-y-8">
                     {/* MAIN PRINTER (GAMBA) */}

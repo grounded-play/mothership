@@ -3,24 +3,23 @@
 import Link from "next/link";
 import { ArrowLeft, Monitor } from "lucide-react";
 import AudioSettingsPanel from "@/components/audio/AudioSettingsPanel";
-import AutoFitViewport from "@/components/layout/AutoFitViewport";
 
 export default function SettingsPage() {
     return (
-        <div className="h-full bg-space-void relative">
-            <div className="fixed top-6 left-8 z-50">
+        <div className="relative flex h-full min-h-0 flex-col bg-space-void px-4 pb-4 pt-20 sm:px-6 sm:pb-6 sm:pt-24 xl:px-8">
+            <div className="fixed left-4 top-4 z-50 sm:left-8 sm:top-6">
                 <Link href="/menu" className="flex items-center text-neon-cyan hover:text-white transition-colors glass-panel px-4 py-2 rounded-full">
                     <ArrowLeft className="mr-2 h-4 w-4" /> Back to Bridge
                 </Link>
             </div>
 
-            <AutoFitViewport contentKey="settings">
-                <div className="flex min-h-[920px] w-full items-start justify-center p-4 pt-24">
-                    <div className="w-full max-w-2xl glass-panel p-8 rounded-2xl">
-                        <header className="flex items-center mb-8 pb-4 border-b border-white/10">
-                            <h1 className="text-2xl font-bold tracking-widest text-white">SYSTEM CONFIGURATION</h1>
-                        </header>
+            <div className="mx-auto flex h-full min-h-0 w-full max-w-4xl flex-col">
+                <header className="mb-6 flex shrink-0 items-center border-b border-white/10 pb-4">
+                    <h1 className="text-2xl font-bold tracking-widest text-white">SYSTEM CONFIGURATION</h1>
+                </header>
 
+                <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar hud-scrollbar pr-1">
+                    <div className="glass-panel rounded-2xl p-6 sm:p-8">
                         <div className="space-y-8">
                             <div className="space-y-4">
                                 <AudioSettingsPanel />
@@ -42,7 +41,7 @@ export default function SettingsPage() {
                         </div>
                     </div>
                 </div>
-            </AutoFitViewport>
+            </div>
         </div>
     );
 }

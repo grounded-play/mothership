@@ -3,7 +3,6 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import MarketInterface from "@/components/market/MarketInterface";
-import AutoFitViewport from "@/components/layout/AutoFitViewport";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
@@ -30,23 +29,21 @@ export default async function MarketplacePage() {
     });
 
     return (
-        <div className="h-full bg-space-void">
-            <div className="fixed top-6 left-8 z-50">
+        <div className="flex h-full min-h-0 flex-col bg-space-void px-4 pb-4 pt-20 sm:px-6 sm:pb-6 sm:pt-24 xl:px-8">
+            <div className="fixed left-4 top-4 z-50 sm:left-8 sm:top-6">
                 <Link href="/menu" className="flex items-center text-neon-cyan hover:text-white transition-colors glass-panel px-4 py-2 rounded-full">
                     <ArrowLeft className="mr-2 h-4 w-4" /> Back to Bridge
                 </Link>
             </div>
 
-            <AutoFitViewport contentKey={`market-${listings.length}-${character.inventory.length}`}>
-                <div className="min-h-[980px] w-full">
-                    <MarketInterface
-                        initialListings={listings}
-                        userInventory={character.inventory}
-                        credits={character.credits}
-                        voidTokens={character.voidTokens}
-                    />
-                </div>
-            </AutoFitViewport>
+            <div className="mx-auto flex h-full min-h-0 w-full max-w-7xl flex-col">
+                <MarketInterface
+                    initialListings={listings}
+                    userInventory={character.inventory}
+                    credits={character.credits}
+                    voidTokens={character.voidTokens}
+                />
+            </div>
         </div>
     );
 }

@@ -46,7 +46,7 @@ function MarketTicker({ version }: { version?: number }) {
     }, [history, txFilter]);
 
     return (
-        <div className="space-y-3">
+        <div className="flex h-full min-h-0 flex-col gap-3">
             <div className="flex items-center justify-between gap-2 text-[10px] uppercase tracking-widest text-gray-500">
                 <label htmlFor="history-filter">Filter</label>
                 <select
@@ -63,7 +63,7 @@ function MarketTicker({ version }: { version?: number }) {
                     <option value="OTHER">Other</option>
                 </select>
             </div>
-            <div className="max-h-[420px] overflow-y-auto custom-scrollbar pr-1 space-y-3">
+            <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar hud-scrollbar pr-1 space-y-3">
                 {filteredHistory.map((tx: any) => (
                     <div key={tx.id} className="text-xs border-b border-white/5 pb-2">
                         <div className="flex justify-between text-gray-400">
@@ -315,7 +315,7 @@ export default function MarketInterface({ initialListings, userInventory, credit
     };
 
     return (
-        <div className="min-h-full p-8 pt-24">
+        <div className="flex h-full min-h-0 flex-col gap-6 text-white">
             <ConfirmDialog
                 open={regenConfirmOpen}
                 title="Regenerate Art"
@@ -328,10 +328,9 @@ export default function MarketInterface({ initialListings, userInventory, credit
                 }}
                 busy={isGenerating}
             />
-            {/* Header with Hud */}
-            <header className="max-w-7xl mx-auto mb-8 flex flex-col md:flex-row justify-between items-end gap-6 text-white">
+            <header className="flex shrink-0 flex-col gap-4 border-b border-white/5 pb-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                    <h1 className="text-4xl font-bold tracking-widest neon-text mb-2 flex items-center">
+                    <h1 className="mb-2 flex items-center text-3xl font-bold tracking-widest neon-text sm:text-4xl">
                         <ShoppingBag className="mr-3 h-8 w-8 text-neon-cyan" /> GALACTIC MARKET
                     </h1>
                     <div className="flex gap-4 text-sm font-mono text-gray-400">
@@ -340,17 +339,17 @@ export default function MarketInterface({ initialListings, userInventory, credit
                     </div>
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex w-full gap-2 sm:w-auto">
                     <Button onClick={() => setActiveTab("market")} variant={activeTab === "market" ? "primary" : "ghost"}>Buy</Button>
                     <Button onClick={() => setActiveTab("sell")} variant={activeTab === "sell" ? "primary" : "ghost"}>Sell</Button>
                 </div>
             </header>
 
-            <div className="max-w-7xl mx-auto">
+            <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar hud-scrollbar pr-1">
                 {activeTab === "market" && (
-                    <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+                    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
                         {/* Listings Column */}
-                        <div className="lg:col-span-3 flex flex-col gap-4 min-h-0">
+                        <div className="flex min-h-0 flex-col gap-4">
                             <div className="glass-panel p-4 rounded-xl border border-white/10 flex flex-wrap items-center justify-between gap-3">
                                 <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-widest">
                                     {[
@@ -416,8 +415,8 @@ export default function MarketInterface({ initialListings, userInventory, credit
                                 </div>
                             </div>
 
-                            <div className="max-h-[65vh] overflow-y-auto custom-scrollbar pr-2">
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            <div>
+                                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 2xl:grid-cols-3">
                                     {filteredListings.map((listing: any) => (
                                         <motion.div
                                             key={listing.id}
@@ -476,8 +475,8 @@ export default function MarketInterface({ initialListings, userInventory, credit
                         </div>
 
                         {/* Ticker Sidebar */}
-                        <div className="lg:col-span-1">
-                            <div className="glass-panel p-6 rounded-xl h-full border-l-2 border-neon-cyan/20">
+                        <div className="min-h-0">
+                            <div className="glass-panel flex h-full min-h-0 flex-col rounded-xl border-l-2 border-neon-cyan/20 p-6">
                                 <h3 className="text-sm font-bold text-gray-400 mb-4 uppercase tracking-widest">Recent Transactions</h3>
                                 <MarketTicker version={txVersion} />
                             </div>
@@ -486,8 +485,8 @@ export default function MarketInterface({ initialListings, userInventory, credit
                 )}
 
                 {activeTab === "sell" && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <div className="glass-panel p-6 rounded-xl">
+                    <div className={`grid grid-cols-1 gap-6 ${selectedItem ? "xl:grid-cols-[minmax(0,1fr)_380px]" : ""}`}>
+                        <div className="glass-panel flex min-h-0 flex-col rounded-xl p-6">
                             <h2 className="text-xl font-bold mb-4 flex items-center text-neon-blue"><Box className="mr-2" /> Your Inventory</h2>
                             <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                                 <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-widest">
@@ -534,7 +533,7 @@ export default function MarketInterface({ initialListings, userInventory, credit
                                     </button>
                                 </div>
                             </div>
-                            <div className="space-y-3 max-h-[500px] overflow-y-auto custom-scrollbar">
+                            <div className="space-y-3 overflow-y-auto custom-scrollbar hud-scrollbar pr-1 xl:max-h-[560px]">
                                 {filteredGroupedInventory.map((group) => {
                                     const isExpanded = expandedItemId === group.item.id;
                                     const isSelectedGroup = selectedItem?.itemId === group.item.id;

@@ -91,7 +91,7 @@ export default function InventoryInspect({ inventory }: { inventory: any[] }) {
 
     return (
         <>
-            <div className="flex flex-col gap-3">
+            <div className="flex min-h-0 flex-1 flex-col gap-3">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-widest">
                         {[
@@ -157,7 +157,7 @@ export default function InventoryInspect({ inventory }: { inventory: any[] }) {
                 </div>
 
                 {filteredInventory.length > 0 ? (
-                    <div className="max-h-[520px] overflow-y-auto custom-scrollbar pr-1">
+                    <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar hud-scrollbar pr-1">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             {filteredInventory.map((entry) => {
                                 const suitBadge = getSuitBadge(entry.item.suit, true);

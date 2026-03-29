@@ -5,7 +5,6 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import PrinterInterface from "@/components/market/PrinterInterface";
-import AutoFitViewport from "@/components/layout/AutoFitViewport";
 import { normalizePublicPath } from "@/lib/imagePath";
 
 const toSortTimestamp = (value: unknown) => {
@@ -162,15 +161,15 @@ export default async function PrinterPage() {
     }); // Newest first
 
     return (
-        <div className="h-full bg-black">
-            <div className="fixed top-6 left-8 z-50">
+        <div className="flex h-full min-h-0 flex-col bg-black px-4 pb-4 pt-20 sm:px-6 sm:pb-6 sm:pt-24 xl:px-8">
+            <div className="fixed left-4 top-4 z-50 sm:left-8 sm:top-6">
                 <Link href="/menu" className="flex items-center text-neon-cyan hover:text-white transition-colors glass-panel px-4 py-2 rounded-full">
                     <ArrowLeft className="mr-2 h-4 w-4" /> Back to Bridge
                 </Link>
             </div>
 
-            <AutoFitViewport contentKey={`printer-${globalQueue.length}-${recentMade.length}`}>
-                <div className="min-h-[980px] w-full">
+            <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col">
+                <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar hud-scrollbar pr-1">
                     <PrinterInterface
                         credits={(character as any).credits}
                         inventory={(character as any).inventory}
@@ -179,7 +178,7 @@ export default async function PrinterPage() {
                         recentMade={recentMade}
                     />
                 </div>
-            </AutoFitViewport>
+            </div>
         </div>
     );
 }
