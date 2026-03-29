@@ -99,7 +99,7 @@ export default async function MenuPage() {
 
     return (
         <main className="h-full w-full overflow-hidden px-4 py-4 sm:px-5 sm:py-5">
-            <div className="mx-auto grid h-full w-full max-w-[1500px] min-h-0 gap-5 xl:grid-cols-[340px_minmax(0,1fr)] xl:items-start xl:gap-6">
+            <div className="mx-auto grid h-full w-full max-w-[1500px] min-h-0 grid-cols-[320px_minmax(0,1fr)] items-start gap-5">
                 <section className="flex min-h-0 flex-col gap-4">
                     <StatusPanel
                         character={character}

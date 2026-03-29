@@ -88,19 +88,19 @@ export default function MainMenu() {
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.5 }}
-                className="glass-panel flex w-full max-w-[960px] flex-col rounded-[28px] border border-neon-blue/30 px-5 py-6 shadow-[0_24px_60px_rgba(0,0,0,0.4)] sm:px-7 sm:py-8 xl:max-w-[1120px] xl:px-10 xl:py-10"
+                className="glass-panel flex w-full max-w-[960px] flex-col rounded-[28px] border border-neon-blue/30 px-5 py-6 shadow-[0_24px_60px_rgba(0,0,0,0.4)]"
             >
-                <div className="mb-6 text-center sm:mb-8 xl:mb-10">
-                    <h2 className="mb-3 text-4xl font-bold tracking-[0.18em] text-white neon-text sm:text-5xl xl:text-6xl">
+                <div className="mb-6 text-center">
+                    <h2 className="mb-3 text-4xl font-bold tracking-[0.18em] text-white neon-text">
                         MAIN MENU
                     </h2>
-                    <div className="mx-auto h-1 w-28 rounded-full bg-neon-cyan shadow-[0_0_18px_#00f3ff] sm:w-36" />
-                    <p className="mx-auto mt-4 max-w-2xl text-sm text-gray-400 sm:text-base xl:text-lg">
+                    <div className="mx-auto h-1 w-28 rounded-full bg-neon-cyan shadow-[0_0_18px_#00f3ff]" />
+                    <p className="mx-auto mt-4 max-w-2xl text-sm text-gray-400">
                         Route into missions, configure your rig, inspect personnel, and manage fabrication from a single bridge command surface.
                     </p>
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 sm:gap-4 xl:grid-cols-2 xl:gap-5">
+                <div className="grid grid-cols-2 gap-4">
                     {menuItems.map((item) => (
                         <motion.div
                             key={item.label}
@@ -115,35 +115,35 @@ export default function MainMenu() {
                                 onMouseLeave={handleMenuLeave}
                                 onBlur={handleMenuLeave}
                                 disabled={item.disabled}
-                                className={`group relative flex h-full min-h-[88px] w-full items-center rounded-2xl border p-4 transition-all duration-300 sm:min-h-[96px] sm:p-5 xl:min-h-[108px] xl:p-6 ${item.disabled
+                                className={`group relative flex h-full min-h-[92px] w-full items-center rounded-2xl border p-4 transition-all duration-300 ${item.disabled
                                     ? "border-gray-800 bg-gray-900/50 opacity-50 cursor-not-allowed"
                                     : "border-white/10 bg-white/5 hover:bg-white/10 hover:border-neon-cyan/50 hover:shadow-[0_0_15px_rgba(0,243,255,0.2)]"
                                     }`}
                             >
                                 <div
-                                    className={`mr-4 rounded-xl p-3.5 transition-colors sm:mr-5 sm:p-4 xl:mr-6 xl:p-[18px] ${item.disabled
+                                    className={`mr-4 rounded-xl p-3.5 transition-colors ${item.disabled
                                         ? "bg-gray-800 text-gray-600"
                                         : "bg-black/40 text-neon-cyan group-hover:text-white group-hover:bg-neon-cyan/20"
                                         }`}
                                 >
-                                    <item.icon className="h-6 w-6 sm:h-7 sm:w-7 xl:h-8 xl:w-8" />
+                                    <item.icon className="h-6 w-6" />
                                 </div>
                                 <div className="text-left">
                                     <div
-                                        className={`font-bold tracking-wide sm:text-xl xl:text-2xl ${item.disabled
+                                        className={`font-bold tracking-wide text-xl ${item.disabled
                                             ? "text-gray-500"
                                             : "text-white group-hover:text-neon-cyan"
                                             }`}
                                     >
                                         {item.label}
                                     </div>
-                                    <div className="mt-1 text-[11px] uppercase tracking-[0.18em] text-gray-500 sm:text-xs xl:text-sm">
+                                    <div className="mt-1 text-[11px] uppercase tracking-[0.18em] text-gray-500">
                                         {item.description}
                                     </div>
                                 </div>
 
                                 {!item.disabled && (
-                                    <div className="absolute right-4 text-neon-cyan opacity-0 transition-opacity group-hover:opacity-100 sm:right-5">
+                                    <div className="absolute right-4 text-neon-cyan opacity-0 transition-opacity group-hover:opacity-100">
                                         ▶
                                     </div>
                                 )}
@@ -152,7 +152,7 @@ export default function MainMenu() {
                     ))}
                 </div>
 
-                <div className="mt-6 flex justify-center border-t border-white/10 pt-6 sm:mt-8 sm:pt-8">
+                <div className="mt-6 flex justify-center border-t border-white/10 pt-6">
                     <Button
                         variant="ghost"
                         onMouseEnter={() => handleMenuHover("Disconnect")}
@@ -163,7 +163,7 @@ export default function MainMenu() {
                             soundManager.actionFail();
                             signOut({ callbackUrl: "/" });
                         }}
-                        className="text-sm text-red-400 hover:bg-red-950/20 hover:text-red-300 sm:text-base"
+                        className="text-sm text-red-400 hover:bg-red-950/20 hover:text-red-300"
                     >
                         <LogOut className="mr-2 h-4 w-4" /> Disconnect
                     </Button>
