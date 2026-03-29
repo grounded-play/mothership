@@ -11,6 +11,7 @@ import MissionLog from "@/components/game/MissionLog";
 import ResolutionOverlay from "@/components/game/ResolutionOverlay";
 import AudioSettingsPanel from "@/components/audio/AudioSettingsPanel";
 import { useAmyGuide, type AmyGuideTransmission } from "@/components/guide/AmyGuideContext";
+import AutoFitViewport from "@/components/layout/AutoFitViewport";
 import { useToast } from "@/components/ui/Toast";
 import SafeImage from "@/components/ui/SafeImage";
 import { soundManager } from "@/lib/soundManager";
@@ -1727,6 +1728,8 @@ export default function GameInterface() {
 
                 {/* LEFT PANEL: Map & Info (Col Span 3) */}
                 <div className="relative flex h-full min-h-0 flex-col gap-3 overflow-hidden">
+                    <AutoFitViewport>
+                        <div className="flex h-full min-h-[980px] w-full flex-col gap-3">
 
 
                     {/* Room Intel */}
@@ -2024,10 +2027,14 @@ export default function GameInterface() {
                         </div>
                     )}
 
+                        </div>
+                    </AutoFitViewport>
                 </div>
 
                 {/* CENTER/RIGHT PANEL: HUD & Hand (Col Span 9) */}
                 <div className="relative flex h-full min-h-0 flex-col items-center gap-3">
+                    <AutoFitViewport>
+                        <div className="flex h-full min-h-[980px] w-full flex-col items-center gap-3">
 
                     {/* Main Interaction Area */}
                     <div className="glass-panel p-4 border border-white/20 animate-fade-in relative overflow-hidden w-full flex-1 min-h-0 flex flex-col items-center bg-black/40 backdrop-blur-md shadow-2xl">
@@ -2842,6 +2849,8 @@ export default function GameInterface() {
 
                     </div>
 
+                        </div>
+                    </AutoFitViewport>
                 </div>
 
             </main >
