@@ -48,7 +48,7 @@ export default async function CharacterViewPage() {
     } catch (e) { }
 
     return (
-        <div className="relative flex h-full min-h-0 flex-col bg-space-void px-4 pb-4 pt-20 sm:px-6 sm:pb-6 sm:pt-24 xl:px-8">
+        <div className="relative flex h-full min-h-0 flex-col bg-space-void px-4 pb-4 pt-4 sm:px-6 sm:pb-6 sm:pt-4 xl:px-8">
             <div className="fixed left-4 top-4 z-50 sm:left-8 sm:top-6">
                 <Link href="/menu" className="flex items-center text-neon-cyan hover:text-white transition-colors glass-panel px-4 py-2 rounded-full">
                     <ArrowLeft className="mr-2 h-4 w-4" /> Back to Bridge
@@ -57,25 +57,25 @@ export default async function CharacterViewPage() {
 
             <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col">
                 <AutoFitViewport contentKey={`character-view-${character.id}`}>
-                    <div className="flex min-h-[780px] w-full flex-col">
-                        <header className="mb-6 flex shrink-0 justify-end border-b border-white/10 pb-4">
+                    <div className="flex min-h-[700px] w-full flex-col">
+                        <header className="mb-4 flex shrink-0 justify-end border-b border-white/10 pb-3">
                             <div className="flex items-center gap-4">
                                 <CurrencyDisplay credits={character.credits} voidTokens={character.voidTokens} scrap={scrapCount} paste={pasteCount} />
                             </div>
                         </header>
 
-                        <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
+                        <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
 
                             {/* Left Column: Profile Card */}
-                            <div className="space-y-6 lg:col-span-4">
+                            <div className="space-y-3 lg:col-span-4">
                                 <CharacterProfile character={character} />
 
                                 {/* Stats Panel (Moved here for better layout) */}
-                                <div className="glass-panel rounded-xl border-t-2 border-neon-blue p-6">
-                                    <h2 className="mb-4 flex items-center text-sm font-bold uppercase tracking-wider text-neon-blue">
+                                <div className="glass-panel rounded-xl border-t-2 border-neon-blue p-4">
+                                    <h2 className="mb-3 flex items-center text-sm font-bold uppercase tracking-wider text-neon-blue">
                                         <Activity className="mr-2 h-4 w-4" /> Biometric Vitals
                                     </h2>
-                                    <div className="space-y-4">
+                                    <div className="space-y-2.5">
                                         <div className="flex items-center justify-between rounded bg-black/30 p-2 px-3 text-xs uppercase ">
                                             <span className="text-gray-400">Strength</span>
                                             <div className="h-1.5 w-24 overflow-hidden rounded-full bg-gray-800">
@@ -99,8 +99,8 @@ export default async function CharacterViewPage() {
                                         </div>
                                     </div>
                                 </div>
-                                <div className="glass-panel rounded-xl border-t-2 border-neon-cyan p-6">
-                                    <h2 className="mb-4 flex items-center text-sm font-bold uppercase tracking-wider text-neon-cyan">
+                                <div className="glass-panel rounded-xl border-t-2 border-neon-cyan p-4">
+                                    <h2 className="mb-3 flex items-center text-sm font-bold uppercase tracking-wider text-neon-cyan">
                                         <Shield className="mr-2 h-4 w-4" /> Service Record
                                     </h2>
                                     <div className="space-y-2 text-xs text-gray-300">
@@ -125,9 +125,9 @@ export default async function CharacterViewPage() {
                             </div>
 
                             {/* Right Column: Inventory & Loadout */}
-                            <div className="space-y-6 lg:col-span-8">
-                                <div className="glass-panel relative flex min-h-[500px] flex-col rounded-xl border-t-2 border-neon-cyan p-6">
-                                    <h2 className="mb-6 flex items-center text-sm font-bold uppercase tracking-wider text-neon-cyan">
+                            <div className="space-y-3 lg:col-span-8">
+                                <div className="glass-panel relative flex min-h-[420px] flex-col rounded-xl border-t-2 border-neon-cyan p-4">
+                                    <h2 className="mb-4 flex items-center text-sm font-bold uppercase tracking-wider text-neon-cyan">
                                         <Box className="mr-2 h-4 w-4" /> Cargo Manifest
                                     </h2>
                                     <InventoryInspect inventory={character.inventory} />

@@ -85,11 +85,11 @@ export default function CharacterProfile({ character }: CharacterProfileProps) {
     };
 
     return (
-        <div className="relative glass-panel p-1 rounded-2xl border border-white/10 w-full max-w-sm mx-auto shadow-2xl overflow-visible">
+        <div className="relative mx-auto w-full max-w-sm overflow-visible rounded-2xl border border-white/10 p-1 shadow-2xl glass-panel">
             {/* Holographic Border Effect */}
             <div className="absolute inset-0 rounded-2xl border border-neon-cyan/30 opacity-50 pointer-events-none" />
 
-            <div className="relative h-[400px] w-full rounded-xl overflow-hidden bg-black group">
+            <div className="group relative h-[320px] w-full overflow-hidden rounded-xl bg-black sm:h-[350px]">
                 {isEditing ? (
                     <div className="absolute inset-0 bg-black/90 z-20 p-6 overflow-y-auto custom-scrollbar">
                         <div className="space-y-4">
@@ -168,9 +168,9 @@ export default function CharacterProfile({ character }: CharacterProfileProps) {
 
                 {/* Overlay Text (Hidden when editing) */}
                 {!isEditing && (
-                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/60 to-transparent p-6 pt-12 pointer-events-none">
-                        <h2 className="text-3xl font-bold text-white uppercase tracking-tighter leading-none">{character.name}</h2>
-                        <p className="text-neon-cyan text-sm uppercase tracking-[0.2em] mt-1">{character.class} | Lvl {character.level}</p>
+                    <div className="pointer-events-none absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/60 to-transparent p-5 pt-10">
+                        <h2 className="text-[2rem] font-bold leading-none tracking-tighter text-white uppercase">{character.name}</h2>
+                        <p className="mt-1 text-sm uppercase tracking-[0.2em] text-neon-cyan">{character.class} | Lvl {character.level}</p>
                     </div>
                 )}
 
@@ -182,10 +182,10 @@ export default function CharacterProfile({ character }: CharacterProfileProps) {
             </div>
 
             {/* Controls */}
-            <div className="p-4 grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2 p-3">
                 <Button
                     variant="ghost"
-                    className={`border border-white/10 text-white hover:bg-white/10 text-[10px] uppercase tracking-wider h-10 ${isEditing ? "bg-white/10" : ""}`}
+                    className={`h-9 border border-white/10 text-[10px] uppercase tracking-wider text-white hover:bg-white/10 ${isEditing ? "bg-white/10" : ""}`}
                     onClick={() => setIsEditing(!isEditing)}
                     disabled={generating}
                 >
@@ -194,7 +194,7 @@ export default function CharacterProfile({ character }: CharacterProfileProps) {
 
                 <Button
                     variant="outline"
-                    className="border-neon-cyan/30 text-neon-cyan hover:bg-neon-cyan/20 text-[10px] uppercase tracking-wider h-10 group"
+                    className="group h-9 border-neon-cyan/30 text-[10px] uppercase tracking-wider text-neon-cyan hover:bg-neon-cyan/20"
                     onClick={handleReroll}
                     disabled={generating}
                 >
