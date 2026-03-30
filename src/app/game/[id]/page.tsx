@@ -1723,13 +1723,13 @@ export default function GameInterface() {
 
 
             {/* Main Grid Layout */}
-            <main className="relative z-20 mx-auto grid h-full w-full max-w-[1900px] flex-1 min-h-0 grid-cols-[390px_minmax(0,1fr)] gap-4 overflow-hidden px-4 py-4">
+            <main className="relative z-20 mx-auto grid h-full w-full max-w-[1760px] flex-1 min-h-0 grid-cols-[320px_minmax(0,1fr)] gap-3 overflow-hidden px-3 py-3">
 
 
                 {/* LEFT PANEL: Map & Info (Col Span 3) */}
                 <div className="relative flex h-full min-h-0 flex-col gap-3 overflow-hidden">
                     <AutoFitViewport>
-                        <div className="flex h-[980px] min-w-[390px] w-full flex-col gap-3">
+                        <div className="flex h-[820px] min-w-[320px] w-full flex-col gap-3">
 
 
                     {/* Room Intel */}
@@ -2034,13 +2034,13 @@ export default function GameInterface() {
                 {/* CENTER/RIGHT PANEL: HUD & Hand (Col Span 9) */}
                 <div className="relative flex h-full min-h-0 flex-col items-center gap-3">
                     <AutoFitViewport>
-                        <div className="flex h-[980px] min-w-[1220px] w-full flex-col items-center gap-3">
+                        <div className="flex h-[820px] min-w-[980px] w-full flex-col items-center gap-3">
 
                     {/* Main Interaction Area */}
-                    <div className="glass-panel p-4 border border-white/20 animate-fade-in relative overflow-hidden w-full flex-1 min-h-0 flex flex-col items-center bg-black/40 backdrop-blur-md shadow-2xl">
+                    <div className="glass-panel p-3 border border-white/20 animate-fade-in relative overflow-hidden w-full flex-1 min-h-0 flex flex-col items-center bg-black/40 backdrop-blur-md shadow-2xl">
 
                         {/* 1. TOP: ROOM SCANNER (Large, 2/3rds) */}
-                        <div className="flex-[2] w-full flex items-center justify-center relative min-h-0 mb-4 border border-white/5 rounded-2xl bg-black/20 overflow-hidden shadow-inner">
+                        <div className="flex-[2] w-full flex items-center justify-center relative min-h-0 mb-3 border border-white/5 rounded-2xl bg-black/20 overflow-hidden shadow-inner">
                             <div className="pointer-events-none absolute left-4 right-4 top-4 z-20 flex flex-wrap items-start justify-between gap-3">
                                 <div className="flex flex-wrap items-center gap-2">
                                     <div className={`rounded-full border px-3 py-1 text-[9px] font-bold uppercase tracking-[0.24em] ${
@@ -2130,7 +2130,7 @@ export default function GameInterface() {
                                 </div>
                             )}
                             {/* Inner Scanner Container - Scale to fit */}
-                            <div className="w-full h-full p-4 pt-24">
+                            <div className="w-full h-full p-3 pt-20">
                                 <RoomScanner
                                     key={`${visualPlayerNode?.id || "node"}-${facing}`} // Force redraw on turn/step
                                     type={visualPlayerNode?.type || player?.MapNode?.type || "UNKNOWN"}
@@ -2151,8 +2151,8 @@ export default function GameInterface() {
                         </div>
 
                         {/* 2. MIDDLE: HAND */}
-                        <div className="relative z-20 h-[236px] w-full flex-none px-2">
-                            <div className="mb-2 flex h-9 items-center justify-center">
+                        <div className="relative z-20 h-[208px] w-full flex-none px-2">
+                            <div className="mb-1.5 flex h-8 items-center justify-center">
                                 {roomInfo?.scanned && roomInfo?.suit ? (
                                     <div className="flex flex-wrap items-center justify-center gap-2 rounded-full border border-white/10 bg-black/35 px-3 py-1.5 text-[9px] uppercase tracking-[0.22em]">
                                         <span className="text-gray-500">Room Effect</span>
@@ -2169,7 +2169,7 @@ export default function GameInterface() {
                                     <div className="h-6" />
                                 )}
                             </div>
-                            <div className="flex min-h-[44px] w-full flex-wrap items-center justify-center gap-2 px-2 pb-3">
+                            <div className="flex min-h-[38px] w-full flex-wrap items-center justify-center gap-2 px-2 pb-2">
                                 <div className="text-[9px] text-gray-500 uppercase tracking-[0.3em]">Hand Filter</div>
                                 {HAND_FILTER_ORDER.map((filter) => {
                                     const isActive = cardFilter === filter;
@@ -2205,7 +2205,7 @@ export default function GameInterface() {
                                 </div>
                             </div>
 
-                            <div ref={handViewportRef} className="h-[160px] w-full overflow-hidden px-2 pb-6 pt-1">
+                            <div ref={handViewportRef} className="h-[132px] w-full overflow-hidden px-2 pb-4 pt-1">
                                 <div className="flex items-end justify-center w-full perspective-[1000px]" style={{ gap: `${handLayout.gap}px` }}>
                                     <AnimatePresence initial={false}>
                                         {visibleHandEntries.length > 0 ? visibleHandEntries.map(({ card, index }) => (
@@ -2264,17 +2264,17 @@ export default function GameInterface() {
                         </div>
 
                         {/* 3. BOTTOM: CONTROL CONSOLE (Retro Dashboard w/ Central Compass) */}
-                        <div className="mx-auto flex-none w-full max-w-6xl pt-2 pb-2">
+                        <div className="mx-auto flex-none w-full max-w-[1100px] pt-1.5 pb-1.5">
 
                             {/* The Console Chassis */}
-                            <div className="relative overflow-hidden rounded-t-3xl border-t-4 border-slate-700 bg-slate-900/90 p-4 shadow-2xl">
+                            <div className="relative overflow-hidden rounded-t-3xl border-t-4 border-slate-700 bg-slate-900/90 p-3 shadow-2xl">
                                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-neon-cyan to-transparent opacity-50" />
-                                <div className="mb-3 flex min-h-[28px] items-center justify-center text-center">
+                                <div className="mb-2 flex min-h-[24px] items-center justify-center text-center">
                                     {handStatusBanner}
                                 </div>
 
                                 {/* Console Grid */}
-                                <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-8">
+                                <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-5">
 
                                     {/* Left Panel: Primary Actions */}
                                     <div className="order-1 flex h-full w-full flex-col justify-between gap-2 rounded-xl border border-white/5 bg-black/40 p-3">
