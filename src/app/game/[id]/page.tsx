@@ -556,7 +556,8 @@ export default function GameInterface() {
             };
         }
 
-        const availableWidth = Math.max(handViewportWidth - 6, preset.width);
+        const edgeInset = count >= 10 ? 42 : count >= 8 ? 30 : 18;
+        const availableWidth = Math.max(handViewportWidth - edgeInset, preset.width);
         let cardWidth: number = preset.width;
         let gap: number = 10;
         const fitWidth = (targetWidth: number) => {
@@ -570,7 +571,7 @@ export default function GameInterface() {
             }
 
             const fittedGap = Math.floor((availableWidth - count * cardWidth) / Math.max(count - 1, 1));
-            const maxOverlap = Math.round(cardWidth * 0.9);
+            const maxOverlap = Math.round(cardWidth * 0.94);
             gap = fittedGap >= 4
                 ? Math.min(10, fittedGap)
                 : Math.max(-maxOverlap, fittedGap);
@@ -601,7 +602,7 @@ export default function GameInterface() {
             cardWidth,
             cardHeight,
             gap,
-            wrapperHeight: cardHeight + Math.max(16, Math.round(cardHeight * 0.08)),
+            wrapperHeight: cardHeight + Math.max(12, Math.round(cardHeight * 0.05)),
             selectionLift: Math.min(7, Math.max(4, Math.round(cardHeight * 0.04))),
             shouldPan
         };
@@ -2741,8 +2742,49 @@ export default function GameInterface() {
                                 </div>
 
                                 <div className="mt-1 flex-none rounded-b-3xl border border-white/6 bg-black/25 px-2 pb-1.5 pt-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-                                    <div className="relative h-[92px] w-full overflow-visible">
-                                        <div ref={handViewportRef} className="h-[82px] w-full overflow-visible px-1 pt-1">
+                                    <div className="flex min-h-[34px] flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/8 bg-black/40 px-2 py-1">
+                                        <div className="flex flex-1 flex-wrap items-center gap-1">
+                                            <div className="text-[8px] uppercase tracking-[0.28em] text-gray-500">Filter</div>
+                                            {HAND_FILTER_ORDER.map((filter) => {
+                                                const isActive = cardFilter === filter;
+                                                const tone = filter === "ALL"
+                                                    ? "border-white/20 text-white"
+                                                    : filter === "COMMAND"
+                                                        ? "border-green-500/40 text-green-400"
+                                                        : filter === "VOID"
+                                                            ? "border-purple-500/40 text-purple-400"
+                                                            : filter === "BIOTECH"
+                                                                ? "border-red-500/40 text-red-400"
+                                                                : filter === "PLASMA"
+                                                                    ? "border-orange-500/40 text-orange-400"
+                                                                    : "border-white/30 text-gray-200";
+
+                                                return (
+                                                    <button
+                                                        key={`footer-filter-${filter}`}
+                                                        type="button"
+                                                        onClick={() => handleCardFilterChange(filter)}
+                                                        className={`rounded-full border px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.18em] transition-all ${
+                                                            isActive
+                                                                ? `${tone} bg-white/10 shadow-[0_0_10px_rgba(255,255,255,0.08)]`
+                                                                : "border-white/10 text-gray-500 hover:border-white/30 hover:text-white"
+                                                        }`}
+                                                    >
+                                                        {filter}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            {handStatusBanner}
+                                            <div className="rounded-full border border-white/10 bg-black/35 px-2.5 py-1 text-[10px] font-mono text-gray-400">
+                                                {handEntries.length}/{handCapacity}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-1 relative rounded-2xl border border-white/6 bg-black/20 px-1 pt-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                                        <div ref={handViewportRef} className="h-[94px] w-full overflow-hidden px-1 pt-1">
                                             <div
                                                 className="flex w-full items-end justify-center perspective-[1000px]"
                                                 style={handLayout.gap > 0 ? { gap: `${handLayout.gap}px` } : undefined}
@@ -2751,14 +2793,21 @@ export default function GameInterface() {
                                                     {visibleHandEntries.length > 0 ? visibleHandEntries.map(({ card, index }) => {
                                                         const centerOffset = index - ((visibleHandEntries.length - 1) / 2);
                                                         const fanDepth = Math.abs(centerOffset);
-                                                        const fanRotate = centerOffset * 2.2;
-                                                        const fanLift = Math.min(6, Math.round(fanDepth * 1.2));
+                                                        const fanRotationStep = visibleHandEntries.length >= 11
+                                                            ? 1.05
+                                                            : visibleHandEntries.length >= 9
+                                                                ? 1.25
+                                                                : visibleHandEntries.length >= 7
+                                                                    ? 1.5
+                                                                    : 1.8;
+                                                        const fanRotate = centerOffset * fanRotationStep;
+                                                        const fanLift = Math.min(4, Math.round(fanDepth * 0.75));
                                                         const baseZ = 120 + Math.round((visibleHandEntries.length * 2) - fanDepth * 8);
 
                                                         return (
                                                             <motion.div
                                                                 key={card.id || index}
-                                                                initial={{ y: 22 + fanLift, opacity: 0, scale: 0.94, rotate: fanRotate * 0.45 }}
+                                                                initial={{ y: 16 + fanLift, opacity: 0, scale: 0.94, rotate: fanRotate * 0.45 }}
                                                                 animate={{
                                                                     y: fanLift + (selectedCardIndices.includes(index) ? -handLayout.selectionLift : 0),
                                                                     opacity: 1,
@@ -2766,13 +2815,13 @@ export default function GameInterface() {
                                                                     rotate: fanRotate
                                                                 }}
                                                                 whileHover={{
-                                                                    y: fanLift + (selectedCardIndices.includes(index) ? -handLayout.selectionLift : 0) - 5,
-                                                                    scale: selectedCardIndices.includes(index) ? 1.05 : 1.04,
+                                                                    y: fanLift + (selectedCardIndices.includes(index) ? -handLayout.selectionLift : 0) - 4,
+                                                                    scale: selectedCardIndices.includes(index) ? 1.04 : 1.03,
                                                                     rotate: fanRotate * 0.4,
                                                                     zIndex: 640 + index
                                                                 }}
                                                                 exit={{
-                                                                    y: 18 + fanLift,
+                                                                    y: 14 + fanLift,
                                                                     opacity: 0,
                                                                     scale: 0.8,
                                                                     rotate: fanRotate * 0.35,
@@ -2810,47 +2859,6 @@ export default function GameInterface() {
                                                         </div>
                                                     )}
                                                 </AnimatePresence>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="mt-0.5 flex min-h-[34px] flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/8 bg-black/40 px-2 py-1">
-                                        <div className="flex flex-1 flex-wrap items-center gap-1">
-                                            <div className="text-[8px] uppercase tracking-[0.28em] text-gray-500">Filter</div>
-                                            {HAND_FILTER_ORDER.map((filter) => {
-                                                const isActive = cardFilter === filter;
-                                                const tone = filter === "ALL"
-                                                    ? "border-white/20 text-white"
-                                                    : filter === "COMMAND"
-                                                        ? "border-green-500/40 text-green-400"
-                                                        : filter === "VOID"
-                                                            ? "border-purple-500/40 text-purple-400"
-                                                            : filter === "BIOTECH"
-                                                                ? "border-red-500/40 text-red-400"
-                                                                : filter === "PLASMA"
-                                                                    ? "border-orange-500/40 text-orange-400"
-                                                                    : "border-white/30 text-gray-200";
-
-                                                return (
-                                                    <button
-                                                        key={`footer-filter-${filter}`}
-                                                        type="button"
-                                                        onClick={() => handleCardFilterChange(filter)}
-                                                        className={`rounded-full border px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.18em] transition-all ${
-                                                            isActive
-                                                                ? `${tone} bg-white/10 shadow-[0_0_10px_rgba(255,255,255,0.08)]`
-                                                                : "border-white/10 text-gray-500 hover:border-white/30 hover:text-white"
-                                                        }`}
-                                                    >
-                                                        {filter}
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            {handStatusBanner}
-                                            <div className="rounded-full border border-white/10 bg-black/35 px-2.5 py-1 text-[10px] font-mono text-gray-400">
-                                                {handEntries.length}/{handCapacity}
                                             </div>
                                         </div>
                                     </div>
