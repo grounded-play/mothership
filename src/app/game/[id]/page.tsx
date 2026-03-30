@@ -2104,45 +2104,6 @@ export default function GameInterface() {
                         <div className="flex h-[664px] min-w-[296px] w-full flex-col gap-1.5">
 
 
-                    {/* Room Intel */}
-                    {roomInfo && (
-                        <div className="glass-panel shrink-0 border border-white/20 p-2 text-sm">
-                            <div className="mb-1.5 flex items-center justify-between gap-2 border-b border-white/5 pb-1">
-                                <div className="text-[10px] uppercase tracking-[0.24em] text-gray-500">Room Intel</div>
-                                <div className={`rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.18em] ${hasEnemies || isBossRoom ? "border-red-500/30 bg-red-500/10 text-red-300" : "border-green-500/30 bg-green-500/10 text-green-300"}`}>
-                                    {threatLabel}
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[9px]">
-                                <div className="flex items-center justify-between gap-2">
-                                    <span className="text-gray-500">Power</span>
-                                    <span className={`font-bold ${roomInfo.scanned ? (roomSuitMeta?.color || "text-neon-cyan") : "text-gray-500"}`}>{roomInfo.scanned ? roomInfo.power : "?"}</span>
-                                </div>
-                                <div className="flex items-center justify-between gap-2">
-                                    <span className="text-gray-500">Suit</span>
-                                    <span className={`flex items-center gap-1 font-bold ${roomInfo.scanned ? (roomSuitMeta?.color || "text-neon-cyan") : "text-gray-500"}`}>
-                                        <span>{roomInfo.scanned ? (roomSuitMeta?.icon || "?") : "?"}</span>
-                                        <span>{roomInfo.scanned ? roomInfo.suit : "UNKNOWN"}</span>
-                                    </span>
-                                </div>
-                                <div className="flex items-center justify-between gap-2">
-                                    <span className="text-gray-500">Integrity</span>
-                                    <span className="font-bold text-white">{roomInfo.scanned ? `${roomInfo.integrity}%` : "?"}</span>
-                                </div>
-                                <div className="flex items-center justify-between gap-2">
-                                    <span className="text-gray-500">Security</span>
-                                    <span className="font-bold text-white">{roomInfo.security ?? 0}</span>
-                                </div>
-                                {player?.MapNode?.type === "BOSS" && (
-                                    <div className="col-span-2 flex items-center justify-between gap-2">
-                                        <span className="text-gray-500">Core Integrity</span>
-                                        <span className="font-bold text-red-400">{game?.integrity ?? 0}%</span>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    )}
-
                     {/* Map (Flex Grow) */}
                     {player?.MapNode && (
                         <div className="glass-panel p-1 border border-white/20 flex-1 min-h-0 flex flex-col animate-in slide-in-from-left duration-500 shadow-lg relative">
@@ -2742,9 +2703,27 @@ export default function GameInterface() {
                                 </div>
 
                                 <div className="mt-1 flex-none rounded-b-3xl border border-white/6 bg-black/25 px-2 pb-1.5 pt-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-                                    <div className="flex min-h-[34px] flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/8 bg-black/40 px-2 py-1">
-                                        <div className="flex flex-1 flex-wrap items-center gap-1">
-                                            <div className="text-[8px] uppercase tracking-[0.28em] text-gray-500">Filter</div>
+                                    <div className="flex min-h-[38px] flex-wrap items-start justify-between gap-2 rounded-2xl border border-white/8 bg-black/40 px-2 py-1.5">
+                                        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+                                            <div className="text-[8px] uppercase tracking-[0.28em] text-gray-500">Room Intel</div>
+                                            <div className="rounded-full border border-white/10 bg-black/35 px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.16em] text-gray-200">
+                                                PWR {roomInfo?.scanned ? roomInfo?.power : "?"}
+                                            </div>
+                                            <div className={`rounded-full border border-white/10 bg-black/35 px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.16em] ${roomInfo?.scanned ? (roomSuitMeta?.color || "text-neon-cyan") : "text-gray-500"}`}>
+                                                {roomInfo?.scanned ? `${roomSuitMeta?.icon || ""} ${roomInfo?.suit}` : "SUIT ?"}
+                                            </div>
+                                            <div className="rounded-full border border-white/10 bg-black/35 px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.16em] text-gray-200">
+                                                INT {roomInfo?.scanned ? `${roomInfo?.integrity}%` : "?"}
+                                            </div>
+                                            <div className="rounded-full border border-white/10 bg-black/35 px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.16em] text-gray-200">
+                                                SEC {roomInfo?.security ?? 0}
+                                            </div>
+                                            <div className={`rounded-full border px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.16em] ${hasEnemies || isBossRoom ? "border-red-500/30 bg-red-500/10 text-red-300" : "border-green-500/30 bg-green-500/10 text-green-300"}`}>
+                                                {threatLabel}
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-wrap items-center justify-end gap-1.5">
+                                            {handStatusBanner}
                                             {HAND_FILTER_ORDER.map((filter) => {
                                                 const isActive = cardFilter === filter;
                                                 const tone = filter === "ALL"
@@ -2774,17 +2753,14 @@ export default function GameInterface() {
                                                     </button>
                                                 );
                                             })}
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            {handStatusBanner}
                                             <div className="rounded-full border border-white/10 bg-black/35 px-2.5 py-1 text-[10px] font-mono text-gray-400">
                                                 {handEntries.length}/{handCapacity}
                                             </div>
                                         </div>
                                     </div>
 
-                                    <div className="mt-1 relative rounded-2xl border border-white/6 bg-black/20 px-1 pt-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-                                        <div ref={handViewportRef} className="h-[94px] w-full overflow-hidden px-1 pt-1">
+                                    <div className="mt-1.5 relative rounded-2xl border border-white/6 bg-black/20 px-1.5 pt-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                                        <div ref={handViewportRef} className="h-[112px] w-full overflow-hidden px-1 pt-1">
                                             <div
                                                 className="flex w-full items-end justify-center perspective-[1000px]"
                                                 style={handLayout.gap > 0 ? { gap: `${handLayout.gap}px` } : undefined}
