@@ -1456,6 +1456,68 @@ export default function GameInterface() {
     const canMoveRight = canMoveDir("RIGHT");
     const canMoveUp = canMoveDir("UP");
     const canMoveDown = canMoveDir("DOWN");
+    const missionMinutes = Math.floor(missionTimeLeft / 60);
+    const missionSeconds = missionTimeLeft % 60;
+    const gameChromeStatusItems = useMemo(() => (
+        <>
+            <div className={`rounded-full border px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.2em] ${
+                game?.deadline
+                    ? missionTimeLeft < 300
+                        ? "border-red-500/35 bg-red-500/10 text-red-300"
+                        : "border-white/10 bg-black/70 text-white"
+                    : "border-white/10 bg-black/55 text-gray-500"
+            }`}>
+                T-MINUS {game?.deadline ? `${missionMinutes}:${missionSeconds.toString().padStart(2, "0")}` : "--:--"}
+            </div>
+            <div className="rounded-full border border-white/10 bg-black/70 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.2em] text-white">
+                PWR {roomInfo?.scanned ? roomInfo.power : "?"}
+            </div>
+            <div className={`rounded-full border px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.2em] ${
+                hasEnemies || isBossRoom
+                    ? "border-red-500/35 bg-red-500/10 text-red-300"
+                    : "border-green-500/35 bg-green-500/10 text-green-300"
+            }`}>
+                {threatLabel}
+            </div>
+            <div className="max-w-[180px] truncate rounded-full border border-cyan-500/20 bg-black/70 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.18em] text-cyan-200">
+                EXITS {exitSummaryLabel}
+            </div>
+            {showHallwayCountdown && (
+                <div className="rounded-full border border-neon-cyan/30 bg-cyan-500/10 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.18em] text-neon-cyan">
+                    {transitDirectionLabel} {transitStatus?.remainingSteps || 0}
+                </div>
+            )}
+        </>
+    ), [
+        exitSummaryLabel,
+        game?.deadline,
+        hasEnemies,
+        isBossRoom,
+        missionMinutes,
+        missionSeconds,
+        missionTimeLeft,
+        roomInfo?.power,
+        roomInfo?.scanned,
+        showHallwayCountdown,
+        threatLabel,
+        transitDirectionLabel,
+        transitStatus?.remainingSteps
+    ]);
+    const gameChromeOverride = useMemo(() => ({
+        title: roomChromeMeta.title,
+        icon: (
+            <span className={`inline-flex min-w-[2.2rem] items-center justify-center rounded-full border border-white/10 bg-black/70 px-2 py-1 text-[8px] font-black uppercase tracking-[0.18em] ${roomChromeMeta.colorClass}`}>
+                {roomChromeMeta.iconLabel}
+            </span>
+        ),
+        statusItems: gameChromeStatusItems,
+        titleMaxWidthClassName: "max-w-[36vw]",
+    }), [gameChromeStatusItems, roomChromeMeta]);
+
+    useEffect(() => {
+        setAppChromeOverride(gameChromeOverride);
+        return () => setAppChromeOverride(null);
+    }, [gameChromeOverride, setAppChromeOverride]);
 
     if (loading) return <div className="min-h-full flex items-center justify-center text-neon-cyan">Loading Game Protocol...</div>;
     if (!gameState) return <div className="min-h-full flex items-center justify-center text-red-500">Game Not Found</div>;
@@ -1651,76 +1713,6 @@ export default function GameInterface() {
 
     // Legacy handleMove replacement (for minimal diff impact if stuck)
     const handleMove = async () => { };
-
-
-
-
-    // Format Timers
-    const missionMinutes = Math.floor(missionTimeLeft / 60);
-    const missionSeconds = missionTimeLeft % 60;
-
-    const gameChromeStatusItems = useMemo(() => (
-        <>
-            <div className={`rounded-full border px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.2em] ${
-                game?.deadline
-                    ? missionTimeLeft < 300
-                        ? "border-red-500/35 bg-red-500/10 text-red-300"
-                        : "border-white/10 bg-black/70 text-white"
-                    : "border-white/10 bg-black/55 text-gray-500"
-            }`}>
-                T-MINUS {game?.deadline ? `${missionMinutes}:${missionSeconds.toString().padStart(2, "0")}` : "--:--"}
-            </div>
-            <div className="rounded-full border border-white/10 bg-black/70 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.2em] text-white">
-                PWR {roomInfo?.scanned ? roomInfo.power : "?"}
-            </div>
-            <div className={`rounded-full border px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.2em] ${
-                hasEnemies || isBossRoom
-                    ? "border-red-500/35 bg-red-500/10 text-red-300"
-                    : "border-green-500/35 bg-green-500/10 text-green-300"
-            }`}>
-                {threatLabel}
-            </div>
-            <div className="max-w-[180px] truncate rounded-full border border-cyan-500/20 bg-black/70 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.18em] text-cyan-200">
-                EXITS {exitSummaryLabel}
-            </div>
-            {showHallwayCountdown && (
-                <div className="rounded-full border border-neon-cyan/30 bg-cyan-500/10 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.18em] text-neon-cyan">
-                    {transitDirectionLabel} {transitStatus?.remainingSteps || 0}
-                </div>
-            )}
-        </>
-    ), [
-        exitSummaryLabel,
-        game?.deadline,
-        hasEnemies,
-        isBossRoom,
-        missionMinutes,
-        missionSeconds,
-        missionTimeLeft,
-        roomInfo?.power,
-        roomInfo?.scanned,
-        showHallwayCountdown,
-        threatLabel,
-        transitDirectionLabel,
-        transitStatus?.remainingSteps
-    ]);
-
-    const gameChromeOverride = useMemo(() => ({
-        title: roomChromeMeta.title,
-        icon: (
-            <span className={`inline-flex min-w-[2.2rem] items-center justify-center rounded-full border border-white/10 bg-black/70 px-2 py-1 text-[8px] font-black uppercase tracking-[0.18em] ${roomChromeMeta.colorClass}`}>
-                {roomChromeMeta.iconLabel}
-            </span>
-        ),
-        statusItems: gameChromeStatusItems,
-        titleMaxWidthClassName: "max-w-[36vw]",
-    }), [gameChromeStatusItems, roomChromeMeta]);
-
-    useEffect(() => {
-        setAppChromeOverride(gameChromeOverride);
-        return () => setAppChromeOverride(null);
-    }, [gameChromeOverride, setAppChromeOverride]);
-
     return (
         <div className="relative flex h-full w-full flex-col overflow-hidden bg-black font-mono text-white">
             <style jsx global>{`
