@@ -162,7 +162,7 @@ export default async function PrinterPage() {
     }); // Newest first
 
     return (
-        <div className="flex h-full min-h-0 flex-col bg-black px-4 pb-4 pt-20 sm:px-6 sm:pb-6 sm:pt-24 xl:px-8">
+        <div className="flex h-full min-h-0 flex-col bg-black px-4 pb-4 pt-4 sm:px-6 sm:pb-6 sm:pt-4 xl:px-8">
             <div className="fixed left-4 top-4 z-50 sm:left-8 sm:top-6">
                 <Link href="/menu" className="flex items-center text-neon-cyan hover:text-white transition-colors glass-panel px-4 py-2 rounded-full">
                     <ArrowLeft className="mr-2 h-4 w-4" /> Back to Bridge
@@ -171,7 +171,7 @@ export default async function PrinterPage() {
 
             <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col">
                 <AutoFitViewport contentKey={`printer-${globalQueue.length}-${recentMade.length}`}>
-                    <div className="flex min-h-[780px] w-full flex-col">
+                    <div className="flex h-[700px] min-w-[1280px] w-full flex-col">
                         <PrinterInterface
                             credits={(character as any).credits}
                             inventory={(character as any).inventory}

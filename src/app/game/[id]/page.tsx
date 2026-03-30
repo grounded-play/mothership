@@ -1729,7 +1729,7 @@ export default function GameInterface() {
                 {/* LEFT PANEL: Map & Info (Col Span 3) */}
                 <div className="relative flex h-full min-h-0 flex-col gap-3 overflow-hidden">
                     <AutoFitViewport>
-                        <div className="flex h-full min-h-[980px] w-full flex-col gap-3">
+                        <div className="flex h-[980px] min-w-[390px] w-full flex-col gap-3">
 
 
                     {/* Room Intel */}
@@ -2034,7 +2034,7 @@ export default function GameInterface() {
                 {/* CENTER/RIGHT PANEL: HUD & Hand (Col Span 9) */}
                 <div className="relative flex h-full min-h-0 flex-col items-center gap-3">
                     <AutoFitViewport>
-                        <div className="flex h-full min-h-[980px] w-full flex-col items-center gap-3">
+                        <div className="flex h-[980px] min-w-[1220px] w-full flex-col items-center gap-3">
 
                     {/* Main Interaction Area */}
                     <div className="glass-panel p-4 border border-white/20 animate-fade-in relative overflow-hidden w-full flex-1 min-h-0 flex flex-col items-center bg-black/40 backdrop-blur-md shadow-2xl">

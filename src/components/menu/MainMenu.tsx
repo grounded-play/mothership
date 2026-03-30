@@ -83,14 +83,14 @@ export default function MainMenu() {
     };
 
     return (
-        <div className="flex w-full justify-center">
+        <div className="flex h-full w-full justify-center">
             <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.5 }}
-                className="glass-panel flex w-full max-w-[960px] flex-col rounded-[28px] border border-neon-blue/30 px-5 py-6 shadow-[0_24px_60px_rgba(0,0,0,0.4)]"
+                className="glass-panel flex h-full min-h-0 w-full max-w-[960px] flex-col rounded-[28px] border border-neon-blue/30 px-5 py-6 shadow-[0_24px_60px_rgba(0,0,0,0.4)]"
             >
-                <div className="mb-6 text-center">
+                <div className="mb-6 shrink-0 text-center">
                     <h2 className="mb-3 text-4xl font-bold tracking-[0.18em] text-white neon-text">
                         MAIN MENU
                     </h2>
@@ -100,7 +100,7 @@ export default function MainMenu() {
                     </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid min-h-0 flex-1 auto-rows-fr grid-cols-2 gap-4">
                     {menuItems.map((item) => (
                         <motion.div
                             key={item.label}
@@ -152,7 +152,7 @@ export default function MainMenu() {
                     ))}
                 </div>
 
-                <div className="mt-6 flex justify-center border-t border-white/10 pt-6">
+                <div className="mt-6 flex shrink-0 justify-center border-t border-white/10 pt-6">
                     <Button
                         variant="ghost"
                         onMouseEnter={() => handleMenuHover("Disconnect")}

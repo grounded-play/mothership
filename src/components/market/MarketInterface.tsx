@@ -315,7 +315,7 @@ export default function MarketInterface({ initialListings, userInventory, credit
     };
 
     return (
-        <div className="flex h-full min-h-0 flex-col gap-6 text-white">
+        <div className="flex h-full min-h-0 flex-col gap-5 text-white">
             <ConfirmDialog
                 open={regenConfirmOpen}
                 title="Regenerate Art"
@@ -328,9 +328,9 @@ export default function MarketInterface({ initialListings, userInventory, credit
                 }}
                 busy={isGenerating}
             />
-            <header className="flex shrink-0 flex-col gap-4 border-b border-white/5 pb-4 sm:flex-row sm:items-start sm:justify-between">
+            <header className="flex shrink-0 items-start justify-between gap-4 border-b border-white/5 pb-4">
                 <div>
-                    <h1 className="mb-2 flex items-center text-3xl font-bold tracking-widest neon-text sm:text-4xl">
+                    <h1 className="mb-2 flex items-center text-4xl font-bold tracking-widest neon-text">
                         <ShoppingBag className="mr-3 h-8 w-8 text-neon-cyan" /> GALACTIC MARKET
                     </h1>
                     <div className="flex gap-4 text-sm font-mono text-gray-400">
@@ -339,7 +339,7 @@ export default function MarketInterface({ initialListings, userInventory, credit
                     </div>
                 </div>
 
-                <div className="flex w-full gap-2 sm:w-auto">
+                <div className="flex shrink-0 gap-2">
                     <Button onClick={() => setActiveTab("market")} variant={activeTab === "market" ? "primary" : "ghost"}>Buy</Button>
                     <Button onClick={() => setActiveTab("sell")} variant={activeTab === "sell" ? "primary" : "ghost"}>Sell</Button>
                 </div>
@@ -347,9 +347,9 @@ export default function MarketInterface({ initialListings, userInventory, credit
 
             <div className="min-h-0 flex-1">
                 {activeTab === "market" && (
-                    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+                    <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)_340px] gap-6">
                         {/* Listings Column */}
-                        <div className="flex min-h-0 flex-col gap-4">
+                        <div className="flex h-full min-h-0 flex-col gap-4">
                             <div className="glass-panel p-4 rounded-xl border border-white/10 flex flex-wrap items-center justify-between gap-3">
                                 <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-widest">
                                     {[
@@ -415,8 +415,8 @@ export default function MarketInterface({ initialListings, userInventory, credit
                                 </div>
                             </div>
 
-                            <div>
-                                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 2xl:grid-cols-3">
+                            <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar hud-scrollbar pr-1">
+                                <div className="grid grid-cols-3 gap-6">
                                     {filteredListings.map((listing: any) => (
                                         <motion.div
                                             key={listing.id}
@@ -485,8 +485,8 @@ export default function MarketInterface({ initialListings, userInventory, credit
                 )}
 
                 {activeTab === "sell" && (
-                    <div className={`grid grid-cols-1 gap-6 ${selectedItem ? "xl:grid-cols-[minmax(0,1fr)_380px]" : ""}`}>
-                        <div className="glass-panel flex min-h-0 flex-col rounded-xl p-6">
+                    <div className={`grid h-full min-h-0 gap-6 ${selectedItem ? "grid-cols-[minmax(0,1fr)_380px]" : "grid-cols-1"}`}>
+                        <div className="glass-panel flex h-full min-h-0 flex-col rounded-xl p-6">
                             <h2 className="text-xl font-bold mb-4 flex items-center text-neon-blue"><Box className="mr-2" /> Your Inventory</h2>
                             <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                                 <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-widest">
@@ -533,7 +533,7 @@ export default function MarketInterface({ initialListings, userInventory, credit
                                     </button>
                                 </div>
                             </div>
-                            <div className="space-y-3 overflow-y-auto custom-scrollbar hud-scrollbar pr-1 xl:max-h-[560px]">
+                            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto custom-scrollbar hud-scrollbar pr-1">
                                 {filteredGroupedInventory.map((group) => {
                                     const isExpanded = expandedItemId === group.item.id;
                                     const isSelectedGroup = selectedItem?.itemId === group.item.id;

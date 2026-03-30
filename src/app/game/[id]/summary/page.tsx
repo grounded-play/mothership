@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { soundManager } from "@/lib/soundManager";
+import AutoFitViewport from "@/components/layout/AutoFitViewport";
 
 export default function SummaryPage({ params }: { params: Promise<{ id: string }> }) {
     const router = useRouter();
@@ -99,8 +100,8 @@ export default function SummaryPage({ params }: { params: Promise<{ id: string }
     }, [loading, stats, finalScore]);
 
     return (
-        <div className="min-h-full bg-space-void text-white font-mono flex flex-col items-center justify-center p-4 relative overflow-hidden">
-            <div className="fixed top-6 left-8 z-50">
+        <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-space-void px-4 pb-4 pt-4 font-mono text-white sm:px-6 sm:pb-6 sm:pt-4">
+            <div className="fixed left-4 top-4 z-50 sm:left-8 sm:top-6">
                 <Link
                     href="/menu"
                     onClick={() => soundManager.setMusicScene("default")}
@@ -115,64 +116,70 @@ export default function SummaryPage({ params }: { params: Promise<{ id: string }
                 style={{ backgroundImage: 'linear-gradient(#0ff 1px, transparent 1px), linear-gradient(90deg, #0ff 1px, transparent 1px)', backgroundSize: '40px 40px' }}
             />
 
-            <div className="z-10 w-full max-w-2xl bg-black/80 border-2 border-neon-cyan/30 p-8 rounded-3xl shadow-[0_0_50px_rgba(0,255,255,0.1)] backdrop-blur-xl animate-in zoom-in duration-500">
+            <div className="z-10 mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col">
+                <AutoFitViewport contentKey={`summary-${id}-${status}-${rank}-${finalScore}`}>
+                    <div className="flex h-[640px] min-w-[1040px] w-full items-center justify-center">
+                        <div className="flex h-full w-full max-w-[900px] flex-col rounded-3xl border-2 border-neon-cyan/30 bg-black/80 p-8 shadow-[0_0_50px_rgba(0,255,255,0.1)] backdrop-blur-xl animate-in zoom-in duration-500">
 
-                {/* Header */}
-                <div className="text-center mb-10">
-                    <div className={`text-4xl md:text-6xl font-black tracking-tighter mb-2 ${color} drop-shadow-[0_0_10px_rgba(0,0,0,1)]`}>
-                        {status}
-                    </div>
-                    <div className="text-sm text-gray-500 tracking-[0.5em] uppercase">Post-Mission Analysis</div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
-                    {/* Rank Card */}
-                    <div className="flex flex-col items-center justify-center bg-white/5  p-6 rounded-2xl border border-white/10 relative overflow-hidden h-64">
-                        <div className="text-xs text-gray-400 uppercase tracking-widest mb-4 z-10">Performance Rank</div>
-
-                        {/* Rank Reveal Animation */}
-                        {showRank ? (
-                            <div className={`text-9xl font-black ${color} drop-shadow-[0_0_30px_currentColor] scale-in-center animate-in zoom-in-50 duration-300 z-10`}>
-                                {rank}
+                            {/* Header */}
+                            <div className="mb-10 text-center">
+                                <div className={`mb-2 text-6xl font-black tracking-tighter ${color} drop-shadow-[0_0_10px_rgba(0,0,0,1)]`}>
+                                    {status}
+                                </div>
+                                <div className="text-sm uppercase tracking-[0.5em] text-gray-500">Post-Mission Analysis</div>
                             </div>
-                        ) : (
-                            <div className="text-6xl text-gray-800 font-black animate-pulse z-10">?</div>
-                        )}
 
-                        {/* Score Tally */}
-                        <div className="absolute bottom-4 left-0 w-full text-center">
-                            <div className="text-xs text-gray-500 uppercase">Total Score</div>
-                            <div className="text-2xl font-mono text-white">{displayScore.toLocaleString()}</div>
+                            <div className="mb-10 grid flex-1 min-h-0 grid-cols-[320px_minmax(0,1fr)] gap-8">
+                                {/* Rank Card */}
+                                <div className="relative flex h-64 flex-col items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-6">
+                                    <div className="z-10 mb-4 text-xs uppercase tracking-widest text-gray-400">Performance Rank</div>
+
+                                    {/* Rank Reveal Animation */}
+                                    {showRank ? (
+                                        <div className={`scale-in-center z-10 text-9xl font-black ${color} animate-in zoom-in-50 duration-300 drop-shadow-[0_0_30px_currentColor]`}>
+                                            {rank}
+                                        </div>
+                                    ) : (
+                                        <div className="z-10 animate-pulse text-6xl font-black text-gray-800">?</div>
+                                    )}
+
+                                    {/* Score Tally */}
+                                    <div className="absolute bottom-4 left-0 w-full text-center">
+                                        <div className="text-xs uppercase text-gray-500">Total Score</div>
+                                        <div className="text-2xl font-mono text-white">{displayScore.toLocaleString()}</div>
+                                    </div>
+                                </div>
+
+                                {/* Stats List - Staggered Reveal */}
+                                <div className={`flex flex-col justify-center gap-4 transition-opacity duration-1000 ${showStats ? "opacity-100" : "opacity-0"}`}>
+                                    <StatRow label="Credits Earned" value={`+${run?.creditsEarned ?? 0} CR`} color="text-neon-cyan" delay={0} />
+                                    <StatRow label="Distance Traveled" value={`${travelDistance} SECTORS`} color="text-white" delay={120} />
+                                    <StatRow label="Travel Credit Bonus" value={`+${travelCredits} CR`} color="text-green-400" delay={240} />
+                                    <StatRow label="Core Integrity Dmg" value={`${(100 - integrity)}%`} color="text-red-400" delay={200} />
+                                    <StatRow label="Hostiles Neutralized" value="N/A" color="text-white" delay={400} />
+                                    <StatRow label="Boss Neutralized" value={bossDefeated ? "YES" : "NO"} color="text-white" delay={600} />
+                                    <StatRow label="Extraction" value={extracted ? "SUCCESS" : "FAILED"} color={extracted ? "text-green-400" : "text-red-400"} delay={800} />
+                                </div>
+                            </div>
+
+                            <div className={`flex justify-center gap-4 transition-all duration-1000 ${showRank ? "translate-y-0 opacity-100" : "translate-y-10 opacity-0"}`}>
+                                <Button
+                                    variant="outline"
+                                    className="px-8 py-6 text-lg border-2 transition-colors hover:bg-neon-cyan hover:text-black"
+                                    onClick={() => {
+                                        soundManager.setMusicScene("default");
+                                        router.push('/lobby/browse');
+                                    }}
+                                >
+                                    RETURN TO LOBBY
+                                </Button>
+                            </div>
+
                         </div>
                     </div>
-
-                    {/* Stats List - Staggered Reveal */}
-                    <div className={`flex flex-col gap-4 justify-center transition-opacity duration-1000 ${showStats ? "opacity-100" : "opacity-0"}`}>
-                        <StatRow label="Credits Earned" value={`+${run?.creditsEarned ?? 0} CR`} color="text-neon-cyan" delay={0} />
-                        <StatRow label="Distance Traveled" value={`${travelDistance} SECTORS`} color="text-white" delay={120} />
-                        <StatRow label="Travel Credit Bonus" value={`+${travelCredits} CR`} color="text-green-400" delay={240} />
-                        <StatRow label="Core Integrity Dmg" value={`${(100 - integrity)}%`} color="text-red-400" delay={200} />
-                        <StatRow label="Hostiles Neutralized" value="N/A" color="text-white" delay={400} /> {/* Placeholder for now */}
-                        <StatRow label="Boss Neutralized" value={bossDefeated ? "YES" : "NO"} color="text-white" delay={600} />
-                        <StatRow label="Extraction" value={extracted ? "SUCCESS" : "FAILED"} color={extracted ? "text-green-400" : "text-red-400"} delay={800} />
-                    </div>
-                </div>
-
-                <div className={`flex justify-center gap-4 transition-all duration-1000 ${showRank ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
-                    <Button
-                        variant="outline"
-                        className="w-full md:w-auto px-8 py-6 text-lg border-2 hover:bg-neon-cyan hover:text-black transition-colors"
-                        onClick={() => {
-                            soundManager.setMusicScene("default");
-                            router.push('/lobby/browse');
-                        }}
-                    >
-                        RETURN TO LOBBY
-                    </Button>
-                </div>
-
-            </div >
-        </div >
+                </AutoFitViewport>
+            </div>
+        </div>
     );
 }
 

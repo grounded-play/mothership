@@ -48,7 +48,7 @@ export default async function RosterPage() {
     }));
 
     return (
-        <div className="flex h-full min-h-0 flex-col bg-space-void px-4 pb-4 pt-20 sm:px-6 sm:pb-6 sm:pt-24 xl:px-8">
+        <div className="flex h-full min-h-0 flex-col bg-space-void px-4 pb-4 pt-4 sm:px-6 sm:pb-6 sm:pt-4 xl:px-8">
             <div className="fixed left-4 top-4 z-50 sm:left-8 sm:top-6">
                 <Link href="/menu" className="flex items-center text-neon-cyan hover:text-white transition-colors glass-panel px-4 py-2 rounded-full">
                     <ArrowLeft className="mr-2 h-4 w-4" /> Back to Bridge
@@ -57,7 +57,7 @@ export default async function RosterPage() {
 
             <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col">
                 <AutoFitViewport contentKey={`roster-${characters.length}`}>
-                    <div className="flex min-h-[760px] w-full flex-col">
+                    <div className="flex h-[700px] min-w-[1280px] w-full flex-col">
                         <header className="mb-6 flex shrink-0 items-center justify-between border-b border-white/5 pb-4 sm:mb-8">
                             <div className="flex items-center gap-2">
                                 <Users className="w-5 h-5 text-neon-magenta" />

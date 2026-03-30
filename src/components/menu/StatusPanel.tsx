@@ -85,7 +85,7 @@ export default function StatusPanel(props: StatusPanelProps) {
         <motion.div 
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
-            className="glass-panel w-full rounded-[24px] border border-neon-cyan/20 p-4 shadow-2xl backdrop-blur-md space-y-4 sm:p-5 xl:p-6"
+            className="glass-panel flex h-full min-h-0 w-full flex-col rounded-[24px] border border-neon-cyan/20 p-4 shadow-2xl backdrop-blur-md sm:p-5 xl:p-6"
         >
             {/* Player Profile Section */}
             <div className="flex items-center gap-4 border-b border-white/10 pb-3 sm:gap-5 sm:pb-4">
@@ -111,7 +111,8 @@ export default function StatusPanel(props: StatusPanelProps) {
             </div>
 
             {/* Network Diagnostics Section */}
-            <div className="space-y-3">
+            <div className="mt-4 flex flex-1 min-h-0 flex-col">
+                <div className="space-y-3">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-[11px] font-black text-gray-500 tracking-[0.22em] uppercase sm:text-xs">
                         <Terminal className="w-3 h-3" /> System Diagnostics
@@ -187,10 +188,11 @@ export default function StatusPanel(props: StatusPanelProps) {
                         </div>
                     </div>
                 </div>
+                </div>
             </div>
 
             {/* Micro Scroll Text */}
-            <div className="overflow-hidden h-4 relative">
+            <div className="relative mt-4 h-4 overflow-hidden">
                 <div className="absolute whitespace-nowrap animate-marquee text-[8px] text-neon-cyan/40 font-mono tracking-widest uppercase">
                     SYSTEM SECURE :: PORTAL STABILIZED :: ALL SYSTEMS NOMINAL :: DATA FREQUENCY 441.2 KHZ :: UNAUTHORIZED ACCESS PROHIBITED
                 </div>

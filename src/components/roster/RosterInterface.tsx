@@ -98,13 +98,13 @@ export default function RosterInterface({ initialCharacters, currentCharacterId 
 
     return (
         <div className="mx-auto h-full min-h-0 w-full max-w-7xl">
-            <div className="grid h-full min-h-0 grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_300px] xl:gap-8">
-                <div className="flex min-h-0 flex-col gap-6 xl:gap-8">
+            <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)_300px] gap-8">
+                <div className="flex min-h-0 flex-col gap-8">
                     {/* Control Panel */}
-                    <div className="glass-panel flex shrink-0 flex-col items-center justify-between gap-6 rounded-xl border border-white/10 p-6 md:flex-row">
+                    <div className="glass-panel flex shrink-0 items-center justify-between gap-6 rounded-xl border border-white/10 p-6">
 
                         {/* Search */}
-                        <div className="relative w-full md:w-96">
+                        <div className="relative w-96">
                             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 w-5 h-5" />
                             <input
                                 type="text"
@@ -140,7 +140,7 @@ export default function RosterInterface({ initialCharacters, currentCharacterId 
 
                     {/* Grid Container with Scroll */}
                     <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar pr-2">
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                        <div className="grid grid-cols-4 gap-6">
                             <AnimatePresence>
                                 {filteredCharacters.map((char) => (
                                     <motion.div
