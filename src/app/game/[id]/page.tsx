@@ -2368,9 +2368,6 @@ export default function GameInterface() {
                                         {isBossRoom ? "Boss Contact" : `Hostiles ${roomEnemies.length}`}
                                     </div>
                                 )}
-                                <div className="text-[10px] font-mono text-gray-500">
-                                    {visibleHandEntries.length}/{handEntries.length}
-                                </div>
                             </div>
                         </div>
 
@@ -2381,38 +2378,7 @@ export default function GameInterface() {
                             <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-t-3xl border-t-4 border-slate-700 bg-slate-900/90 p-1.5 shadow-2xl">
                                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-neon-cyan to-transparent opacity-50" />
                                 <div className="mb-1 flex min-h-[28px] items-center justify-between gap-2">
-                                    <div className="flex flex-1 flex-wrap items-center gap-1">
-                                        <div className="text-[8px] uppercase tracking-[0.28em] text-gray-500">Filter</div>
-                                        {HAND_FILTER_ORDER.map((filter) => {
-                                            const isActive = cardFilter === filter;
-                                            const tone = filter === "ALL"
-                                                ? "border-white/20 text-white"
-                                                : filter === "COMMAND"
-                                                    ? "border-green-500/40 text-green-400"
-                                                    : filter === "VOID"
-                                                        ? "border-purple-500/40 text-purple-400"
-                                                        : filter === "BIOTECH"
-                                                            ? "border-red-500/40 text-red-400"
-                                                            : filter === "PLASMA"
-                                                                ? "border-orange-500/40 text-orange-400"
-                                                                : "border-white/30 text-gray-200";
-
-                                            return (
-                                                <button
-                                                    key={`console-filter-${filter}`}
-                                                    type="button"
-                                                    onClick={() => handleCardFilterChange(filter)}
-                                                    className={`rounded-full border px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.18em] transition-all ${
-                                                        isActive
-                                                            ? `${tone} bg-white/10 shadow-[0_0_10px_rgba(255,255,255,0.08)]`
-                                                            : "border-white/10 text-gray-500 hover:border-white/30 hover:text-white"
-                                                    }`}
-                                                >
-                                                    {filter}
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
+                                    <div className="min-h-[22px] flex-1" />
                                     <div className="flex min-h-[22px] items-center justify-center text-center">
                                         {handStatusBanner}
                                     </div>
@@ -2846,78 +2812,121 @@ export default function GameInterface() {
                                     </div>
 
                                 </div>
-                            </div>
-                        </div>
 
-                        <div className="relative z-40 mt-1 h-[100px] w-full flex-none px-1 pb-1">
-                            <div ref={handViewportRef} className="h-[86px] w-full overflow-visible px-1 pb-1 pt-1">
-                                <div
-                                    className="flex w-full items-end justify-center perspective-[1000px]"
-                                    style={handLayout.gap > 0 ? { gap: `${handLayout.gap}px` } : undefined}
-                                >
-                                    <AnimatePresence initial={false}>
-                                        {visibleHandEntries.length > 0 ? visibleHandEntries.map(({ card, index }) => {
-                                            const centerOffset = index - ((visibleHandEntries.length - 1) / 2);
-                                            const fanDepth = Math.abs(centerOffset);
-                                            const fanRotate = centerOffset * 2.2;
-                                            const fanLift = Math.min(6, Math.round(fanDepth * 1.2));
-                                            const baseZ = 120 + Math.round((visibleHandEntries.length * 2) - fanDepth * 8);
+                                <div className="mt-1 flex-none rounded-b-3xl border border-white/6 bg-black/25 px-2 pb-1.5 pt-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                                    <div className="relative h-[92px] w-full overflow-visible">
+                                        <div ref={handViewportRef} className="h-[82px] w-full overflow-visible px-1 pt-1">
+                                            <div
+                                                className="flex w-full items-end justify-center perspective-[1000px]"
+                                                style={handLayout.gap > 0 ? { gap: `${handLayout.gap}px` } : undefined}
+                                            >
+                                                <AnimatePresence initial={false}>
+                                                    {visibleHandEntries.length > 0 ? visibleHandEntries.map(({ card, index }) => {
+                                                        const centerOffset = index - ((visibleHandEntries.length - 1) / 2);
+                                                        const fanDepth = Math.abs(centerOffset);
+                                                        const fanRotate = centerOffset * 2.2;
+                                                        const fanLift = Math.min(6, Math.round(fanDepth * 1.2));
+                                                        const baseZ = 120 + Math.round((visibleHandEntries.length * 2) - fanDepth * 8);
 
-                                            return (
-                                                <motion.div
-                                                    key={card.id || index}
-                                                    initial={{ y: 22 + fanLift, opacity: 0, scale: 0.94, rotate: fanRotate * 0.45 }}
-                                                    animate={{
-                                                        y: fanLift + (selectedCardIndices.includes(index) ? -handLayout.selectionLift : 0),
-                                                        opacity: 1,
-                                                        scale: selectedCardIndices.includes(index) ? 1.03 : 1,
-                                                        rotate: fanRotate
-                                                    }}
-                                                    whileHover={{
-                                                        y: fanLift + (selectedCardIndices.includes(index) ? -handLayout.selectionLift : 0) - 5,
-                                                        scale: selectedCardIndices.includes(index) ? 1.05 : 1.04,
-                                                        rotate: fanRotate * 0.4,
-                                                        zIndex: 640 + index
-                                                    }}
-                                                    exit={{
-                                                        y: 18 + fanLift,
-                                                        opacity: 0,
-                                                        scale: 0.8,
-                                                        rotate: fanRotate * 0.35,
-                                                        transition: { duration: 0.3, ease: "easeOut" }
-                                                    }}
-                                                    transition={{
-                                                        y: { duration: 0.4, ease: [0.34, 1.56, 0.64, 1] },
-                                                        opacity: { duration: 0.3 },
-                                                        scale: { duration: 0.3 },
-                                                        rotate: { duration: 0.35 }
-                                                    }}
-                                                    onClick={() => toggleCardSelection(index)}
-                                                    className="group relative flex cursor-pointer select-none items-end justify-center active:scale-95 active:brightness-90"
-                                                    style={{
-                                                        width: `${handLayout.cardWidth}px`,
-                                                        minWidth: `${handLayout.cardWidth}px`,
-                                                        height: `${handLayout.wrapperHeight}px`,
-                                                        marginLeft: index > 0 && handLayout.gap < 0 ? `${handLayout.gap}px` : undefined,
-                                                        zIndex: selectedCardIndices.includes(index) ? 520 + index : baseZ,
-                                                        transformOrigin: "center bottom"
-                                                    }}
-                                                >
-                                                    <NavCard
-                                                        card={card}
-                                                        selected={selectedCardIndices.includes(index)}
-                                                        size="lg"
-                                                        dimensions={{ width: handLayout.cardWidth, height: handLayout.cardHeight }}
-                                                        roomEffect={roomInfo?.scanned ? getRoomEffectForCard(card, roomInfo?.suit, true) : undefined}
-                                                    />
-                                                </motion.div>
-                                            );
-                                        }) : (
-                                            <div className="text-xs text-center text-gray-500 border border-white/5 bg-white/5 p-4 rounded uppercase tracking-widest w-full max-w-sm">
-                                                {handEntries.length > 0 ? "No cards match that filter" : "No Signal Detected"}
+                                                        return (
+                                                            <motion.div
+                                                                key={card.id || index}
+                                                                initial={{ y: 22 + fanLift, opacity: 0, scale: 0.94, rotate: fanRotate * 0.45 }}
+                                                                animate={{
+                                                                    y: fanLift + (selectedCardIndices.includes(index) ? -handLayout.selectionLift : 0),
+                                                                    opacity: 1,
+                                                                    scale: selectedCardIndices.includes(index) ? 1.03 : 1,
+                                                                    rotate: fanRotate
+                                                                }}
+                                                                whileHover={{
+                                                                    y: fanLift + (selectedCardIndices.includes(index) ? -handLayout.selectionLift : 0) - 5,
+                                                                    scale: selectedCardIndices.includes(index) ? 1.05 : 1.04,
+                                                                    rotate: fanRotate * 0.4,
+                                                                    zIndex: 640 + index
+                                                                }}
+                                                                exit={{
+                                                                    y: 18 + fanLift,
+                                                                    opacity: 0,
+                                                                    scale: 0.8,
+                                                                    rotate: fanRotate * 0.35,
+                                                                    transition: { duration: 0.3, ease: "easeOut" }
+                                                                }}
+                                                                transition={{
+                                                                    y: { duration: 0.4, ease: [0.34, 1.56, 0.64, 1] },
+                                                                    opacity: { duration: 0.3 },
+                                                                    scale: { duration: 0.3 },
+                                                                    rotate: { duration: 0.35 }
+                                                                }}
+                                                                onClick={() => toggleCardSelection(index)}
+                                                                className="group relative flex cursor-pointer select-none items-end justify-center active:scale-95 active:brightness-90"
+                                                                style={{
+                                                                    width: `${handLayout.cardWidth}px`,
+                                                                    minWidth: `${handLayout.cardWidth}px`,
+                                                                    height: `${handLayout.wrapperHeight}px`,
+                                                                    marginLeft: index > 0 && handLayout.gap < 0 ? `${handLayout.gap}px` : undefined,
+                                                                    zIndex: selectedCardIndices.includes(index) ? 520 + index : baseZ,
+                                                                    transformOrigin: "center bottom"
+                                                                }}
+                                                            >
+                                                                <NavCard
+                                                                    card={card}
+                                                                    selected={selectedCardIndices.includes(index)}
+                                                                    size="lg"
+                                                                    dimensions={{ width: handLayout.cardWidth, height: handLayout.cardHeight }}
+                                                                    roomEffect={roomInfo?.scanned ? getRoomEffectForCard(card, roomInfo?.suit, true) : undefined}
+                                                                />
+                                                            </motion.div>
+                                                        );
+                                                    }) : (
+                                                        <div className="text-xs text-center text-gray-500 border border-white/5 bg-white/5 p-4 rounded uppercase tracking-widest w-full max-w-sm">
+                                                            {handEntries.length > 0 ? "No cards match that filter" : "No Signal Detected"}
+                                                        </div>
+                                                    )}
+                                                </AnimatePresence>
                                             </div>
-                                        )}
-                                    </AnimatePresence>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-0.5 flex min-h-[34px] flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/8 bg-black/40 px-2 py-1">
+                                        <div className="flex flex-1 flex-wrap items-center gap-1">
+                                            <div className="text-[8px] uppercase tracking-[0.28em] text-gray-500">Filter</div>
+                                            {HAND_FILTER_ORDER.map((filter) => {
+                                                const isActive = cardFilter === filter;
+                                                const tone = filter === "ALL"
+                                                    ? "border-white/20 text-white"
+                                                    : filter === "COMMAND"
+                                                        ? "border-green-500/40 text-green-400"
+                                                        : filter === "VOID"
+                                                            ? "border-purple-500/40 text-purple-400"
+                                                            : filter === "BIOTECH"
+                                                                ? "border-red-500/40 text-red-400"
+                                                                : filter === "PLASMA"
+                                                                    ? "border-orange-500/40 text-orange-400"
+                                                                    : "border-white/30 text-gray-200";
+
+                                                return (
+                                                    <button
+                                                        key={`footer-filter-${filter}`}
+                                                        type="button"
+                                                        onClick={() => handleCardFilterChange(filter)}
+                                                        className={`rounded-full border px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.18em] transition-all ${
+                                                            isActive
+                                                                ? `${tone} bg-white/10 shadow-[0_0_10px_rgba(255,255,255,0.08)]`
+                                                                : "border-white/10 text-gray-500 hover:border-white/30 hover:text-white"
+                                                        }`}
+                                                    >
+                                                        {filter}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            {handStatusBanner}
+                                            <div className="rounded-full border border-white/10 bg-black/35 px-2.5 py-1 text-[10px] font-mono text-gray-400">
+                                                {visibleHandEntries.length}/{handEntries.length}
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
