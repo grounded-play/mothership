@@ -2759,12 +2759,75 @@ export default function GameInterface() {
                                             className="min-h-0 flex-1"
                                             footer={
                                                 <div className="space-y-1.5">
+                                                    <div className="rounded border border-white/10 bg-black/45 p-2">
+                                                        <div className="mb-2 flex items-center justify-between gap-2">
+                                                            <div className="text-[9px] font-bold uppercase tracking-[0.24em] text-neon-cyan">
+                                                                Equipment
+                                                            </div>
+                                                            <div className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[8px] font-mono uppercase tracking-[0.18em] text-gray-400">
+                                                                {loadoutItems.length}
+                                                            </div>
+                                                        </div>
+                                                        {loadoutItems.length === 0 ? (
+                                                            <div className="rounded border border-dashed border-white/10 bg-black/30 px-2 py-2 text-[9px] uppercase tracking-[0.18em] text-gray-500">
+                                                                No equipped items ready
+                                                            </div>
+                                                        ) : (
+                                                            <div className="space-y-1">
+                                                                {loadoutItems.map((item: any, idx: number) => {
+                                                                    const isWeapon = item.type === "WEAPON" || item.slot === "WEAPON";
+                                                                    const hasUses = typeof item.usesMax === "number";
+                                                                    const depleted = hasUses && (item.usesRemaining ?? item.usesMax) <= 0;
+                                                                    const isSelected = selectedItemIds.includes(item.id) || (isWeapon && actionIntent === "ATTACK");
+
+                                                                    return (
+                                                                        <div
+                                                                            key={`objective-loadout-${idx}`}
+                                                                            className={`flex items-center justify-between gap-2 rounded border px-2 py-1.5 transition-colors ${
+                                                                                isSelected
+                                                                                    ? "border-neon-cyan bg-cyan-500/10"
+                                                                                    : "border-white/10 bg-black/35"
+                                                                            }`}
+                                                                        >
+                                                                            <div className="min-w-0">
+                                                                                <div className={`truncate text-[9px] font-bold uppercase tracking-[0.16em] ${isSelected ? "text-neon-cyan" : "text-gray-200"}`}>
+                                                                                    {item.name}
+                                                                                </div>
+                                                                                <div className="mt-0.5 text-[8px] uppercase tracking-[0.14em] text-gray-500">
+                                                                                    {isWeapon ? "Combat loadout" : "Turn item"}
+                                                                                    {hasUses && (
+                                                                                        <span className={`ml-2 font-mono ${depleted ? "text-red-400" : "text-gray-400"}`}>
+                                                                                            {item.usesRemaining ?? item.usesMax}/{item.usesMax}
+                                                                                        </span>
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+                                                                            <Button
+                                                                                onClick={() => !depleted && handleLoadoutItemClick(item)}
+                                                                                disabled={depleted || isActing}
+                                                                                className={`h-7 min-w-[64px] border px-2 text-[8px] font-bold uppercase tracking-[0.18em] ${
+                                                                                    depleted
+                                                                                        ? "bg-black/40 text-gray-500 border-white/10 cursor-not-allowed"
+                                                                                        : isSelected
+                                                                                            ? "bg-neon-cyan text-black border-neon-cyan"
+                                                                                            : "bg-black/50 text-gray-300 border-white/10 hover:bg-white/10"
+                                                                                }`}
+                                                                            >
+                                                                                {depleted ? "EMPTY" : isWeapon ? (actionIntent === "ATTACK" ? "ARMED" : "ATTACK") : (isSelected ? "ACTIVE" : "ARM")}
+                                                                            </Button>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        )}
+                                                    </div>
+
                                                     <Button
                                                         onClick={() => setShowInventory(!showInventory)}
                                                         className={`flex h-9 w-full items-center justify-between rounded border px-3 text-[9px] font-bold tracking-widest ${showInventory ? "bg-white text-black border-white" : "bg-black/50 text-gray-300 border-white/10 hover:bg-white/10"}`}
                                                     >
-                                                        <span>SUPPLIES</span>
-                                                        <span>{allItems.length}</span>
+                                                        <span>BACKPACK</span>
+                                                        <span>{backpackItems.length}</span>
                                                     </Button>
 
                                                     <Button
