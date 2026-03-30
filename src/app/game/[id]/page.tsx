@@ -2147,10 +2147,10 @@ export default function GameInterface() {
                 {/* CENTER/RIGHT PANEL: HUD & Hand (Col Span 9) */}
                 <div className="relative flex h-full min-h-0 flex-col items-center gap-3">
                     <AutoFitViewport>
-                        <div className="flex h-[664px] min-w-[920px] w-full flex-col items-center gap-1.5">
+                        <div className="relative flex h-[664px] min-w-[920px] w-full flex-col items-center gap-1.5 overflow-visible">
 
                     {/* Main Interaction Area */}
-                    <div className="glass-panel border border-white/20 animate-fade-in relative overflow-hidden w-full flex-1 min-h-0 flex flex-col items-center bg-black/40 p-2 backdrop-blur-md shadow-2xl">
+                    <div className="glass-panel border border-white/20 animate-fade-in relative overflow-visible w-full flex-1 min-h-0 flex flex-col items-center bg-black/40 p-2 backdrop-blur-md shadow-2xl">
 
                         {/* 1. TOP: MISSION STATUS */}
                         <div className="relative mb-0.5 flex min-h-[24px] w-full flex-none items-center justify-end gap-2 rounded-2xl border border-white/5 bg-black/20 px-2 py-1 shadow-inner">
@@ -2637,8 +2637,8 @@ export default function GameInterface() {
                             </div>
                         </div>
 
-                        <div className="relative z-30 -mt-9 h-[100px] w-full flex-none px-1 pb-1">
-                            <div ref={handViewportRef} className="h-[86px] w-full overflow-visible px-1 pb-1 pt-0.5">
+                        <div className="relative z-40 -mt-14 h-[94px] w-full flex-none px-1 pb-1">
+                            <div ref={handViewportRef} className="h-[80px] w-full overflow-visible px-1 pb-1 pt-0.5">
                                 <div
                                     className="flex w-full items-end justify-center perspective-[1000px]"
                                     style={handLayout.gap > 0 ? { gap: `${handLayout.gap}px` } : undefined}
