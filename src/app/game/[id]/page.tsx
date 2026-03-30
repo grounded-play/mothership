@@ -1686,7 +1686,7 @@ export default function GameInterface() {
                 disabled: true,
                 selected,
                 badgeLabel: "LOCKED",
-                helper: "Action in progress",
+                helper: "Resolving action",
                 wrapperClass: "bg-black/35 text-gray-500 border-white/10 opacity-70 cursor-not-allowed",
                 badgeClass: "border-white/10 bg-black/40 text-gray-500",
                 kickerClass: accent.kicker,
@@ -1698,7 +1698,7 @@ export default function GameInterface() {
                 disabled: true,
                 selected,
                 badgeLabel: "WAIT",
-                helper: "Draw phase active",
+                helper: "Wait for action phase",
                 wrapperClass: "bg-black/35 text-gray-500 border-white/10 opacity-70 cursor-not-allowed",
                 badgeClass: "border-white/10 bg-black/40 text-gray-500",
                 kickerClass: accent.kicker,
@@ -1722,7 +1722,7 @@ export default function GameInterface() {
                     disabled: true,
                     selected,
                     badgeLabel: "DONE",
-                    helper: "Intel already revealed",
+                    helper: "Room already scanned",
                     wrapperClass: "bg-black/35 text-gray-500 border-white/10 opacity-70 cursor-not-allowed",
                     badgeClass: "border-white/10 bg-black/40 text-gray-500",
                     kickerClass: accent.kicker,
@@ -1733,7 +1733,7 @@ export default function GameInterface() {
                 disabled: false,
                 selected,
                 badgeLabel: selected ? tacticalActionCardsHint : roomExplored ? "READY" : "NEXT",
-                helper: selected ? "Execute to reveal room intel" : roomExplored ? "Reveal missing room intel" : "Use first in unknown rooms",
+                helper: selected ? "Reveal room intel" : roomExplored ? "Reveal missing intel" : "Use first",
                 wrapperClass: selected ? accent.active : `bg-black/55 ${accent.ready}`,
                 badgeClass: selected ? accent.badge : accent.badge,
                 kickerClass: accent.kicker,
@@ -1779,7 +1779,7 @@ export default function GameInterface() {
                 disabled: false,
                 selected,
                 badgeLabel: selected ? tacticalActionCardsHint : isBossRoom ? "CORE" : `TARGET ${roomEnemies.length}`,
-                helper: selected ? "Execute to commit force" : isBossRoom ? "Use on the room core" : "Use against room hostiles",
+                helper: selected ? "Commit force" : isBossRoom ? "Target room core" : "Attack hostiles",
                 wrapperClass: selected ? accent.active : `bg-black/55 ${accent.ready}`,
                 badgeClass: selected ? accent.badge : accent.badge,
                 kickerClass: accent.kicker,
@@ -1802,7 +1802,7 @@ export default function GameInterface() {
                 disabled: true,
                 selected,
                 badgeLabel: "SCAN",
-                helper: "Run scan before secure",
+                helper: "Scan before secure",
                 wrapperClass: "bg-black/35 text-gray-500 border-white/10 opacity-70 cursor-not-allowed",
                 badgeClass: "border-white/10 bg-black/40 text-gray-500",
                 kickerClass: accent.kicker,
@@ -1813,7 +1813,7 @@ export default function GameInterface() {
             disabled: false,
             selected,
             badgeLabel: selected ? tacticalActionCardsHint : "READY",
-            helper: selected ? "Execute to lock the room" : "Stabilize and lock room state",
+            helper: selected ? "Lock room state" : "Stabilize room",
             wrapperClass: selected ? accent.active : `bg-black/55 ${accent.ready}`,
             badgeClass: selected ? accent.badge : accent.badge,
             kickerClass: accent.kicker,
@@ -2231,6 +2231,20 @@ export default function GameInterface() {
                                         recentMovement={recentMovement}
                                     />
                                 </div>
+                                <div className="pointer-events-none absolute bottom-2 right-2 z-20 flex h-12 w-12 items-center justify-center rounded-full border border-neon-cyan/20 bg-black/80 shadow-[0_0_14px_rgba(34,211,238,0.16),inset_0_0_16px_rgba(0,0,0,0.9)] backdrop-blur-sm">
+                                    <div className="absolute top-1 left-1/2 -translate-x-1/2 text-[7px] font-black uppercase tracking-[0.18em] text-neon-cyan">
+                                        N
+                                    </div>
+                                    <div
+                                        className="absolute inset-[9px] transition-transform duration-300 ease-out"
+                                        style={{ transform: `rotate(${mapRotationDeg}deg)` }}
+                                    >
+                                        <div className="absolute left-1/2 top-0 h-0 w-0 -translate-x-1/2 border-x-[4px] border-x-transparent border-b-[7px] border-b-neon-cyan" />
+                                        <div className="absolute left-1/2 top-[3px] h-4 w-[2px] -translate-x-1/2 rounded-full bg-neon-cyan shadow-[0_0_8px_rgba(34,211,238,0.55)]" />
+                                        <div className="absolute bottom-[3px] left-1/2 h-3 w-[1px] -translate-x-1/2 rounded-full bg-white/15" />
+                                    </div>
+                                    <div className="h-1.5 w-1.5 rounded-full bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.85)]" />
+                                </div>
                             </div>
 
                             {/* Dock Deck & Info (Bottom) */}
@@ -2443,7 +2457,7 @@ export default function GameInterface() {
                                 </div>
 
                                 {/* Console Grid */}
-                                <div className="grid flex-1 min-h-0 grid-cols-[1.08fr_208px_0.82fr] items-stretch gap-2">
+                                <div className="grid flex-1 min-h-0 grid-cols-[1.16fr_224px_0.82fr] items-stretch gap-2">
 
                                     {/* Left Panel: Room Scan + Primary Actions */}
                                     <div className="order-1 flex h-full w-full flex-col gap-1 rounded-xl border border-white/5 bg-black/40 p-1.5">
@@ -2454,8 +2468,8 @@ export default function GameInterface() {
                                                     {roomInfo?.scanned ? "Scanner ready" : "Awaiting recon"}
                                                 </div>
                                             </div>
-                                            <div className="flex flex-1 min-h-0 items-center justify-center rounded-2xl border border-white/10 bg-black/50 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-                                                <div className="aspect-square h-full max-h-[252px] w-full max-w-[252px]">
+                                            <div className="flex flex-1 min-h-0 items-center justify-center rounded-2xl border border-white/10 bg-black/50 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                                                <div className="aspect-square h-full max-h-[320px] w-full max-w-[320px]">
                                                     <RoomScanner
                                                         key={`console-${visualPlayerNode?.id || "node"}-${facing}`}
                                                         type={visualPlayerNode?.type || player?.MapNode?.type || "UNKNOWN"}
@@ -2478,10 +2492,10 @@ export default function GameInterface() {
                                     </div>
 
 
-                                    {/* Center Panel: Navigation & Compass */}
-                                    <div className="relative order-2 flex h-full w-full flex-col items-center justify-start gap-1.5 pt-0.5">
+                                    {/* Center Panel: Navigation & Tactical Actions */}
+                                    <div className="relative order-2 flex h-full w-full flex-col items-center justify-start gap-2 pt-0.5">
                                         {player && (
-                                            <div className="w-full max-w-[232px] rounded-2xl border border-white/10 bg-black/55 px-2 py-1 shadow-[0_10px_24px_rgba(0,0,0,0.32)] backdrop-blur-sm">
+                                            <div className="w-full max-w-[236px] rounded-2xl border border-white/10 bg-black/55 px-2 py-1 shadow-[0_10px_24px_rgba(0,0,0,0.32)] backdrop-blur-sm">
                                                 <div className="flex items-center gap-2">
                                                     <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-neon-cyan/60 bg-slate-900 shadow-[0_0_14px_rgba(34,211,238,0.22)]">
                                                         {player.character?.portrait ? (
@@ -2539,60 +2553,8 @@ export default function GameInterface() {
                                             </div>
                                         )}
 
-                                        <div className="flex items-center justify-center">
-                                            <div className="rounded-full border border-yellow-400/30 bg-yellow-400/10 px-3 py-1 text-[9px] font-black uppercase tracking-[0.24em] text-yellow-300 shadow-[0_0_14px_rgba(250,204,21,0.14)]">
-                                                Shared AP {game?.sharedAp ?? 0}/{game?.sharedApMax ?? 0}
-                                            </div>
-                                        </div>
-
-                                        {/* THE COMPASS (Central Bubble) */}
-                                        <div className="relative z-20 mt-1 flex h-[70px] w-[70px] items-center justify-center overflow-hidden rounded-full border-[5px] border-slate-600 bg-black/80 shadow-[inset_0_0_20px_rgba(0,0,0,1)]">
-                                            {/* Compass Dial */}
-                                            <div
-                                                className="absolute inset-0 transition-transform duration-700 ease-out"
-                                                style={{ transform: `rotate(${mapRotationDeg}deg)` }}
-                                            >
-                                                <div className="absolute top-1 left-1/2 -translate-x-1/2 w-1 h-2 bg-neon-cyan/50" />
-                                                <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-2 bg-white/10" />
-                                                <div className="absolute left-1 top-1/2 -translate-y-1/2 w-2 h-1 bg-white/10" />
-                                                <div className="absolute right-1 top-1/2 -translate-y-1/2 w-2 h-1 bg-white/10" />
-                                            </div>
-                                            <div className="absolute top-2 left-1/2 z-20 -translate-x-1/2 text-[10px] font-black uppercase tracking-[0.18em] text-neon-cyan">N</div>
-
-                                            {/* Action Timer Overlay */}
-                                            {hasActionTimer && inActionPhase && (
-                                                <>
-                                                    {/* Action Expiring Warning - Appears when time is low and no action selected */}
-                                                    {actionTimeLeft <= 10 && !actionIntent && !isActing && (
-                                                        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center rounded-full bg-red-950/40 backdrop-blur-sm animate-pulse">
-                                                            <div className="mb-1 text-[10px] font-bold tracking-widest uppercase text-red-500 animate-pulse">
-                                                                Turn Expiring
-                                                            </div>
-                                                            <div className="text-xl font-black font-mono tracking-widest text-red-500 animate-pulse">
-                                                                {actionTimeLeft}
-                                                            </div>
-                                                            <div className="mt-1 text-[9px] text-red-400/70">Select Action</div>
-                                                        </div>
-                                                    )}
-                                                    {/* Standard Timer Display */}
-                                                    <div className={`absolute inset-0 z-40 flex items-center justify-center rounded-full ${actionTimeLeft <= 10 && !actionIntent && !isActing ? 'opacity-0' : ''}`}
-                                                         style={actionTimeLeft <= 5 ? { animationDuration: '0.5s' } : { animationDuration: '1s' }}>
-                                                        <div className={`text-xl font-black font-mono tracking-widest transition-all duration-300
-                                                            ${actionTimeLeft > 15 ? 'text-red-500' : actionTimeLeft > 5 ? 'text-orange-500' : 'text-red-600 animate-pulse'}`}>
-                                                            {actionTimeLeft}
-                                                        </div>
-                                                    </div>
-                                                </>
-                                            )}
-
-                                            {/* Static Center Marker */}
-                                            <div className="z-30 h-1.5 w-1.5 rounded-full bg-red-500 shadow-[0_0_6px_#f00]" />
-                                            {/* Glass Glare */}
-                                            <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-white/10 to-transparent rounded-t-full pointer-events-none" />
-                                        </div>
-
                                         {/* Navigation & Action Lock */}
-                                        <div className="z-10 mt-1 flex w-full max-w-[232px] items-end justify-center gap-1.5 rounded-3xl border border-slate-600 bg-slate-800 p-1.5 pb-1 pt-4 shadow-xl">
+                                        <div className="z-10 flex w-full max-w-[236px] items-end justify-center gap-1.5 rounded-3xl border border-slate-600 bg-slate-800 p-1.5 pb-1 pt-4 shadow-xl">
                                             <div className="flex w-full max-w-[144px] flex-col items-center gap-1 rounded-2xl border border-slate-500 bg-black/85 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
 
                                                 {/* Deck Controls (Up/Down) */}
@@ -2693,14 +2655,14 @@ export default function GameInterface() {
                                             </div>
                                         </div>
 
-                                        <div className="w-full max-w-[232px]">
+                                        <div className="w-full max-w-[236px]">
                                             <div className="mb-1 flex items-center justify-between border-b border-white/5 pb-0.5">
                                                 <div className="text-[9px] uppercase tracking-[0.24em] text-gray-500">Tactical Actions</div>
                                                 <div className="text-[8px] uppercase tracking-[0.22em] text-gray-600">
                                                     Recon / Combat / Stabilize
                                                 </div>
                                             </div>
-                                            <div className="grid grid-cols-3 gap-1">
+                                            <div className="grid grid-cols-1 gap-1">
                                                 <Button
                                                     onClick={() => {
                                                         if (isActing) return;
@@ -2708,11 +2670,11 @@ export default function GameInterface() {
                                                         setMoveDirection(null);
                                                     }}
                                                     disabled={scanActionUi.disabled}
-                                                    className={`h-12 border px-2 transition-all ${scanActionUi.wrapperClass}`}
+                                                    className={`h-[46px] border px-2 transition-all ${scanActionUi.wrapperClass}`}
                                                 >
                                                     <div className="flex h-full w-full flex-col items-start justify-between">
                                                         <div className="flex w-full items-center justify-between gap-2">
-                                                            <div className={`flex items-center gap-1 text-[7px] uppercase tracking-[0.22em] ${scanActionUi.kickerClass}`}>
+                                                            <div className={`min-w-0 flex items-center gap-1 text-[7px] uppercase tracking-[0.18em] ${scanActionUi.kickerClass}`}>
                                                                 <Zap className="h-3 w-3" />
                                                                 Recon
                                                             </div>
@@ -2720,9 +2682,9 @@ export default function GameInterface() {
                                                                 {scanActionUi.badgeLabel}
                                                             </span>
                                                         </div>
-                                                        <div className="text-left">
-                                                            <div className="text-[10px] font-black tracking-[0.2em]">SCAN ROOM</div>
-                                                            <div className="text-[8px] tracking-[0.12em] text-gray-400">{scanActionUi.helper}</div>
+                                                        <div className="min-w-0 text-left">
+                                                            <div className="text-[9px] font-black tracking-[0.18em]">SCAN</div>
+                                                            <div className="whitespace-normal break-words text-[7px] leading-tight tracking-[0.08em] text-gray-400">{scanActionUi.helper}</div>
                                                         </div>
                                                     </div>
                                                 </Button>
@@ -2733,11 +2695,11 @@ export default function GameInterface() {
                                                         setMoveDirection(null);
                                                     }}
                                                     disabled={attackActionUi.disabled}
-                                                    className={`h-12 border px-2 transition-all ${attackActionUi.wrapperClass}`}
+                                                    className={`h-[46px] border px-2 transition-all ${attackActionUi.wrapperClass}`}
                                                 >
                                                     <div className="flex h-full w-full flex-col items-start justify-between">
                                                         <div className="flex w-full items-center justify-between gap-2">
-                                                            <div className={`flex items-center gap-1 text-[7px] uppercase tracking-[0.22em] ${attackActionUi.kickerClass}`}>
+                                                            <div className={`min-w-0 flex items-center gap-1 text-[7px] uppercase tracking-[0.18em] ${attackActionUi.kickerClass}`}>
                                                                 <Crosshair className="h-3 w-3" />
                                                                 Combat
                                                             </div>
@@ -2745,9 +2707,9 @@ export default function GameInterface() {
                                                                 {attackActionUi.badgeLabel}
                                                             </span>
                                                         </div>
-                                                        <div className="text-left">
-                                                            <div className="text-[10px] font-black tracking-[0.2em]">ENGAGE TARGET</div>
-                                                            <div className="text-[8px] tracking-[0.12em] text-gray-400">{attackActionUi.helper}</div>
+                                                        <div className="min-w-0 text-left">
+                                                            <div className="text-[9px] font-black tracking-[0.18em]">ENGAGE</div>
+                                                            <div className="whitespace-normal break-words text-[7px] leading-tight tracking-[0.08em] text-gray-400">{attackActionUi.helper}</div>
                                                         </div>
                                                     </div>
                                                 </Button>
@@ -2758,11 +2720,11 @@ export default function GameInterface() {
                                                         setMoveDirection(null);
                                                     }}
                                                     disabled={secureActionUi.disabled}
-                                                    className={`h-12 border px-2 transition-all ${secureActionUi.wrapperClass}`}
+                                                    className={`h-[46px] border px-2 transition-all ${secureActionUi.wrapperClass}`}
                                                 >
                                                     <div className="flex h-full w-full flex-col items-start justify-between">
                                                         <div className="flex w-full items-center justify-between gap-2">
-                                                            <div className={`flex items-center gap-1 text-[7px] uppercase tracking-[0.22em] ${secureActionUi.kickerClass}`}>
+                                                            <div className={`min-w-0 flex items-center gap-1 text-[7px] uppercase tracking-[0.18em] ${secureActionUi.kickerClass}`}>
                                                                 <Shield className="h-3 w-3" />
                                                                 Stabilize
                                                             </div>
@@ -2770,9 +2732,9 @@ export default function GameInterface() {
                                                                 {secureActionUi.badgeLabel}
                                                             </span>
                                                         </div>
-                                                        <div className="text-left">
-                                                            <div className="text-[10px] font-black tracking-[0.2em]">SECURE ROOM</div>
-                                                            <div className="text-[8px] tracking-[0.12em] text-gray-400">{secureActionUi.helper}</div>
+                                                        <div className="min-w-0 text-left">
+                                                            <div className="text-[9px] font-black tracking-[0.18em]">SECURE</div>
+                                                            <div className="whitespace-normal break-words text-[7px] leading-tight tracking-[0.08em] text-gray-400">{secureActionUi.helper}</div>
                                                         </div>
                                                     </div>
                                                 </Button>
