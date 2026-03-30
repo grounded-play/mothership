@@ -1841,18 +1841,18 @@ export default function GameInterface() {
 
 
             {/* Main Grid Layout */}
-            <main className="relative z-20 mx-auto grid h-full w-full max-w-[1760px] flex-1 min-h-0 grid-cols-[312px_minmax(0,1fr)] gap-2.5 overflow-hidden px-2.5 py-2.5">
+            <main className="relative z-20 mx-auto grid h-full w-full max-w-[1760px] flex-1 min-h-0 grid-cols-[312px_minmax(0,1fr)] gap-2 overflow-hidden px-2 py-2">
 
 
                 {/* LEFT PANEL: Map & Info (Col Span 3) */}
                 <div className="relative flex h-full min-h-0 flex-col gap-3 overflow-hidden">
                     <AutoFitViewport>
-                        <div className="flex h-[760px] min-w-[312px] w-full flex-col gap-2.5">
+                        <div className="flex h-[708px] min-w-[312px] w-full flex-col gap-2">
 
 
                     {/* Room Intel */}
                     {roomInfo && (
-                        <div className="glass-panel shrink-0 space-y-2 border border-white/20 p-4 text-sm">
+                        <div className="glass-panel shrink-0 space-y-1.5 border border-white/20 p-3 text-sm">
                             <div className="border-b border-white/5 pb-1 text-[10px] uppercase tracking-[0.24em] text-gray-500">Room Intel</div>
                             <div className="flex items-center justify-between">
                                 <span className="text-sm text-gray-400">Power</span>
@@ -1890,11 +1890,11 @@ export default function GameInterface() {
                                 </span>
                             </div>
                             {showHallwayCountdown && (
-                                <div className="rounded border border-neon-cyan/30 bg-cyan-500/10 px-2 py-1.5 text-[10px] font-bold uppercase tracking-[0.24em] text-neon-cyan">
+                                <div className="rounded border border-neon-cyan/30 bg-cyan-500/10 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.24em] text-neon-cyan">
                                     Transit {transitDirectionLabel} · leg {transitStatus?.stepIndex || 0}/{transitStatus?.totalSteps || 0} · {transitStatus?.remainingSteps || 0} step{(transitStatus?.remainingSteps || 0) === 1 ? "" : "s"} left
                                 </div>
                             )}
-                            <div className="rounded border border-white/10 bg-black/35 px-2 py-1.5">
+                                <div className="rounded border border-white/10 bg-black/35 px-2 py-1">
                                 <div className="mb-1 text-[10px] uppercase tracking-[0.24em] text-gray-500">Exits</div>
                                 <div className="flex flex-wrap gap-1">
                                     {scannedExitLabels.length > 0 ? scannedExitLabels.map((label: string) => (
@@ -1909,7 +1909,7 @@ export default function GameInterface() {
                                 </div>
                             </div>
                             {roomInfo.scanned && visibleRoomHallwayIntel.length > 0 && (
-                                <div className="rounded border border-cyan-500/20 bg-cyan-500/5 p-2">
+                                <div className="rounded border border-cyan-500/20 bg-cyan-500/5 p-1.5">
                                     <div className="mb-1 text-[10px] uppercase tracking-[0.28em] text-cyan-300">
                                         Hallway Readout · Depth {roomInfo.hallwayScanDepth}
                                     </div>
@@ -2083,7 +2083,7 @@ export default function GameInterface() {
                             </div>
 
                             {/* Dock Deck & Info (Bottom) */}
-                            <div className="p-2 border-t border-white/10 bg-black/40 flex flex-col gap-1">
+                            <div className="border-t border-white/10 bg-black/40 p-1.5 flex flex-col gap-1">
                                 <div className="flex flex-col gap-2">
                                     <div className="flex flex-wrap items-center gap-1">
                                         <button
@@ -2152,13 +2152,13 @@ export default function GameInterface() {
                 {/* CENTER/RIGHT PANEL: HUD & Hand (Col Span 9) */}
                 <div className="relative flex h-full min-h-0 flex-col items-center gap-3">
                     <AutoFitViewport>
-                        <div className="flex h-[760px] min-w-[940px] w-full flex-col items-center gap-2.5">
+                        <div className="flex h-[708px] min-w-[940px] w-full flex-col items-center gap-2">
 
                     {/* Main Interaction Area */}
                     <div className="glass-panel border border-white/20 animate-fade-in relative overflow-hidden w-full flex-1 min-h-0 flex flex-col items-center bg-black/40 p-2.5 backdrop-blur-md shadow-2xl">
 
                         {/* 1. TOP: ROOM SCANNER (Large, 2/3rds) */}
-                        <div className="flex-none h-[152px] w-full flex items-center justify-center relative min-h-0 mb-2 border border-white/5 rounded-2xl bg-black/20 overflow-hidden shadow-inner">
+                        <div className="relative mb-1.5 flex h-[132px] w-full min-h-0 flex-none items-center justify-center overflow-hidden rounded-2xl border border-white/5 bg-black/20 shadow-inner">
                             {(scanFeedback || actionFeedback) && (
                                 <div className="pointer-events-none absolute left-1/2 top-3 z-20 -translate-x-1/2">
                                     {scanFeedback ? (
@@ -2205,7 +2205,7 @@ export default function GameInterface() {
                                 </div>
                             )}
                             {/* Inner Scanner Container - Scale to fit */}
-                            <div className="h-full w-full p-3 pt-6">
+                            <div className="h-full w-full p-2.5 pt-4">
                                 <RoomScanner
                                     key={`${visualPlayerNode?.id || "node"}-${facing}`} // Force redraw on turn/step
                                     type={visualPlayerNode?.type || player?.MapNode?.type || "UNKNOWN"}
@@ -2226,8 +2226,8 @@ export default function GameInterface() {
                         </div>
 
                         {/* 2. MIDDLE: HAND */}
-                        <div className="relative z-20 h-[210px] w-full flex-none px-2">
-                            <div className="mb-1 flex h-7 items-center justify-center">
+                        <div className="relative z-20 h-[178px] w-full flex-none px-1.5">
+                            <div className="mb-0.5 flex h-6 items-center justify-center">
                                 {roomInfo?.scanned && roomInfo?.suit ? (
                                     <div className="flex flex-wrap items-center justify-center gap-2 rounded-full border border-white/10 bg-black/35 px-3 py-1.5 text-[9px] uppercase tracking-[0.22em]">
                                         <span className="text-gray-500">Room Effect</span>
@@ -2244,7 +2244,7 @@ export default function GameInterface() {
                                     <div className="h-6" />
                                 )}
                             </div>
-                            <div className="flex min-h-[34px] w-full flex-wrap items-center justify-center gap-1.5 px-2 pb-1.5">
+                            <div className="flex min-h-[28px] w-full flex-wrap items-center justify-center gap-1 px-1 pb-1">
                                 <div className="text-[9px] text-gray-500 uppercase tracking-[0.3em]">Loadout</div>
                                 {loadoutItems.length > 0 ? loadoutItems.map((item: any, idx: number) => {
                                     const isSelected = selectedItemIds.includes(item.id) && !(item.type === "WEAPON" || item.slot === "WEAPON");
@@ -2254,7 +2254,7 @@ export default function GameInterface() {
                                             key={`loadout-chip-${idx}`}
                                             type="button"
                                             onClick={() => handleLoadoutItemClick(item)}
-                                            className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.18em] transition-all ${
+                                            className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.18em] transition-all ${
                                                 isSelected
                                                     ? "border-neon-cyan bg-cyan-500/15 text-neon-cyan"
                                                     : "border-white/10 bg-black/35 text-gray-200 hover:border-white/30 hover:text-white"
@@ -2277,12 +2277,12 @@ export default function GameInterface() {
                                         </button>
                                     );
                                 }) : (
-                                    <div className="rounded-full border border-white/10 bg-black/25 px-2.5 py-1 text-[9px] uppercase tracking-[0.2em] text-gray-500">
+                                    <div className="rounded-full border border-white/10 bg-black/25 px-2 py-0.5 text-[8px] uppercase tracking-[0.2em] text-gray-500">
                                         No Gear
                                     </div>
                                 )}
                             </div>
-                            <div className="flex min-h-[34px] w-full flex-wrap items-center justify-center gap-1.5 px-2 pb-1.5">
+                            <div className="flex min-h-[28px] w-full flex-wrap items-center justify-center gap-1 px-1 pb-1">
                                 <div className="text-[9px] text-gray-500 uppercase tracking-[0.3em]">Hand Filter</div>
                                 {HAND_FILTER_ORDER.map((filter) => {
                                     const isActive = cardFilter === filter;
@@ -2303,7 +2303,7 @@ export default function GameInterface() {
                                             key={filter}
                                             type="button"
                                             onClick={() => handleCardFilterChange(filter)}
-                                            className={`rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-wider transition-all ${
+                                            className={`rounded-full border px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider transition-all ${
                                                 isActive
                                                     ? `${tone} bg-white/10 shadow-[0_0_10px_rgba(255,255,255,0.08)]`
                                                     : "border-white/10 text-gray-500 hover:border-white/30 hover:text-white"
@@ -2318,7 +2318,7 @@ export default function GameInterface() {
                                 </div>
                             </div>
 
-                            <div ref={handViewportRef} className="hud-scrollbar custom-scrollbar h-[122px] w-full overflow-x-auto overflow-y-hidden px-2 pb-3 pt-1 [touch-action:pan-x]">
+                            <div ref={handViewportRef} className="hud-scrollbar custom-scrollbar h-[98px] w-full overflow-x-auto overflow-y-hidden px-1 pb-2 pt-0.5 [touch-action:pan-x]">
                                 <div className={`flex items-end perspective-[1000px] ${handLayout.shouldPan ? "w-max min-w-full justify-start pr-4" : "w-full justify-center"}`} style={{ gap: `${handLayout.gap}px` }}>
                                     <AnimatePresence initial={false}>
                                         {visibleHandEntries.length > 0 ? visibleHandEntries.map(({ card, index }) => (
@@ -2377,41 +2377,45 @@ export default function GameInterface() {
                         </div>
 
                         {/* 3. BOTTOM: CONTROL CONSOLE (Retro Dashboard w/ Central Compass) */}
-                        <div className="mx-auto flex-none w-full max-w-[1040px] pt-1 pb-1">
+                        <div className="mx-auto flex-none w-full max-w-[1040px] pt-0.5 pb-0.5">
 
                             {/* The Console Chassis */}
-                            <div className="relative overflow-hidden rounded-t-3xl border-t-4 border-slate-700 bg-slate-900/90 p-2.5 shadow-2xl">
+                            <div className="relative overflow-hidden rounded-t-3xl border-t-4 border-slate-700 bg-slate-900/90 p-2 shadow-2xl">
                                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-neon-cyan to-transparent opacity-50" />
-                                <div className="mb-1.5 flex min-h-[20px] items-center justify-center text-center">
+                                <div className="mb-1 flex min-h-[16px] items-center justify-center text-center">
                                     {handStatusBanner}
                                 </div>
 
                                 {/* Console Grid */}
-                                <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-4">
+                                <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-3">
 
                                     {/* Left Panel: Primary Actions */}
-                                    <div className="order-1 flex h-full w-full flex-col justify-between gap-2 rounded-xl border border-white/5 bg-black/40 p-2.5">
+                                    <div className="order-1 flex h-full w-full flex-col justify-between gap-1.5 rounded-xl border border-white/5 bg-black/40 p-2">
 
-                                        {/* LOADOUT DISPLAY (Above Actions) */}
-                                        <div className="flex flex-col gap-1 w-full">
-                                            <div className="border-b border-white/5 pb-1 text-center text-[10px] uppercase tracking-widest text-gray-500">Room UI</div>
-                                            <div className="mx-auto aspect-square w-full max-w-[160px] rounded-2xl border border-white/10 bg-black/50 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-                                                <RoomScanner
-                                                    key={`dock-${visualPlayerNode?.id || "node"}-${facing}`}
-                                                    type={visualPlayerNode?.type || player?.MapNode?.type || "UNKNOWN"}
-                                                    isExplored={Boolean(visualPlayerNode?.isExplored)}
-                                                    integrity={game.integrity}
-                                                    suit={isRoomScanned ? roomInfo?.suit : undefined}
-                                                    suitColor={isRoomScanned ? roomSuitMeta?.color : undefined}
-                                                    connections={scannedConnections}
-                                                    windows={windows}
-                                                    scanned={isRoomScanned}
-                                                    facing={facing}
-                                                    relativeNorth={["FORWARD", "RIGHT", "BACK", "LEFT"][(4 - ["NORTH", "EAST", "SOUTH", "WEST"].indexOf(facing || "NORTH")) % 4]}
-                                                    hallwayIntel={[]}
-                                                    movementDirection={showHallwayCountdown ? transitDirectionLabel : null}
-                                                    movementActive={showHallwayCountdown}
-                                                />
+                                        <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-black/35 p-2">
+                                            <div className="rounded-lg border border-white/5 bg-black/35 px-2 py-1">
+                                                <div className="text-[8px] uppercase tracking-[0.24em] text-gray-500">Sector</div>
+                                                <div className="mt-0.5 text-[10px] font-mono text-white">
+                                                    {visualPlayerNode?.x ?? 0}-{visualPlayerNode?.y ?? 0}-{visualPlayerNode?.z ?? 0}
+                                                </div>
+                                            </div>
+                                            <div className="rounded-lg border border-white/5 bg-black/35 px-2 py-1">
+                                                <div className="text-[8px] uppercase tracking-[0.24em] text-gray-500">Node</div>
+                                                <div className={`mt-0.5 text-[10px] font-bold uppercase ${visualIsAirlock ? "text-green-400" : roomSuitMeta?.color || "text-white"}`}>
+                                                    {visualPlayerNode?.type || "ROOM"}
+                                                </div>
+                                            </div>
+                                            <div className="rounded-lg border border-white/5 bg-black/35 px-2 py-1">
+                                                <div className="text-[8px] uppercase tracking-[0.24em] text-gray-500">Links</div>
+                                                <div className="mt-0.5 text-[10px] font-bold uppercase text-cyan-200">
+                                                    {scannedExitLabels.length > 0 ? scannedExitLabels.join(" / ") : "SEALED"}
+                                                </div>
+                                            </div>
+                                            <div className="rounded-lg border border-white/5 bg-black/35 px-2 py-1">
+                                                <div className="text-[8px] uppercase tracking-[0.24em] text-gray-500">State</div>
+                                                <div className={`mt-0.5 text-[10px] font-bold uppercase ${roomInfo?.scanned ? "text-green-400" : "text-yellow-300"}`}>
+                                                    {roomInfo?.scanned ? "SCANNED" : "UNSCANNED"}
+                                                </div>
                                             </div>
                                         </div>
 
@@ -2422,7 +2426,7 @@ export default function GameInterface() {
                                                     Recon / Combat / Stabilize
                                                 </div>
                                             </div>
-                                            <div className="grid grid-cols-3 gap-2">
+                                            <div className="grid grid-cols-3 gap-1.5">
                                                 <Button
                                                     onClick={() => {
                                                         if (isActing) return;
@@ -2430,7 +2434,7 @@ export default function GameInterface() {
                                                         setMoveDirection(null);
                                                     }}
                                                     disabled={!canScan || isActing}
-                                                    className={`h-14 border px-2 transition-all ${
+                                                    className={`h-12 border px-2 transition-all ${
                                                         actionIntent === "SCAN"
                                                             ? "bg-green-500/20 text-green-400 border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.2)]"
                                                             : "bg-black/50 text-gray-400 border-white/10 hover:border-green-500/50 hover:text-green-500"
@@ -2454,7 +2458,7 @@ export default function GameInterface() {
                                                         setMoveDirection(null);
                                                     }}
                                                     disabled={!canAttack || !player.MapNode.isExplored || isActing}
-                                                    className={`h-14 border px-2 transition-all ${
+                                                    className={`h-12 border px-2 transition-all ${
                                                         actionIntent === "ATTACK"
                                                             ? "bg-red-500/20 text-red-400 border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.2)]"
                                                             : "bg-black/50 text-gray-400 border-white/10 hover:border-red-500/50 hover:text-red-500"
@@ -2478,7 +2482,7 @@ export default function GameInterface() {
                                                         setMoveDirection(null);
                                                     }}
                                                     disabled={!canSecure || !player.MapNode.isExplored || isActing}
-                                                    className={`h-14 border px-2 transition-all ${
+                                                    className={`h-12 border px-2 transition-all ${
                                                         actionIntent === "SECURE"
                                                             ? "bg-yellow-400/20 text-yellow-400 border-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.2)]"
                                                             : "bg-black/50 text-gray-400 border-white/10 hover:border-yellow-400/50 hover:text-yellow-400"
@@ -2501,11 +2505,11 @@ export default function GameInterface() {
 
 
                                     {/* Center Panel: Navigation & Compass */}
-                                    <div className="relative order-2 flex w-full flex-col items-center gap-2">
+                                    <div className="relative order-2 flex w-full flex-col items-center gap-1.5">
                                         {player && (
-                                            <div className="w-full max-w-[272px] rounded-2xl border border-white/10 bg-black/55 px-2.5 py-2 shadow-[0_10px_24px_rgba(0,0,0,0.32)] backdrop-blur-sm">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-neon-cyan/60 bg-slate-900 shadow-[0_0_14px_rgba(34,211,238,0.22)]">
+                                            <div className="w-full max-w-[252px] rounded-2xl border border-white/10 bg-black/55 px-2 py-1.5 shadow-[0_10px_24px_rgba(0,0,0,0.32)] backdrop-blur-sm">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-neon-cyan/60 bg-slate-900 shadow-[0_0_14px_rgba(34,211,238,0.22)]">
                                                         {player.character?.portrait ? (
                                                             <img
                                                                 src={player.character.portrait}
@@ -2526,7 +2530,7 @@ export default function GameInterface() {
                                                                 {playerRoleDisplay.name}
                                                             </span>
                                                         </div>
-                                                        <div className="mt-2 grid grid-cols-4 gap-1.5 text-[9px] font-bold uppercase tracking-[0.14em]">
+                                                        <div className="mt-1.5 grid grid-cols-4 gap-1 text-[8px] font-bold uppercase tracking-[0.14em]">
                                                             <div className={`rounded-lg border border-white/10 bg-black/40 px-2 py-1 ${playerHealthTone}`}>
                                                                 <div className="flex items-center gap-1">
                                                                     <Heart className="h-3 w-3" />
@@ -2562,7 +2566,7 @@ export default function GameInterface() {
                                         )}
 
                                         {/* THE COMPASS (Central Bubble) */}
-                                        <div className="w-20 h-20 rounded-full border-4 border-slate-600 bg-black/80 shadow-[inset_0_0_20px_rgba(0,0,0,1)] relative flex items-center justify-center mb-[-1rem] z-20 overflow-hidden">
+                                        <div className="relative z-20 mb-[-0.75rem] flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border-4 border-slate-600 bg-black/80 shadow-[inset_0_0_20px_rgba(0,0,0,1)]">
                                             {/* Compass Dial */}
                                             <div
                                                 className="absolute inset-0 transition-transform duration-700 ease-out"
@@ -2572,7 +2576,7 @@ export default function GameInterface() {
                                                 <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-2 bg-white/10" />
                                                 <div className="absolute left-1 top-1/2 -translate-y-1/2 w-2 h-1 bg-white/10" />
                                                 <div className="absolute right-1 top-1/2 -translate-y-1/2 w-2 h-1 bg-white/10" />
-                                                <div className="absolute top-4 left-1/2 -translate-x-1/2 text-[10px] font-bold text-neon-cyan">N</div>
+                                                <div className="absolute top-3 left-1/2 -translate-x-1/2 text-[9px] font-bold text-neon-cyan">N</div>
                                             </div>
 
                                             {/* Action Timer Overlay */}
@@ -2584,7 +2588,7 @@ export default function GameInterface() {
                                                             <div className="text-red-500 text-xs font-bold tracking-widest uppercase mb-1 animate-pulse">
                                                                 Turn Expiring
                                                             </div>
-                                                            <div className="text-3xl font-black font-mono tracking-widest text-red-500 animate-pulse">
+                                                            <div className="text-2xl font-black font-mono tracking-widest text-red-500 animate-pulse">
                                                                 {actionTimeLeft}
                                                             </div>
                                                             <div className="text-[10px] text-red-400/70 mt-1">Select Action</div>
@@ -2593,7 +2597,7 @@ export default function GameInterface() {
                                                     {/* Standard Timer Display */}
                                                     <div className={`absolute inset-0 z-40 flex items-center justify-center rounded-full ${actionTimeLeft <= 10 && !actionIntent && !isActing ? 'opacity-0' : ''}`}
                                                          style={actionTimeLeft <= 5 ? { animationDuration: '0.5s' } : { animationDuration: '1s' }}>
-                                                        <div className={`text-3xl font-black font-mono tracking-widest transition-all duration-300
+                                                        <div className={`text-2xl font-black font-mono tracking-widest transition-all duration-300
                                                             ${actionTimeLeft > 15 ? 'text-red-500' : actionTimeLeft > 5 ? 'text-orange-500' : 'text-red-600 animate-pulse'}`}>
                                                             {actionTimeLeft}
                                                         </div>
@@ -2608,35 +2612,35 @@ export default function GameInterface() {
                                         </div>
 
                                         {/* Navigation & Action Lock (Pushed down slightly) */}
-                                        <div className="z-10 flex w-full max-w-[272px] items-end justify-center gap-2.5 rounded-3xl border border-slate-600 bg-slate-800 p-2.5 pb-2 pt-6 shadow-xl">
-                                            <div className="flex w-full max-w-[172px] flex-col items-center gap-2 rounded-2xl border border-slate-500 bg-black/85 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+                                        <div className="z-10 flex w-full max-w-[252px] items-end justify-center gap-2 rounded-3xl border border-slate-600 bg-slate-800 p-2 pb-1.5 pt-5 shadow-xl">
+                                            <div className="flex w-full max-w-[156px] flex-col items-center gap-1.5 rounded-2xl border border-slate-500 bg-black/85 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
 
                                                 {/* Deck Controls (Up/Down) */}
-                                                <div className="flex w-full gap-1.5">
+                                                <div className="flex w-full gap-1">
                                                     <Button onClick={() => {
                                                     if (isActing) return;
                                                     setActionIntent("MOVE");
                                                     setMoveDirection("UP");
-                                                }} disabled={!canMoveUp || !player.MapNode.isExplored || isActing} className={`h-7 min-w-0 flex-1 rounded-md border text-[8px] font-bold flex items-center justify-center gap-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] ${moveDirection === "UP" && actionIntent === "MOVE" ? "bg-neon-cyan text-black border-cyan-300" : "bg-slate-900 text-gray-300 border-slate-600 hover:bg-slate-800"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}>
+                                                }} disabled={!canMoveUp || !player.MapNode.isExplored || isActing} className={`h-6 min-w-0 flex-1 rounded-md border text-[7px] font-bold flex items-center justify-center gap-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] ${moveDirection === "UP" && actionIntent === "MOVE" ? "bg-neon-cyan text-black border-cyan-300" : "bg-slate-900 text-gray-300 border-slate-600 hover:bg-slate-800"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}>
                                                         <ChevronUp className="w-3 h-3" /> UP
                                                     </Button>
                                                     <Button onClick={() => {
                                                     if (isActing) return;
                                                     setActionIntent("MOVE");
                                                     setMoveDirection("DOWN");
-                                                }} disabled={!canMoveDown || !player.MapNode.isExplored || isActing} className={`h-7 min-w-0 flex-1 rounded-md border text-[8px] font-bold flex items-center justify-center gap-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] ${moveDirection === "DOWN" && actionIntent === "MOVE" ? "bg-neon-cyan text-black border-cyan-300" : "bg-slate-900 text-gray-300 border-slate-600 hover:bg-slate-800"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}>
+                                                }} disabled={!canMoveDown || !player.MapNode.isExplored || isActing} className={`h-6 min-w-0 flex-1 rounded-md border text-[7px] font-bold flex items-center justify-center gap-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] ${moveDirection === "DOWN" && actionIntent === "MOVE" ? "bg-neon-cyan text-black border-cyan-300" : "bg-slate-900 text-gray-300 border-slate-600 hover:bg-slate-800"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}>
                                                         <ChevronDown className="w-3 h-3" /> DN
                                                     </Button>
                                                 </div>
 
                                                 {/* Directional Arrows (Inverted T) */}
-                                                <div className="grid w-full grid-cols-3 gap-1.5">
+                                                <div className="grid w-full grid-cols-3 gap-1">
                                                     <div /> {/* Spacer */}
                                                     <Button onClick={() => {
                                                     if (isActing) return;
                                                     setActionIntent("MOVE");
                                                     setMoveDirection("FORWARD");
-                                                }} disabled={!canMoveForward || !player.MapNode.isExplored || isActing} className={`flex h-10 w-full min-w-0 flex-col items-center justify-center gap-1 rounded-xl border px-1 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_6px_14px_rgba(0,0,0,0.18)] ${moveDirection === "FORWARD" && actionIntent === "MOVE" ? "bg-neon-cyan text-black border-cyan-300" : "bg-slate-900 text-gray-200 border-slate-600 hover:bg-slate-800"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}>
+                                                }} disabled={!canMoveForward || !player.MapNode.isExplored || isActing} className={`flex h-9 w-full min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl border px-1 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_6px_14px_rgba(0,0,0,0.18)] ${moveDirection === "FORWARD" && actionIntent === "MOVE" ? "bg-neon-cyan text-black border-cyan-300" : "bg-slate-900 text-gray-200 border-slate-600 hover:bg-slate-800"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}>
                                                     <ArrowUp className="w-4 h-4 shrink-0" />
                                                     <span className="whitespace-nowrap text-[8px] font-black leading-none tracking-[0.12em]">{moveDirectionLabels.FORWARD}</span>
                                                 </Button>
@@ -2646,7 +2650,7 @@ export default function GameInterface() {
                                                     if (isActing) return;
                                                     setActionIntent("MOVE");
                                                     setMoveDirection("LEFT");
-                                                }} disabled={!canMoveLeft || !player.MapNode.isExplored || isActing} className={`flex h-10 w-full min-w-0 flex-col items-center justify-center gap-1 rounded-xl border px-1 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_6px_14px_rgba(0,0,0,0.18)] ${moveDirection === "LEFT" && actionIntent === "MOVE" ? "bg-neon-cyan text-black border-cyan-300" : "bg-slate-900 text-gray-200 border-slate-600 hover:bg-slate-800"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}>
+                                                }} disabled={!canMoveLeft || !player.MapNode.isExplored || isActing} className={`flex h-9 w-full min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl border px-1 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_6px_14px_rgba(0,0,0,0.18)] ${moveDirection === "LEFT" && actionIntent === "MOVE" ? "bg-neon-cyan text-black border-cyan-300" : "bg-slate-900 text-gray-200 border-slate-600 hover:bg-slate-800"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}>
                                                     <ArrowLeft className="w-4 h-4 shrink-0" />
                                                     <span className="whitespace-nowrap text-[8px] font-black leading-none tracking-[0.12em]">{moveDirectionLabels.LEFT}</span>
                                                 </Button>
@@ -2654,7 +2658,7 @@ export default function GameInterface() {
                                                     if (isActing) return;
                                                     setActionIntent("MOVE");
                                                     setMoveDirection("BACK");
-                                                }} disabled={!canMoveBack || !player.MapNode.isExplored || isActing} className={`flex h-10 w-full min-w-0 flex-col items-center justify-center gap-1 rounded-xl border px-1 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_6px_14px_rgba(0,0,0,0.18)] ${moveDirection === "BACK" && actionIntent === "MOVE" ? "bg-neon-cyan text-black border-cyan-300" : "bg-slate-900 text-gray-200 border-slate-600 hover:bg-slate-800"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}>
+                                                }} disabled={!canMoveBack || !player.MapNode.isExplored || isActing} className={`flex h-9 w-full min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl border px-1 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_6px_14px_rgba(0,0,0,0.18)] ${moveDirection === "BACK" && actionIntent === "MOVE" ? "bg-neon-cyan text-black border-cyan-300" : "bg-slate-900 text-gray-200 border-slate-600 hover:bg-slate-800"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}>
                                                     <ArrowDown className="w-4 h-4 shrink-0" />
                                                     <span className="whitespace-nowrap text-[8px] font-black leading-none tracking-[0.12em]">{moveDirectionLabels.BACK}</span>
                                                 </Button>
@@ -2662,7 +2666,7 @@ export default function GameInterface() {
                                                     if (isActing) return;
                                                     setActionIntent("MOVE");
                                                     setMoveDirection("RIGHT");
-                                                }} disabled={!canMoveRight || !player.MapNode.isExplored || isActing} className={`flex h-10 w-full min-w-0 flex-col items-center justify-center gap-1 rounded-xl border px-1 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_6px_14px_rgba(0,0,0,0.18)] ${moveDirection === "RIGHT" && actionIntent === "MOVE" ? "bg-neon-cyan text-black border-cyan-300" : "bg-slate-900 text-gray-200 border-slate-600 hover:bg-slate-800"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}>
+                                                }} disabled={!canMoveRight || !player.MapNode.isExplored || isActing} className={`flex h-9 w-full min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl border px-1 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_6px_14px_rgba(0,0,0,0.18)] ${moveDirection === "RIGHT" && actionIntent === "MOVE" ? "bg-neon-cyan text-black border-cyan-300" : "bg-slate-900 text-gray-200 border-slate-600 hover:bg-slate-800"} ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}>
                                                     <ArrowRight className="w-4 h-4 shrink-0" />
                                                     <span className="whitespace-nowrap text-[8px] font-black leading-none tracking-[0.12em]">{moveDirectionLabels.RIGHT}</span>
                                                 </Button>
@@ -2670,7 +2674,7 @@ export default function GameInterface() {
                                             </div>
 
                                             {/* Execute Button */}
-                                            <div className="flex flex-col gap-1 items-center">
+                                            <div className="flex flex-col items-center gap-0.5">
                                                 {/* Clear Status Indicators */}
                                                 {actionIntent && !actionInvalid && selectedCardIndices.length > 0 && (
                                                     <div className="text-[10px] font-bold uppercase tracking-widest text-neon-cyan animate-pulse-slow">
@@ -2691,7 +2695,7 @@ export default function GameInterface() {
                                                     onClick={handleExecute}
                                                     disabled={(!actionIntent || actionInvalid || (selectedCardIndices.length === 0 && !canAutoMove)) || isActing || !inActionPhase || backpackItems.length > 5}
                                                     className={`
-                                                        h-16 w-20 rounded-lg font-black text-[11px] tracking-widest border-b-4 transition-all active:border-b-0 active:translate-y-1
+                                                        h-14 w-[72px] rounded-lg font-black text-[10px] tracking-widest border-b-4 transition-all active:border-b-0 active:translate-y-1
                                                         flex flex-col items-center justify-center gap-1
                                                         ${(actionIntent && !actionInvalid && (selectedCardIndices.length > 0 || canAutoMove) && inActionPhase && backpackItems.length <= 5)
                                                             ? 'bg-neon-cyan text-black border-cyan-700 shadow-[0_0_20px_#0ff] animate-pulse-slow hover:brightness-110'
@@ -2711,7 +2715,7 @@ export default function GameInterface() {
                                     </div>
 
                                     {/* Right Panel: Systems & Emergency */}
-                                    <div className="order-3 flex h-full w-full flex-col justify-start gap-2 rounded-xl border border-white/5 bg-black/40 p-2.5">
+                                    <div className="order-3 flex h-full w-full flex-col justify-start gap-1.5 rounded-xl border border-white/5 bg-black/40 p-2">
                                         <div className="rounded-lg border border-white/10 bg-black/45 p-2">
                                             <div className="flex items-center justify-between gap-2 text-[9px] uppercase tracking-[0.24em]">
                                                 <span className="text-gray-500">Airlock Range</span>
@@ -2721,13 +2725,13 @@ export default function GameInterface() {
                                             </div>
                                         </div>
 
-                                        <MissionLog objectives={missionObjectives} compact className="max-h-44 overflow-y-auto custom-scrollbar" />
+                                        <MissionLog objectives={missionObjectives} compact className="max-h-32 overflow-y-auto custom-scrollbar" />
 
                                         <div className="mb-1 border-b border-white/5 pb-1 text-center text-[10px] uppercase tracking-widest text-gray-500">AUX SYSTEMS</div>
 
                                         <Button
                                             onClick={() => setShowInventory(!showInventory)}
-                                            className={`flex h-11 w-full items-center justify-between rounded border px-3 text-[10px] font-bold tracking-widest ${showInventory ? "bg-white text-black border-white" : "bg-black/50 text-gray-300 border-white/10 hover:bg-white/10"}`}
+                                            className={`flex h-10 w-full items-center justify-between rounded border px-3 text-[10px] font-bold tracking-widest ${showInventory ? "bg-white text-black border-white" : "bg-black/50 text-gray-300 border-white/10 hover:bg-white/10"}`}
                                         >
                                             <span>SUPPLIES</span>
                                             <span>{allItems.length}</span>
@@ -2738,7 +2742,7 @@ export default function GameInterface() {
                                                 setShowInventory(false);
                                                 setShowSettings((current) => !current);
                                             }}
-                                            className={`flex h-11 w-full items-center justify-between rounded border px-3 text-[10px] font-bold tracking-widest ${showSettings ? "bg-neon-cyan text-black border-neon-cyan" : "bg-black/50 text-gray-300 border-white/10 hover:bg-white/10"}`}
+                                            className={`flex h-10 w-full items-center justify-between rounded border px-3 text-[10px] font-bold tracking-widest ${showSettings ? "bg-neon-cyan text-black border-neon-cyan" : "bg-black/50 text-gray-300 border-white/10 hover:bg-white/10"}`}
                                         >
                                             <span>SETTINGS</span>
                                             <Settings2 className="h-3.5 w-3.5" />
@@ -2749,7 +2753,7 @@ export default function GameInterface() {
                                                 onClick={() => setExitIntent(emergencyExitIntent)}
                                                 disabled={isActing}
                                                 variant="ghost"
-                                                className={`h-11 w-full rounded border text-[10px] font-bold tracking-[0.22em] transition-all ${
+                                                className={`h-10 w-full rounded border text-[10px] font-bold tracking-[0.22em] transition-all ${
                                                     isAirlock
                                                         ? "bg-green-500/10 text-green-300 border-green-500/40 hover:bg-green-500/20"
                                                         : "bg-black/50 text-red-300 border-red-900/50 hover:bg-red-900/40 hover:text-red-200"
@@ -2765,7 +2769,7 @@ export default function GameInterface() {
                         </div>
 
                         {/* Played Cards (Absolute Center - Small Visualization) */}
-                        <div className="absolute bottom-[200px] left-1/2 -translate-x-1/2 z-0 pointer-events-none opacity-50">
+                        <div className="absolute bottom-[168px] left-1/2 -translate-x-1/2 z-0 pointer-events-none opacity-50">
                             {gameState?.game?.currentPile && gameState.game.currentPile.length > 0 && (
                                 <div className="flex items-center justify-center gap-1">
                                     {gameState.game.currentPile.slice(-3).map((card: any, i: number) => (
