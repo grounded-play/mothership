@@ -9,6 +9,7 @@ import Link from "next/link";
 import { Users, Lock, Unlock, Play, Plus, RefreshCw, LogOut, ArrowLeft } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import SafeImage from "@/components/ui/SafeImage";
+import AutoFitViewport from "@/components/layout/AutoFitViewport";
 
 export default function LobbyBrowser() {
     const router = useRouter();
@@ -109,157 +110,162 @@ export default function LobbyBrowser() {
     };
 
     return (
-        <div className="min-h-full p-8 pt-24 space-y-8 bg-space-void relative">
+        <div className="relative flex h-full min-h-0 flex-col bg-space-void px-4 pb-4 pt-4 sm:px-6 sm:pb-6 sm:pt-4 xl:px-8">
             <div className="fixed top-6 left-8 z-50">
                 <Link href="/menu" className="flex items-center text-neon-cyan hover:text-white transition-colors glass-panel px-4 py-2 rounded-full">
                     <ArrowLeft className="mr-2 h-4 w-4" /> Back to Bridge
                 </Link>
             </div>
 
-            <div className="flex justify-between items-end">
-                <div>
-                    <h1 className="text-4xl font-bold text-white neon-text mb-2 uppercase tracking-tighter">Mission Control</h1>
-                    <p className="text-neon-cyan/80">Select a deployment or establish a new frequency.</p>
-                </div>
-                <div className="flex gap-4">
-                    <Button variant="outline" onClick={fetchLobbies} disabled={loading} className="border-neon-cyan/30 text-neon-cyan hover:bg-neon-cyan/10">
-                        <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} /> REFRESH
-                    </Button>
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Lobby List */}
-                <div className="lg:col-span-2 space-y-4">
-                    {lobbies.length === 0 && !loading && (
-                        <div className="glass-panel p-8 text-center text-gray-500">
-                            No active communication signals detected. Start a new mission.
+            <div className="mx-auto flex h-full min-h-0 w-full max-w-[1320px] flex-col">
+                <AutoFitViewport contentKey={`lobby-browse-${lobbies.length}-${loading ? "loading" : "ready"}`}>
+                    <div className="flex h-[680px] min-w-[1260px] w-full flex-col">
+                        <div className="mb-5 flex shrink-0 items-center justify-end border-b border-white/5 pb-4">
+                            <Button variant="outline" onClick={fetchLobbies} disabled={loading} className="border-neon-cyan/30 text-neon-cyan hover:bg-neon-cyan/10">
+                                <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} /> REFRESH
+                            </Button>
                         </div>
-                    )}
 
-                    {lobbies.map((lobby) => {
-                        const currentPlayer = lobby.members.find((m: any) => m.isCurrentPlayer);
-                        return (
-                            <motion.div
-                                key={lobby.id}
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className={`glass-panel p-6 rounded-xl flex items-center justify-between group transition-all ${
-                                    currentPlayer ? 'border-neon-cyan/70 shadow-[0_0_15px_rgba(0,255,255,0.15)]' : 'border-white/10 hover:border-neon-cyan/50'
-                                }`}
-                            >
-                                <div className="flex-1 flex gap-4 items-center">
-                                    {/* Host Portrait */}
-                                    <div className={`hidden sm:flex w-16 h-16 rounded-full border overflow-hidden justify-center items-center transition-all ${
-                                        currentPlayer ? 'border-neon-cyan/80 bg-neon-cyan/5 shadow-[0_0_12px_rgba(0,255,255,0.3)]' : 'border-white/20 bg-gray-900'
-                                    }`}>
-                                        <SafeImage
-                                            src={lobby.members.find((m: any) => m.characterId === lobby.hostId)?.character.portrait}
-                                            alt={lobby.members.find((m: any) => m.characterId === lobby.hostId)?.character.name}
-                                            className="w-full h-full object-cover"
-                                            fallback={
-                                                <span className="text-xl font-bold text-gray-500">
-                                                    {lobby.members.find((m: any) => m.characterId === lobby.hostId)?.character.class?.[0] || "?"}
-                                                </span>
-                                            }
-                                        />
-                                        {/* Turn Indicator Overlay */}
-                                        {currentPlayer && (
-                                            <div className="absolute inset-0 bg-neon-cyan/10 rounded-full animate-pulse" />
-                                        )}
+                        <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_340px] gap-6">
+                            <div className="min-h-0 space-y-4 overflow-y-auto pr-2 custom-scrollbar">
+                                {lobbies.length === 0 && !loading && (
+                                    <div className="glass-panel p-8 text-center text-gray-500">
+                                        No active communication signals detected. Start a new mission.
                                     </div>
+                                )}
 
-                                    <div>
-                                        <div className="flex items-center gap-3 mb-1">
-                                            <h3 className="text-xl font-bold text-white">{lobby.name}</h3>
-                                            <span className={`text-[10px] px-2 py-0.5 rounded border ${lobby.difficulty === 'HARD' ? 'border-red-500 text-red-500' :
-                                                lobby.difficulty === 'EASY' ? 'border-green-500 text-green-500' :
-                                                    'border-neon-cyan text-neon-cyan'
+                                {lobbies.map((lobby) => {
+                                    const currentPlayer = lobby.members.find((m: any) => m.isCurrentPlayer);
+                                    return (
+                                        <motion.div
+                                            key={lobby.id}
+                                            initial={{ opacity: 0, y: 10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            className={`glass-panel flex items-center justify-between rounded-xl p-6 transition-all ${
+                                                currentPlayer ? "border-neon-cyan/70 shadow-[0_0_15px_rgba(0,255,255,0.15)]" : "border-white/10 hover:border-neon-cyan/50"
+                                            }`}
+                                        >
+                                            <div className="flex flex-1 items-center gap-4">
+                                                <div className={`relative hidden h-16 w-16 items-center justify-center overflow-hidden rounded-full border sm:flex ${
+                                                    currentPlayer ? "border-neon-cyan/80 bg-neon-cyan/5 shadow-[0_0_12px_rgba(0,255,255,0.3)]" : "border-white/20 bg-gray-900"
                                                 }`}>
-                                                {lobby.difficulty}
-                                            </span>
-                                            {currentPlayer && (
-                                                <span className="text-[9px] px-2 py-0.5 rounded bg-neon-cyan text-black font-bold tracking-wider uppercase">
-                                                    Current Turn
-                                                </span>
-                                            )}
+                                                    <SafeImage
+                                                        src={lobby.members.find((m: any) => m.characterId === lobby.hostId)?.character.portrait}
+                                                        alt={lobby.members.find((m: any) => m.characterId === lobby.hostId)?.character.name}
+                                                        className="h-full w-full object-cover"
+                                                        fallback={
+                                                            <span className="text-xl font-bold text-gray-500">
+                                                                {lobby.members.find((m: any) => m.characterId === lobby.hostId)?.character.class?.[0] || "?"}
+                                                            </span>
+                                                        }
+                                                    />
+                                                    {currentPlayer && (
+                                                        <div className="absolute inset-0 animate-pulse rounded-full bg-neon-cyan/10" />
+                                                    )}
+                                                </div>
+
+                                                <div>
+                                                    <div className="mb-1 flex items-center gap-3">
+                                                        <h3 className="text-xl font-bold text-white">{lobby.name}</h3>
+                                                        <span className={`rounded border px-2 py-0.5 text-[10px] ${
+                                                            lobby.difficulty === "HARD" ? "border-red-500 text-red-500" :
+                                                                lobby.difficulty === "EASY" ? "border-green-500 text-green-500" :
+                                                                    "border-neon-cyan text-neon-cyan"
+                                                        }`}>
+                                                            {lobby.difficulty}
+                                                        </span>
+                                                        {currentPlayer && (
+                                                            <span className="rounded bg-neon-cyan px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-black">
+                                                                Current Turn
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex items-center gap-4 text-sm text-gray-400">
+                                                        <span>HOST: {lobby.members.find((m: any) => m.characterId === lobby.hostId)?.character.name || "Unknown"}</span>
+                                                        <span>MEMBERS: {lobby.members.length}/4</span>
+                                                        <span className="ml-2 font-mono text-xs text-gray-600">ID: {lobby.code}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <Button onClick={() => handleJoin(lobby.id)}>
+                                                JOIN SQUAD <Play className="ml-2 h-4 w-4" />
+                                            </Button>
+                                        </motion.div>
+                                    );
+                                })}
+                            </div>
+
+                            <div className="flex min-h-0 flex-col gap-5">
+                                <div className="glass-panel rounded-xl p-6">
+                                    <h2 className="mb-4 flex items-center text-lg font-bold text-white">
+                                        <Plus className="mr-2 h-5 w-5 text-neon-magenta" /> NEW MISSION
+                                    </h2>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="mb-1 block text-xs text-gray-400">LOBBY NAME</label>
+                                            <Input
+                                                value={newItemName}
+                                                onChange={(e) => setNewItemName(e.target.value)}
+                                                placeholder="Auto-Generated Name..."
+                                                className="bg-black/40 border-white/10"
+                                            />
                                         </div>
-                                        <div className="text-sm text-gray-400 flex items-center gap-4">
-                                            <span>HOST: {lobby.members.find((m: any) => m.characterId === lobby.hostId)?.character.name || "Unknown"}</span>
-                                            <span>MEMBERS: {lobby.members.length}/4</span>
-                                            <span className="text-xs font-mono ml-2 text-gray-600">ID: {lobby.code}</span>
+
+                                        <div>
+                                            <label className="mb-1 block text-xs text-gray-400">DIFFICULTY</label>
+                                            <select
+                                                value={difficulty}
+                                                onChange={(e) => setDifficulty(e.target.value)}
+                                                className="w-full rounded-md border border-white/10 bg-black/40 p-2 text-sm text-white outline-none focus:border-neon-cyan"
+                                            >
+                                                <option value="EASY">TRAINING (Easy)</option>
+                                                <option value="NORMAL">STANDARD (Normal)</option>
+                                                <option value="HARD">VETERAN (Hard)</option>
+                                            </select>
                                         </div>
+
+                                        <div className="flex cursor-pointer items-center gap-2" onClick={() => setIsPrivate(!isPrivate)}>
+                                            <div className={`h-4 w-4 rounded border ${isPrivate ? "border-neon-magenta bg-neon-magenta" : "border-gray-500"}`} />
+                                            <span className="text-sm text-gray-300">Private Lobby</span>
+                                        </div>
+
+                                        <Button onClick={handleCreate} className="w-full">
+                                            INITIALIZE LOBBY
+                                        </Button>
                                     </div>
                                 </div>
-                                <Button onClick={() => handleJoin(lobby.id)}>
-                                    JOIN SQUAD <Play className="w-4 h-4 ml-2" />
-                                </Button>
-                            </motion.div>
-                        );
-                    })}
-                </div>
 
-                {/* Sidebar: Create & Join Code */}
-                <div className="space-y-6">
-                    {/* Create Lobby */}
-                    <div className="glass-panel p-6 rounded-xl">
-                        <h2 className="text-lg font-bold text-white mb-4 flex items-center">
-                            <Plus className="w-5 h-5 mr-2 text-neon-magenta" /> NEW MISSION
-                        </h2>
-                        <div className="space-y-4">
-                            <div>
-                                <label className="text-xs text-gray-400 mb-1 block">LOBBY NAME</label>
-                                <Input
-                                    value={newItemName}
-                                    onChange={(e) => setNewItemName(e.target.value)}
-                                    placeholder="Auto-Generated Name..."
-                                    className="bg-black/40 border-white/10"
-                                />
+                                <div className="glass-panel rounded-xl p-6">
+                                    <h2 className="mb-4 flex items-center text-lg font-bold text-white">
+                                        <Lock className="mr-2 h-5 w-5 text-neon-cyan" /> ENCRYPTED CHANNEL
+                                    </h2>
+                                    <div className="flex gap-2">
+                                        <Input
+                                            value={joinCode}
+                                            onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                                            placeholder="ENTER CODE"
+                                            maxLength={4}
+                                            className="bg-black/40 border-white/10 text-center font-mono uppercase tracking-widest"
+                                        />
+                                        <Button onClick={handleJoinCode} disabled={joinCode.length < 4} variant="secondary">
+                                            JOIN
+                                        </Button>
+                                    </div>
+                                </div>
+
+                                <div className="glass-panel rounded-xl border-red-500/20 p-6">
+                                    <Button
+                                        variant="ghost"
+                                        className="w-full justify-center text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                                        onClick={() => router.push("/menu")}
+                                    >
+                                        <LogOut className="mr-2 h-4 w-4" /> Return to Bridge
+                                    </Button>
+                                </div>
                             </div>
-
-                            <div>
-                                <label className="text-xs text-gray-400 mb-1 block">DIFFICULTY</label>
-                                <select
-                                    value={difficulty}
-                                    onChange={(e) => setDifficulty(e.target.value)}
-                                    className="w-full bg-black/40 border border-white/10 rounded-md p-2 text-white text-sm focus:border-neon-cyan outline-none"
-                                >
-                                    <option value="EASY">TRAINING (Easy)</option>
-                                    <option value="NORMAL">STANDARD (Normal)</option>
-                                    <option value="HARD">VETERAN (Hard)</option>
-                                </select>
-                            </div>
-
-                            <div className="flex items-center gap-2 cursor-pointer" onClick={() => setIsPrivate(!isPrivate)}>
-                                <div className={`w-4 h-4 border rounded ${isPrivate ? 'bg-neon-magenta border-neon-magenta' : 'border-gray-500'}`} />
-                                <span className="text-sm text-gray-300">Private Lobby</span>
-                            </div>
-
-                            <Button onClick={handleCreate} className="w-full">
-                                INITIALIZE LOBBY
-                            </Button>
                         </div>
                     </div>
-
-                    {/* Join by Code */}
-                    <div className="glass-panel p-6 rounded-xl">
-                        <h2 className="text-lg font-bold text-white mb-4 flex items-center">
-                            <Lock className="w-5 h-5 mr-2 text-neon-cyan" /> ENCRYPTED CHANNEL
-                        </h2>
-                        <div className="flex gap-2">
-                            <Input
-                                value={joinCode}
-                                onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                                placeholder="ENTER CODE"
-                                maxLength={4}
-                                className="bg-black/40 border-white/10 text-center font-mono tracking-widest uppercase"
-                            />
-                            <Button onClick={handleJoinCode} disabled={joinCode.length < 4} variant="secondary">
-                                JOIN
-                            </Button>
-                        </div>
-                    </div>
-                </div>
+                </AutoFitViewport>
             </div>
         </div>
     );

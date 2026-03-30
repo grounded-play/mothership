@@ -62,6 +62,7 @@ function isFittedRoute(pathname: string | null) {
         || pathname === "/settings"
         || pathname === "/character/view"
         || pathname === "/character/create"
+        || pathname === "/lobby/browse"
         || SUMMARY_ROUTE_RE.test(pathname)
         || GAME_ROUTE_RE.test(pathname);
 }
