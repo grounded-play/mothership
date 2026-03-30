@@ -1640,6 +1640,7 @@ export default function GameInterface() {
                     : moveDirection === "UP" ? canMoveUp
                         : moveDirection === "DOWN" ? canMoveDown
                             : false;
+    const roomExplored = Boolean(player?.MapNode?.isExplored);
     const actionInvalid = (actionIntent === "SCAN" && !canScan)
         || (actionIntent === "SECURE" && !canSecure)
         || (actionIntent === "ATTACK" && !canAttack)
@@ -1653,6 +1654,174 @@ export default function GameInterface() {
                 : "WAITING FOR READY";
     const actionTimerLabel = !inActionPhase ? "WAITING..." : (hasActionTimer ? `ACTION CLOSING IN ${actionTimeLeft}s` : "READY");
     const pileOwnerIsMe = player && game?.pileOwnerId === player.characterId; // Use CharacterID for consistent ownership
+    const tacticalActionCardsHint = hiddenSelectedCount > 0
+        ? `${selectedCardIndices.length} selected (${hiddenSelectedCount} filtered)`
+        : `${selectedCardIndices.length} selected`;
+
+    const getTacticalActionUi = (action: "SCAN" | "ATTACK" | "SECURE") => {
+        const selected = actionIntent === action;
+        const accent = action === "SCAN"
+            ? {
+                active: "bg-green-500/20 text-green-400 border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.2)]",
+                ready: "border-green-500/35 text-green-300 hover:border-green-500/55 hover:text-green-200",
+                badge: "border-green-500/35 bg-green-500/12 text-green-300",
+                kicker: "text-green-300/80",
+            }
+            : action === "ATTACK"
+                ? {
+                    active: "bg-red-500/20 text-red-400 border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.2)]",
+                    ready: "border-red-500/35 text-red-300 hover:border-red-500/55 hover:text-red-200",
+                    badge: "border-red-500/35 bg-red-500/12 text-red-300",
+                    kicker: "text-red-300/80",
+                }
+                : {
+                    active: "bg-yellow-400/20 text-yellow-400 border-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.2)]",
+                    ready: "border-yellow-400/35 text-yellow-300 hover:border-yellow-400/55 hover:text-yellow-200",
+                    badge: "border-yellow-400/35 bg-yellow-400/12 text-yellow-300",
+                    kicker: "text-yellow-200/80",
+                };
+
+        if (isActing) {
+            return {
+                disabled: true,
+                selected,
+                badgeLabel: "LOCKED",
+                helper: "Action in progress",
+                wrapperClass: "bg-black/35 text-gray-500 border-white/10 opacity-70 cursor-not-allowed",
+                badgeClass: "border-white/10 bg-black/40 text-gray-500",
+                kickerClass: accent.kicker,
+            };
+        }
+
+        if (!inActionPhase) {
+            return {
+                disabled: true,
+                selected,
+                badgeLabel: "WAIT",
+                helper: "Draw phase active",
+                wrapperClass: "bg-black/35 text-gray-500 border-white/10 opacity-70 cursor-not-allowed",
+                badgeClass: "border-white/10 bg-black/40 text-gray-500",
+                kickerClass: accent.kicker,
+            };
+        }
+
+        if (action === "SCAN") {
+            if (isAirlock) {
+                return {
+                    disabled: true,
+                    selected,
+                    badgeLabel: "LOCKED",
+                    helper: "Airlock already mapped",
+                    wrapperClass: "bg-black/35 text-gray-500 border-white/10 opacity-70 cursor-not-allowed",
+                    badgeClass: "border-white/10 bg-black/40 text-gray-500",
+                    kickerClass: accent.kicker,
+                };
+            }
+            if (isRoomScanned) {
+                return {
+                    disabled: true,
+                    selected,
+                    badgeLabel: "DONE",
+                    helper: "Intel already revealed",
+                    wrapperClass: "bg-black/35 text-gray-500 border-white/10 opacity-70 cursor-not-allowed",
+                    badgeClass: "border-white/10 bg-black/40 text-gray-500",
+                    kickerClass: accent.kicker,
+                };
+            }
+
+            return {
+                disabled: false,
+                selected,
+                badgeLabel: selected ? tacticalActionCardsHint : roomExplored ? "READY" : "NEXT",
+                helper: selected ? "Execute to reveal room intel" : roomExplored ? "Reveal missing room intel" : "Use first in unknown rooms",
+                wrapperClass: selected ? accent.active : `bg-black/55 ${accent.ready}`,
+                badgeClass: selected ? accent.badge : accent.badge,
+                kickerClass: accent.kicker,
+            };
+        }
+
+        if (action === "ATTACK") {
+            if (isAirlock) {
+                return {
+                    disabled: true,
+                    selected,
+                    badgeLabel: "LOCKED",
+                    helper: "No combat in airlock",
+                    wrapperClass: "bg-black/35 text-gray-500 border-white/10 opacity-70 cursor-not-allowed",
+                    badgeClass: "border-white/10 bg-black/40 text-gray-500",
+                    kickerClass: accent.kicker,
+                };
+            }
+            if (!roomExplored) {
+                return {
+                    disabled: true,
+                    selected,
+                    badgeLabel: "LOCKED",
+                    helper: "Explore room first",
+                    wrapperClass: "bg-black/35 text-gray-500 border-white/10 opacity-70 cursor-not-allowed",
+                    badgeClass: "border-white/10 bg-black/40 text-gray-500",
+                    kickerClass: accent.kicker,
+                };
+            }
+            if (!(hasEnemies || isBossRoom)) {
+                return {
+                    disabled: true,
+                    selected,
+                    badgeLabel: "CLEAR",
+                    helper: "No hostile targets",
+                    wrapperClass: "bg-black/35 text-gray-500 border-white/10 opacity-70 cursor-not-allowed",
+                    badgeClass: "border-white/10 bg-black/40 text-gray-500",
+                    kickerClass: accent.kicker,
+                };
+            }
+
+            return {
+                disabled: false,
+                selected,
+                badgeLabel: selected ? tacticalActionCardsHint : isBossRoom ? "CORE" : `TARGET ${roomEnemies.length}`,
+                helper: selected ? "Execute to commit force" : isBossRoom ? "Use on the room core" : "Use against room hostiles",
+                wrapperClass: selected ? accent.active : `bg-black/55 ${accent.ready}`,
+                badgeClass: selected ? accent.badge : accent.badge,
+                kickerClass: accent.kicker,
+            };
+        }
+
+        if (isAirlock) {
+            return {
+                disabled: true,
+                selected,
+                badgeLabel: "LOCKED",
+                helper: "Airlock cannot be secured",
+                wrapperClass: "bg-black/35 text-gray-500 border-white/10 opacity-70 cursor-not-allowed",
+                badgeClass: "border-white/10 bg-black/40 text-gray-500",
+                kickerClass: accent.kicker,
+            };
+        }
+        if (!roomExplored || !isRoomScanned) {
+            return {
+                disabled: true,
+                selected,
+                badgeLabel: "SCAN",
+                helper: "Run scan before secure",
+                wrapperClass: "bg-black/35 text-gray-500 border-white/10 opacity-70 cursor-not-allowed",
+                badgeClass: "border-white/10 bg-black/40 text-gray-500",
+                kickerClass: accent.kicker,
+            };
+        }
+
+        return {
+            disabled: false,
+            selected,
+            badgeLabel: selected ? tacticalActionCardsHint : "READY",
+            helper: selected ? "Execute to lock the room" : "Stabilize and lock room state",
+            wrapperClass: selected ? accent.active : `bg-black/55 ${accent.ready}`,
+            badgeClass: selected ? accent.badge : accent.badge,
+            kickerClass: accent.kicker,
+        };
+    };
+    const scanActionUi = getTacticalActionUi("SCAN");
+    const attackActionUi = getTacticalActionUi("ATTACK");
+    const secureActionUi = getTacticalActionUi("SECURE");
 
     const toggleItemSelection = (itemId: string) => {
         setSelectedItemIds(prev =>
@@ -2538,21 +2707,22 @@ export default function GameInterface() {
                                                         setActionIntent("SCAN");
                                                         setMoveDirection(null);
                                                     }}
-                                                    disabled={!canScan || isActing}
-                                                    className={`h-11 border px-2 transition-all ${
-                                                        actionIntent === "SCAN"
-                                                            ? "bg-green-500/20 text-green-400 border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.2)]"
-                                                            : "bg-black/50 text-gray-400 border-white/10 hover:border-green-500/50 hover:text-green-500"
-                                                    } ${!player.MapNode.isExplored ? "animate-pulse border-green-500 text-green-500" : ""}`}
+                                                    disabled={scanActionUi.disabled}
+                                                    className={`h-12 border px-2 transition-all ${scanActionUi.wrapperClass}`}
                                                 >
                                                     <div className="flex h-full w-full flex-col items-start justify-between">
-                                                        <div className="flex items-center gap-1 text-[7px] uppercase tracking-[0.22em] text-green-300/80">
-                                                            <Zap className="h-3 w-3" />
-                                                            Recon
+                                                        <div className="flex w-full items-center justify-between gap-2">
+                                                            <div className={`flex items-center gap-1 text-[7px] uppercase tracking-[0.22em] ${scanActionUi.kickerClass}`}>
+                                                                <Zap className="h-3 w-3" />
+                                                                Recon
+                                                            </div>
+                                                            <span className={`rounded-full border px-1.5 py-0.5 text-[7px] font-bold uppercase tracking-[0.18em] ${scanActionUi.badgeClass}`}>
+                                                                {scanActionUi.badgeLabel}
+                                                            </span>
                                                         </div>
                                                         <div className="text-left">
-                                                            <div className="text-[10px] font-black tracking-[0.2em]">SCAN</div>
-                                                            <div className="text-[8px] tracking-[0.12em] text-gray-500">Reveal intel</div>
+                                                            <div className="text-[10px] font-black tracking-[0.2em]">SCAN ROOM</div>
+                                                            <div className="text-[8px] tracking-[0.12em] text-gray-400">{scanActionUi.helper}</div>
                                                         </div>
                                                     </div>
                                                 </Button>
@@ -2562,21 +2732,22 @@ export default function GameInterface() {
                                                         setActionIntent("ATTACK");
                                                         setMoveDirection(null);
                                                     }}
-                                                    disabled={!canAttack || !player.MapNode.isExplored || isActing}
-                                                    className={`h-11 border px-2 transition-all ${
-                                                        actionIntent === "ATTACK"
-                                                            ? "bg-red-500/20 text-red-400 border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.2)]"
-                                                            : "bg-black/50 text-gray-400 border-white/10 hover:border-red-500/50 hover:text-red-500"
-                                                    } ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}
+                                                    disabled={attackActionUi.disabled}
+                                                    className={`h-12 border px-2 transition-all ${attackActionUi.wrapperClass}`}
                                                 >
                                                     <div className="flex h-full w-full flex-col items-start justify-between">
-                                                        <div className="flex items-center gap-1 text-[7px] uppercase tracking-[0.22em] text-red-300/80">
-                                                            <Crosshair className="h-3 w-3" />
-                                                            Combat
+                                                        <div className="flex w-full items-center justify-between gap-2">
+                                                            <div className={`flex items-center gap-1 text-[7px] uppercase tracking-[0.22em] ${attackActionUi.kickerClass}`}>
+                                                                <Crosshair className="h-3 w-3" />
+                                                                Combat
+                                                            </div>
+                                                            <span className={`rounded-full border px-1.5 py-0.5 text-[7px] font-bold uppercase tracking-[0.18em] ${attackActionUi.badgeClass}`}>
+                                                                {attackActionUi.badgeLabel}
+                                                            </span>
                                                         </div>
                                                         <div className="text-left">
-                                                            <div className="text-[10px] font-black tracking-[0.2em]">ENGAGE</div>
-                                                            <div className="text-[8px] tracking-[0.12em] text-gray-500">Commit force</div>
+                                                            <div className="text-[10px] font-black tracking-[0.2em]">ENGAGE TARGET</div>
+                                                            <div className="text-[8px] tracking-[0.12em] text-gray-400">{attackActionUi.helper}</div>
                                                         </div>
                                                     </div>
                                                 </Button>
@@ -2586,21 +2757,22 @@ export default function GameInterface() {
                                                         setActionIntent("SECURE");
                                                         setMoveDirection(null);
                                                     }}
-                                                    disabled={!canSecure || !player.MapNode.isExplored || isActing}
-                                                    className={`h-11 border px-2 transition-all ${
-                                                        actionIntent === "SECURE"
-                                                            ? "bg-yellow-400/20 text-yellow-400 border-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.2)]"
-                                                            : "bg-black/50 text-gray-400 border-white/10 hover:border-yellow-400/50 hover:text-yellow-400"
-                                                    } ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}
+                                                    disabled={secureActionUi.disabled}
+                                                    className={`h-12 border px-2 transition-all ${secureActionUi.wrapperClass}`}
                                                 >
                                                     <div className="flex h-full w-full flex-col items-start justify-between">
-                                                        <div className="flex items-center gap-1 text-[7px] uppercase tracking-[0.22em] text-yellow-200/80">
-                                                            <Shield className="h-3 w-3" />
-                                                            Stabilize
+                                                        <div className="flex w-full items-center justify-between gap-2">
+                                                            <div className={`flex items-center gap-1 text-[7px] uppercase tracking-[0.22em] ${secureActionUi.kickerClass}`}>
+                                                                <Shield className="h-3 w-3" />
+                                                                Stabilize
+                                                            </div>
+                                                            <span className={`rounded-full border px-1.5 py-0.5 text-[7px] font-bold uppercase tracking-[0.18em] ${secureActionUi.badgeClass}`}>
+                                                                {secureActionUi.badgeLabel}
+                                                            </span>
                                                         </div>
                                                         <div className="text-left">
-                                                            <div className="text-[10px] font-black tracking-[0.2em]">SECURE</div>
-                                                            <div className="text-[8px] tracking-[0.12em] text-gray-500">Lock room</div>
+                                                            <div className="text-[10px] font-black tracking-[0.2em]">SECURE ROOM</div>
+                                                            <div className="text-[8px] tracking-[0.12em] text-gray-400">{secureActionUi.helper}</div>
                                                         </div>
                                                     </div>
                                                 </Button>
