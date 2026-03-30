@@ -55,19 +55,19 @@ export default async function CharacterViewPage() {
                 </Link>
             </div>
 
-            <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col">
+            <div className="mx-auto flex h-full min-h-0 w-full max-w-[1320px] flex-col">
                 <AutoFitViewport contentKey={`character-view-${character.id}`}>
-                    <div className="flex min-h-[700px] w-full flex-col">
+                    <div className="flex min-h-[640px] min-w-[1180px] w-full flex-col">
                         <header className="mb-4 flex shrink-0 justify-end border-b border-white/10 pb-3">
                             <div className="flex items-center gap-4">
                                 <CurrencyDisplay credits={character.credits} voidTokens={character.voidTokens} scrap={scrapCount} paste={pasteCount} />
                             </div>
                         </header>
 
-                        <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
+                        <div className="grid grid-cols-12 gap-5">
 
                             {/* Left Column: Profile Card */}
-                            <div className="space-y-3 lg:col-span-4">
+                            <div className="col-span-4 space-y-3">
                                 <CharacterProfile character={character} />
 
                                 {/* Stats Panel (Moved here for better layout) */}
@@ -125,7 +125,7 @@ export default async function CharacterViewPage() {
                             </div>
 
                             {/* Right Column: Inventory & Loadout */}
-                            <div className="space-y-3 lg:col-span-8">
+                            <div className="col-span-8 space-y-3">
                                 <div className="glass-panel relative flex min-h-[420px] flex-col rounded-xl border-t-2 border-neon-cyan p-4">
                                     <h2 className="mb-4 flex items-center text-sm font-bold uppercase tracking-wider text-neon-cyan">
                                         <Box className="mr-2 h-4 w-4" /> Cargo Manifest

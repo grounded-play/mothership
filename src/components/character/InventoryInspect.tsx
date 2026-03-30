@@ -158,7 +158,7 @@ export default function InventoryInspect({ inventory }: { inventory: any[] }) {
 
                 {filteredInventory.length > 0 ? (
                     <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar hud-scrollbar pr-1">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="grid grid-cols-2 gap-3">
                             {filteredInventory.map((entry) => {
                                 const suitBadge = getSuitBadge(entry.item.suit, true);
                                 return (
