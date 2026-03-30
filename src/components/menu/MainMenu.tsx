@@ -90,16 +90,6 @@ export default function MainMenu() {
                 transition={{ duration: 0.5 }}
                 className="glass-panel flex h-full min-h-0 w-full max-w-[960px] flex-col rounded-[28px] border border-neon-blue/30 px-5 py-6 shadow-[0_24px_60px_rgba(0,0,0,0.4)]"
             >
-                <div className="mb-6 shrink-0 text-center">
-                    <h2 className="mb-3 text-4xl font-bold tracking-[0.18em] text-white neon-text">
-                        MAIN MENU
-                    </h2>
-                    <div className="mx-auto h-1 w-28 rounded-full bg-neon-cyan shadow-[0_0_18px_#00f3ff]" />
-                    <p className="mx-auto mt-4 max-w-2xl text-sm text-gray-400">
-                        Route into missions, configure your rig, inspect personnel, and manage fabrication from a single bridge command surface.
-                    </p>
-                </div>
-
                 <div className="grid min-h-0 flex-1 auto-rows-fr grid-cols-2 gap-4">
                     {menuItems.map((item) => (
                         <motion.div

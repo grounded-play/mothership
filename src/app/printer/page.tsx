@@ -169,9 +169,9 @@ export default async function PrinterPage() {
                 </Link>
             </div>
 
-            <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col">
+            <div className="mx-auto flex h-full min-h-0 w-full max-w-[1320px] flex-col">
                 <AutoFitViewport contentKey={`printer-${globalQueue.length}-${recentMade.length}`}>
-                    <div className="flex h-[700px] min-w-[1280px] w-full flex-col">
+                    <div className="flex h-[680px] min-w-[1180px] w-full flex-col">
                         <PrinterInterface
                             credits={(character as any).credits}
                             inventory={(character as any).inventory}

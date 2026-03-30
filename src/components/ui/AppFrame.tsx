@@ -77,6 +77,7 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
     const routeMeta = getRouteMeta(pathname);
     const fitContent = isFittedRoute(pathname);
     const showBridgeTime = shouldShowBridgeTime(pathname);
+    const useSidebarComms = pathname === "/menu";
     const [isCompactViewport, setIsCompactViewport] = useState(false);
     const [bridgeTimeLabel, setBridgeTimeLabel] = useState("");
     const [compactPanelState, setCompactPanelState] = useState<{ panel: CompactPanel | null; pathname: string | null }>({
@@ -202,48 +203,50 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
                                             </div>
                                         )}
 
-                                        <div ref={compactLauncherRef} className="relative flex items-center justify-center gap-2 rounded-full border border-white/10 bg-black/88 px-2 py-1.5 shadow-[0_12px_32px_rgba(0,0,0,0.48)] backdrop-blur-xl">
-                                            <button
-                                                type="button"
-                                                onClick={() => toggleCompactPanel("player")}
-                                                className={`flex h-9 w-9 items-center justify-center rounded-full border transition-colors ${
-                                                    compactPanel === "player"
-                                                        ? "border-neon-cyan bg-cyan-500/15 text-neon-cyan"
-                                                        : "border-white/10 bg-black/70 text-white"
-                                                }`}
-                                                aria-label="Toggle audio panel"
-                                            >
-                                                <Volume2 className={`${isCompactViewport ? "h-3.5 w-3.5" : "h-4 w-4"}`} />
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => toggleCompactPanel("guide")}
-                                                className={`flex items-center gap-2 rounded-full border px-3 py-2 font-bold uppercase tracking-[0.22em] transition-colors ${
-                                                    compactPanel === "guide"
-                                                        ? "border-neon-cyan bg-cyan-500/15 text-neon-cyan"
-                                                        : "border-white/10 bg-black/70 text-white"
-                                                } ${isCompactViewport ? "text-[10px]" : "text-[11px]"}`}
-                                            >
-                                                <Radio className="h-3.5 w-3.5" />
-                                                Amy
-                                            </button>
+                                        {!useSidebarComms && (
+                                            <div ref={compactLauncherRef} className="relative flex items-center justify-center gap-2 rounded-full border border-white/10 bg-black/88 px-2 py-1.5 shadow-[0_12px_32px_rgba(0,0,0,0.48)] backdrop-blur-xl">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => toggleCompactPanel("player")}
+                                                    className={`flex h-9 w-9 items-center justify-center rounded-full border transition-colors ${
+                                                        compactPanel === "player"
+                                                            ? "border-neon-cyan bg-cyan-500/15 text-neon-cyan"
+                                                            : "border-white/10 bg-black/70 text-white"
+                                                    }`}
+                                                    aria-label="Toggle audio panel"
+                                                >
+                                                    <Volume2 className={`${isCompactViewport ? "h-3.5 w-3.5" : "h-4 w-4"}`} />
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => toggleCompactPanel("guide")}
+                                                    className={`flex items-center gap-2 rounded-full border px-3 py-2 font-bold uppercase tracking-[0.22em] transition-colors ${
+                                                        compactPanel === "guide"
+                                                            ? "border-neon-cyan bg-cyan-500/15 text-neon-cyan"
+                                                            : "border-white/10 bg-black/70 text-white"
+                                                    } ${isCompactViewport ? "text-[10px]" : "text-[11px]"}`}
+                                                >
+                                                    <Radio className="h-3.5 w-3.5" />
+                                                    Amy
+                                                </button>
 
-                                            {compactPanel && (
-                                                <div className="absolute right-0 top-[calc(100%+0.75rem)] z-[90]">
-                                                    <div ref={compactPanelRef} className="relative flex justify-center">
-                                                        <button
-                                                            type="button"
-                                                            onClick={closeCompactPanel}
-                                                            className="absolute -top-3 right-0 z-10 flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-black/85 text-gray-300 shadow-[0_6px_18px_rgba(0,0,0,0.45)] transition-colors hover:border-white/25 hover:text-white"
-                                                            aria-label="Close dock panel"
-                                                        >
-                                                            <X className="h-3.5 w-3.5" />
-                                                        </button>
-                                                        {compactPanel === "player" ? <MiniPlayer /> : <AmyGuidePanel />}
+                                                {compactPanel && (
+                                                    <div className="absolute right-0 top-[calc(100%+0.75rem)] z-[90]">
+                                                        <div ref={compactPanelRef} className="relative flex justify-center">
+                                                            <button
+                                                                type="button"
+                                                                onClick={closeCompactPanel}
+                                                                className="absolute -top-3 right-0 z-10 flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-black/85 text-gray-300 shadow-[0_6px_18px_rgba(0,0,0,0.45)] transition-colors hover:border-white/25 hover:text-white"
+                                                                aria-label="Close dock panel"
+                                                            >
+                                                                <X className="h-3.5 w-3.5" />
+                                                            </button>
+                                                            {compactPanel === "player" ? <MiniPlayer /> : <AmyGuidePanel />}
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            )}
-                                        </div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             )}

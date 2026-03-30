@@ -315,22 +315,24 @@ export default function PrinterInterface({ credits, inventory, globalQueue, back
     const queuedItemsList = useMemo(() => globalQueue.filter((_, idx) => idx !== activeQueueIndex), [globalQueue, activeQueueIndex]);
 
     return (
-        <div className="flex h-full min-h-0 w-full flex-col py-2">
-            <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)_360px] gap-8">
-                <div className="grid min-h-0 grid-rows-[minmax(0,1fr)_auto] gap-8">
+        <div className="flex h-full min-h-0 w-full flex-col py-1">
+            <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)_320px] gap-6">
+                <div className="grid min-h-0 grid-rows-[minmax(0,1fr)_auto] gap-6">
                     {/* MAIN PRINTER (GAMBA) */}
-                    <div className="glass-panel relative flex min-h-0 flex-col overflow-hidden rounded-3xl border-2 border-neon-cyan/50 p-8 text-center shadow-[0_0_50px_rgba(0,243,255,0.2)]">
+                    <div className="glass-panel relative flex min-h-0 flex-col overflow-hidden rounded-3xl border-2 border-neon-cyan/50 p-6 text-center shadow-[0_0_50px_rgba(0,243,255,0.2)]">
                         <div className="absolute inset-0 bg-neon-cyan/5 animate-pulse z-0" />
 
                         <div className="relative z-10 flex h-full min-h-0 flex-col justify-between">
-                            <div className="mb-8">
-                                <h1 className="text-4xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-neon-cyan to-white">
-                                    MATTER FABRICATOR
-                                </h1>
-                                <p className="text-neon-cyan/80 text-xs tracking-[0.3em] font-bold">CREATE SOMETHING FROM NOTHING</p>
+                            <div className="mb-5 text-left">
+                                <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-neon-cyan/80">
+                                    Fabrication Bay
+                                </div>
+                                <p className="mt-1 text-xs text-gray-500">
+                                    Convert credits into gear, queue portraits, and keep the line clear.
+                                </p>
                             </div>
 
-                            <div className="h-48 bg-black/40 rounded-xl mb-8 border border-white/10 relative overflow-hidden">
+                            <div className="mb-6 h-44 rounded-xl border border-white/10 bg-black/40 relative overflow-hidden">
                                 {/* Center Line Marker (Only visible when spinning to avoid obscuring reward) */}
                                 {spinning && (
                                     (() => {
@@ -414,7 +416,7 @@ export default function PrinterInterface({ credits, inventory, globalQueue, back
                                     onClick={handleSpin}
                                     disabled={spinning || creditsDisplay < spinCost || !printerOnline}
                                     variant="primary"
-                                    className="h-16 px-12 text-xl font-bold rounded-full transition-all shadow-[0_0_20px_rgba(0,243,255,0.3)] disabled:opacity-50"
+                                    className="h-14 rounded-full px-10 text-lg font-bold transition-all shadow-[0_0_20px_rgba(0,243,255,0.3)] disabled:opacity-50"
                                 >
                                     {spinning ? "FABRICATING..." : (
                                         <span className="flex items-center gap-2">
@@ -431,7 +433,7 @@ export default function PrinterInterface({ credits, inventory, globalQueue, back
                     </div>
 
                     {/* REPAIR + UPGRADE */}
-                    <div className="glass-panel border border-white/10 p-8">
+                    <div className="glass-panel border border-white/10 p-6">
                         <div className="flex flex-col gap-6">
                             <div className="flex items-center justify-between gap-4">
                                 <div>
@@ -484,9 +486,9 @@ export default function PrinterInterface({ credits, inventory, globalQueue, back
                     </div>
                 </div>
 
-                <div className="grid min-h-0 grid-rows-[minmax(0,1fr)_auto] gap-8">
+                <div className="grid min-h-0 grid-rows-[minmax(0,1fr)_auto] gap-6">
                     {/* UNIFIED GLOBAL QUEUE DISPLAY */}
-                    <div className="glass-panel flex min-h-0 flex-col gap-4 border border-white/10 p-6">
+                    <div className="glass-panel flex min-h-0 flex-col gap-4 border border-white/10 p-5">
                         <h2 className="text-lg font-bold text-white flex items-center">
                             <Loader2 className="mr-2 text-neon-cyan" /> GLOBAL PRINT QUEUE
                         </h2>
@@ -608,7 +610,7 @@ export default function PrinterInterface({ credits, inventory, globalQueue, back
                     </div>
 
                     {/* RECENT FABRICATIONS CAROUSEL */}
-                    <div className="glass-panel p-6 border border-white/10 relative">
+                    <div className="glass-panel relative border border-white/10 p-5">
                         <div className="flex items-center justify-between mb-4">
                             <h2 className="text-lg font-bold text-white flex items-center">
                                 <ImageIcon className="mr-2 text-neon-cyan" /> RECENT FABRICATIONS
