@@ -13,21 +13,22 @@ interface MissionLogProps {
     objectives: Objective[];
     compact?: boolean;
     className?: string;
+    footer?: React.ReactNode;
 }
 
-export default function MissionLog({ objectives, compact = false, className = "" }: MissionLogProps) {
+export default function MissionLog({ objectives, compact = false, className = "", footer }: MissionLogProps) {
     const completedCount = objectives.filter((obj) => obj.isComplete).length;
 
     if (compact) {
         return (
-            <div className={`rounded-xl border border-white/10 bg-black/60 px-3 py-2 ${className}`}>
+            <div className={`flex h-full min-h-0 flex-col rounded-xl border border-white/10 bg-black/60 px-3 py-2 ${className}`}>
                 <div className="mb-2 flex items-center justify-between gap-3">
                     <h3 className="text-[9px] font-bold uppercase tracking-[0.28em] text-neon-cyan">Mission Objectives</h3>
                     <div className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[8px] font-mono uppercase tracking-[0.22em] text-gray-400">
                         {completedCount}/{objectives.length || 0} done
                     </div>
                 </div>
-                <div className="space-y-2">
+                <div className="min-h-0 flex-1 space-y-2 overflow-y-auto custom-scrollbar hud-scrollbar pr-0.5">
                     {objectives.map((obj) => (
                         <div
                             key={obj.id}
@@ -58,6 +59,11 @@ export default function MissionLog({ objectives, compact = false, className = ""
                         </div>
                     )}
                 </div>
+                {footer && (
+                    <div className="mt-2 border-t border-white/8 pt-2">
+                        {footer}
+                    </div>
+                )}
             </div>
         );
     }

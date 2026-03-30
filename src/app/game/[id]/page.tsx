@@ -1550,40 +1550,65 @@ export default function GameInterface() {
         transitStatus?.remainingSteps
     ]);
     const gameChromeRightItems = useMemo(() => {
+        const exitTone = isAirlock
+            ? "border-green-500/40 bg-green-500/10 text-green-300 hover:bg-green-500/18"
+            : "border-red-900/50 bg-black/75 text-red-300 hover:bg-red-900/35 hover:text-red-200";
+        const exitButton = (
+            <button
+                type="button"
+                onClick={() => setExitIntent(emergencyExitIntent)}
+                disabled={isActing}
+                className={`rounded-full border px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.2em] transition-colors ${
+                    isActing ? "cursor-not-allowed opacity-45" : exitTone
+                }`}
+            >
+                {emergencyExitLabel}
+            </button>
+        );
+
         if (scanFeedback) {
             return (
-                <div className={`rounded-full border px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.2em] ${
-                    scanFeedback.success
-                        ? "border-green-400/40 bg-black/80 text-green-300"
-                        : "border-red-500/40 bg-black/85 text-red-300"
-                }`}>
-                    {scanFeedback.success ? "Mission Feed Live" : "Scan Fail"} · PWR {scanFeedback.nodePower}
+                <div className="flex items-center gap-2">
+                    {exitButton}
+                    <div className={`rounded-full border px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.2em] ${
+                        scanFeedback.success
+                            ? "border-green-400/40 bg-black/80 text-green-300"
+                            : "border-red-500/40 bg-black/85 text-red-300"
+                    }`}>
+                        {scanFeedback.success ? "Mission Feed Live" : "Scan Fail"} · PWR {scanFeedback.nodePower}
+                    </div>
                 </div>
             );
         }
 
         if (actionFeedback) {
             return (
-                <div className={`rounded-full border px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.2em] ${
-                    actionFeedback.status === "success"
-                        ? "border-neon-cyan/50 bg-black/80 text-neon-cyan"
-                        : "border-red-500/45 bg-black/85 text-red-300"
-                }`}>
-                    {actionFeedback.label}
+                <div className="flex items-center gap-2">
+                    {exitButton}
+                    <div className={`rounded-full border px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.2em] ${
+                        actionFeedback.status === "success"
+                            ? "border-neon-cyan/50 bg-black/80 text-neon-cyan"
+                            : "border-red-500/45 bg-black/85 text-red-300"
+                    }`}>
+                        {actionFeedback.label}
+                    </div>
                 </div>
             );
         }
 
         return (
-            <div className={`rounded-full border px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.2em] ${
-                isRoomScanned
-                    ? "border-neon-cyan/30 bg-black/78 text-neon-cyan"
-                    : "border-white/10 bg-black/65 text-gray-400"
-            }`}>
-                {isRoomScanned ? "Mission Feed Live" : "Awaiting Room Scan"}
+            <div className="flex items-center gap-2">
+                {exitButton}
+                <div className={`rounded-full border px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.2em] ${
+                    isRoomScanned
+                        ? "border-neon-cyan/30 bg-black/78 text-neon-cyan"
+                        : "border-white/10 bg-black/65 text-gray-400"
+                }`}>
+                    {isRoomScanned ? "Mission Feed Live" : "Awaiting Room Scan"}
+                </div>
             </div>
         );
-    }, [actionFeedback, isRoomScanned, scanFeedback]);
+    }, [actionFeedback, emergencyExitIntent, emergencyExitLabel, isActing, isAirlock, isRoomScanned, scanFeedback, setExitIntent]);
     const gameChromeOverride = useMemo(() => ({
         title: roomChromeMeta.title,
         icon: (
@@ -2249,7 +2274,7 @@ export default function GameInterface() {
                                 </div>
 
                                 {/* Console Grid */}
-                                <div className="grid flex-1 min-h-0 grid-cols-[0.95fr_220px_0.95fr] items-stretch gap-2">
+                                <div className="grid flex-1 min-h-0 grid-cols-[1.08fr_208px_0.82fr] items-stretch gap-2">
 
                                     {/* Left Panel: Room Scan + Primary Actions */}
                                     <div className="order-1 flex h-full w-full flex-col gap-1 rounded-xl border border-white/5 bg-black/40 p-1.5">
@@ -2261,7 +2286,7 @@ export default function GameInterface() {
                                                 </div>
                                             </div>
                                             <div className="flex flex-1 min-h-0 items-center justify-center rounded-2xl border border-white/10 bg-black/50 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-                                                <div className="aspect-square h-full max-h-[220px] w-full max-w-[220px]">
+                                                <div className="aspect-square h-full max-h-[252px] w-full max-w-[252px]">
                                                     <RoomScanner
                                                         key={`console-${visualPlayerNode?.id || "node"}-${facing}`}
                                                         type={visualPlayerNode?.type || player?.MapNode?.type || "UNKNOWN"}
@@ -2285,7 +2310,7 @@ export default function GameInterface() {
 
 
                                     {/* Center Panel: Navigation & Compass */}
-                                    <div className="relative order-2 flex h-full w-full flex-col items-center gap-2">
+                                    <div className="relative order-2 flex h-full w-full flex-col items-center justify-start gap-1.5 pt-0.5">
                                         {player && (
                                             <div className="w-full max-w-[232px] rounded-2xl border border-white/10 bg-black/55 px-2 py-1 shadow-[0_10px_24px_rgba(0,0,0,0.32)] backdrop-blur-sm">
                                                 <div className="flex items-center gap-2">
@@ -2398,7 +2423,7 @@ export default function GameInterface() {
                                         </div>
 
                                         {/* Navigation & Action Lock */}
-                                        <div className="z-10 mt-auto flex w-full max-w-[232px] items-end justify-center gap-1.5 rounded-3xl border border-slate-600 bg-slate-800 p-1.5 pb-1 pt-4 shadow-xl">
+                                        <div className="z-10 mt-1 flex w-full max-w-[232px] items-end justify-center gap-1.5 rounded-3xl border border-slate-600 bg-slate-800 p-1.5 pb-1 pt-4 shadow-xl">
                                             <div className="flex w-full max-w-[144px] flex-col items-center gap-1 rounded-2xl border border-slate-500 bg-black/85 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
 
                                                 {/* Deck Controls (Up/Down) */}
@@ -2594,51 +2619,41 @@ export default function GameInterface() {
                                             </div>
                                         </div>
 
-                                        <MissionLog objectives={missionObjectives} compact className="min-h-0 flex-1 overflow-y-auto custom-scrollbar hud-scrollbar" />
+                                        <MissionLog
+                                            objectives={missionObjectives}
+                                            compact
+                                            className="min-h-0 flex-1"
+                                            footer={
+                                                <div className="space-y-1.5">
+                                                    <Button
+                                                        onClick={() => setShowInventory(!showInventory)}
+                                                        className={`flex h-9 w-full items-center justify-between rounded border px-3 text-[9px] font-bold tracking-widest ${showInventory ? "bg-white text-black border-white" : "bg-black/50 text-gray-300 border-white/10 hover:bg-white/10"}`}
+                                                    >
+                                                        <span>SUPPLIES</span>
+                                                        <span>{allItems.length}</span>
+                                                    </Button>
 
-                                        <div className="border-b border-white/5 pb-1 text-center text-[9px] uppercase tracking-widest text-gray-500">AUX SYSTEMS</div>
-
-                                        <Button
-                                            onClick={() => setShowInventory(!showInventory)}
-                                            className={`flex h-9 w-full items-center justify-between rounded border px-3 text-[9px] font-bold tracking-widest ${showInventory ? "bg-white text-black border-white" : "bg-black/50 text-gray-300 border-white/10 hover:bg-white/10"}`}
-                                        >
-                                            <span>SUPPLIES</span>
-                                            <span>{allItems.length}</span>
-                                        </Button>
-
-                                        <Button
-                                            onClick={() => {
-                                                setShowInventory(false);
-                                                setShowSettings((current) => !current);
-                                            }}
-                                            className={`flex h-9 w-full items-center justify-between rounded border px-3 text-[9px] font-bold tracking-widest ${showSettings ? "bg-neon-cyan text-black border-neon-cyan" : "bg-black/50 text-gray-300 border-white/10 hover:bg-white/10"}`}
-                                        >
-                                            <span>SETTINGS</span>
-                                            <Settings2 className="h-3.5 w-3.5" />
-                                        </Button>
-
-                                        <div className="mt-auto pt-1">
-                                            <Button
-                                                onClick={() => setExitIntent(emergencyExitIntent)}
-                                                disabled={isActing}
-                                                variant="ghost"
-                                                className={`h-9 w-full rounded border text-[9px] font-bold tracking-[0.22em] transition-all ${
-                                                    isAirlock
-                                                        ? "bg-green-500/10 text-green-300 border-green-500/40 hover:bg-green-500/20"
-                                                        : "bg-black/50 text-red-300 border-red-900/50 hover:bg-red-900/40 hover:text-red-200"
-                                                }`}
-                                            >
-                                                {emergencyExitLabel}
-                                            </Button>
-                                        </div>
+                                                    <Button
+                                                        onClick={() => {
+                                                            setShowInventory(false);
+                                                            setShowSettings((current) => !current);
+                                                        }}
+                                                        className={`flex h-9 w-full items-center justify-between rounded border px-3 text-[9px] font-bold tracking-widest ${showSettings ? "bg-neon-cyan text-black border-neon-cyan" : "bg-black/50 text-gray-300 border-white/10 hover:bg-white/10"}`}
+                                                    >
+                                                        <span>SETTINGS</span>
+                                                        <Settings2 className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                </div>
+                                            }
+                                        />
                                     </div>
 
                                 </div>
                             </div>
                         </div>
 
-                        <div className="relative z-40 -mt-14 h-[94px] w-full flex-none px-1 pb-1">
-                            <div ref={handViewportRef} className="h-[80px] w-full overflow-visible px-1 pb-1 pt-0.5">
+                        <div className="relative z-40 mt-1 h-[100px] w-full flex-none px-1 pb-1">
+                            <div ref={handViewportRef} className="h-[86px] w-full overflow-visible px-1 pb-1 pt-1">
                                 <div
                                     className="flex w-full items-end justify-center perspective-[1000px]"
                                     style={handLayout.gap > 0 ? { gap: `${handLayout.gap}px` } : undefined}
