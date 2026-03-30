@@ -49,16 +49,17 @@ const CARD_SIZE_PRESETS = {
     md: { width: 88, height: 120 },
     lg: { width: 96, height: 136 }
 } as const;
+const HAND_CARD_PRESET = { width: 78, height: 110 } as const;
 
 const HAND_FILTER_ORDER: HandFilter[] = ["ALL", "COMMAND", "VOID", "BIOTECH", "PLASMA", "ANOMALY"];
-const MIN_HAND_CARD_WIDTH = 76;
-const MIN_HAND_CARD_HEIGHT = 78;
-const HAND_VIEWPORT_SAFE_VERTICAL_PADDING = 76;
+const MIN_HAND_CARD_WIDTH = 54;
+const MIN_HAND_CARD_HEIGHT = 68;
+const HAND_VIEWPORT_SAFE_VERTICAL_PADDING = 64;
 const HAND_VIEWPORT_FALLBACK_HEIGHT = 220;
 const HALLWAY_STEP_INTERVAL_MS = 1080;
 const ROOM_STEP_INTERVAL_MS = 720;
 
-const getScaledCardHeight = (width: number, preset = CARD_SIZE_PRESETS.lg) => {
+const getScaledCardHeight = (width: number, preset: { width: number; height: number } = CARD_SIZE_PRESETS.lg) => {
     return Math.max(MIN_HAND_CARD_HEIGHT, Math.round((width / preset.width) * preset.height));
 };
 
@@ -558,7 +559,7 @@ export default function GameInterface() {
         [selectedCardIndices, visibleHandEntries]
     );
     const handLayout = useMemo(() => {
-        const preset = CARD_SIZE_PRESETS.lg;
+        const preset = HAND_CARD_PRESET;
         const count = visibleHandEntries.length;
         const effectiveHandViewportHeight = handViewportHeight || HAND_VIEWPORT_FALLBACK_HEIGHT;
         const maxCardHeight = Math.max(MIN_HAND_CARD_HEIGHT, effectiveHandViewportHeight - HAND_VIEWPORT_SAFE_VERTICAL_PADDING);
@@ -575,7 +576,7 @@ export default function GameInterface() {
             };
         }
 
-        const availableWidth = Math.max(handViewportWidth - 12, preset.width);
+        const availableWidth = Math.max(handViewportWidth - 6, preset.width);
         let cardWidth: number = preset.width;
         let gap: number = 10;
         const fitWidth = (targetWidth: number) => {
@@ -589,7 +590,7 @@ export default function GameInterface() {
             }
 
             const fittedGap = Math.floor((availableWidth - count * cardWidth) / Math.max(count - 1, 1));
-            const maxOverlap = Math.round(cardWidth * 0.78);
+            const maxOverlap = Math.round(cardWidth * 0.9);
             gap = fittedGap >= 4
                 ? Math.min(10, fittedGap)
                 : Math.max(-maxOverlap, fittedGap);
@@ -2252,120 +2253,34 @@ export default function GameInterface() {
 
                                     {/* Left Panel: Room Scan + Primary Actions */}
                                     <div className="order-1 flex h-full w-full flex-col gap-1 rounded-xl border border-white/5 bg-black/40 p-1.5">
-
-                                        <div className="flex flex-1 min-h-0 flex-col gap-1.5">
-                                            <div className="flex flex-1 min-h-0 flex-col rounded-xl border border-white/10 bg-black/35 p-1.5">
-                                                <div className="mb-1 flex items-center justify-between border-b border-white/5 pb-1">
-                                                    <div className="text-[10px] uppercase tracking-widest text-gray-500">Room Scan</div>
-                                                    <div className="text-[8px] uppercase tracking-[0.24em] text-gray-600">
-                                                        {roomInfo?.scanned ? "Scanner ready" : "Awaiting recon"}
-                                                    </div>
-                                                </div>
-                                                <div className="flex flex-1 min-h-0 items-center justify-center rounded-2xl border border-white/10 bg-black/50 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-                                                    <div className="aspect-square h-full max-h-[220px] w-full max-w-[220px]">
-                                                        <RoomScanner
-                                                            key={`console-${visualPlayerNode?.id || "node"}-${facing}`}
-                                                            type={visualPlayerNode?.type || player?.MapNode?.type || "UNKNOWN"}
-                                                            isExplored={Boolean(visualPlayerNode?.isExplored)}
-                                                            integrity={game.integrity}
-                                                            suit={isRoomScanned ? roomInfo?.suit : undefined}
-                                                            suitColor={isRoomScanned ? roomSuitMeta?.color : undefined}
-                                                            connections={scannedConnections}
-                                                            windows={windows}
-                                                            scanned={isRoomScanned}
-                                                            facing={facing}
-                                                            relativeNorth={["FORWARD", "RIGHT", "BACK", "LEFT"][(4 - ["NORTH", "EAST", "SOUTH", "WEST"].indexOf(facing || "NORTH")) % 4]}
-                                                            hallwayIntel={[]}
-                                                            movementDirection={showHallwayCountdown ? transitDirectionLabel : null}
-                                                            movementActive={showHallwayCountdown}
-                                                        />
-                                                    </div>
+                                        <div className="flex flex-1 min-h-0 flex-col rounded-xl border border-white/10 bg-black/35 p-1.5">
+                                            <div className="mb-1 flex items-center justify-between border-b border-white/5 pb-1">
+                                                <div className="text-[10px] uppercase tracking-widest text-gray-500">Room Scan</div>
+                                                <div className="text-[8px] uppercase tracking-[0.24em] text-gray-600">
+                                                    {roomInfo?.scanned ? "Scanner ready" : "Awaiting recon"}
                                                 </div>
                                             </div>
-
-                                            <div className="mt-auto flex flex-col gap-1.5">
-                                                <div className="flex items-center justify-between border-b border-white/5 pb-0.5">
-                                                <div className="text-[10px] uppercase tracking-widest text-gray-500">Tactical Actions</div>
-                                                <div className="text-[9px] uppercase tracking-[0.24em] text-gray-600">
-                                                    Recon / Combat / Stabilize
+                                            <div className="flex flex-1 min-h-0 items-center justify-center rounded-2xl border border-white/10 bg-black/50 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                                                <div className="aspect-square h-full max-h-[220px] w-full max-w-[220px]">
+                                                    <RoomScanner
+                                                        key={`console-${visualPlayerNode?.id || "node"}-${facing}`}
+                                                        type={visualPlayerNode?.type || player?.MapNode?.type || "UNKNOWN"}
+                                                        isExplored={Boolean(visualPlayerNode?.isExplored)}
+                                                        integrity={game.integrity}
+                                                        suit={isRoomScanned ? roomInfo?.suit : undefined}
+                                                        suitColor={isRoomScanned ? roomSuitMeta?.color : undefined}
+                                                        connections={scannedConnections}
+                                                        windows={windows}
+                                                        scanned={isRoomScanned}
+                                                        facing={facing}
+                                                        relativeNorth={["FORWARD", "RIGHT", "BACK", "LEFT"][(4 - ["NORTH", "EAST", "SOUTH", "WEST"].indexOf(facing || "NORTH")) % 4]}
+                                                        hallwayIntel={[]}
+                                                        movementDirection={showHallwayCountdown ? transitDirectionLabel : null}
+                                                        movementActive={showHallwayCountdown}
+                                                    />
                                                 </div>
-                                            </div>
-                                            <div className="grid grid-cols-3 gap-1.5">
-                                                <Button
-                                                    onClick={() => {
-                                                        if (isActing) return;
-                                                        setActionIntent("SCAN");
-                                                        setMoveDirection(null);
-                                                    }}
-                                                    disabled={!canScan || isActing}
-                                                    className={`h-10 border px-2 transition-all ${
-                                                        actionIntent === "SCAN"
-                                                            ? "bg-green-500/20 text-green-400 border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.2)]"
-                                                            : "bg-black/50 text-gray-400 border-white/10 hover:border-green-500/50 hover:text-green-500"
-                                                    } ${!player.MapNode.isExplored ? "animate-pulse border-green-500 text-green-500" : ""}`}
-                                                >
-                                                    <div className="flex h-full w-full flex-col items-start justify-between">
-                                                        <div className="flex items-center gap-1 text-[8px] uppercase tracking-[0.24em] text-green-300/80">
-                                                            <Zap className="h-3.5 w-3.5" />
-                                                            Recon
-                                                        </div>
-                                                        <div className="text-left">
-                                                            <div className="text-[11px] font-black tracking-[0.22em]">SCAN</div>
-                                                            <div className="text-[9px] tracking-[0.16em] text-gray-500">Reveal room and hall intel</div>
-                                                        </div>
-                                                    </div>
-                                                </Button>
-                                                <Button
-                                                    onClick={() => {
-                                                        if (isActing) return;
-                                                        setActionIntent("ATTACK");
-                                                        setMoveDirection(null);
-                                                    }}
-                                                    disabled={!canAttack || !player.MapNode.isExplored || isActing}
-                                                    className={`h-10 border px-2 transition-all ${
-                                                        actionIntent === "ATTACK"
-                                                            ? "bg-red-500/20 text-red-400 border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.2)]"
-                                                            : "bg-black/50 text-gray-400 border-white/10 hover:border-red-500/50 hover:text-red-500"
-                                                    } ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}
-                                                >
-                                                    <div className="flex h-full w-full flex-col items-start justify-between">
-                                                        <div className="flex items-center gap-1 text-[8px] uppercase tracking-[0.24em] text-red-300/80">
-                                                            <Crosshair className="h-3.5 w-3.5" />
-                                                            Combat
-                                                        </div>
-                                                        <div className="text-left">
-                                                            <div className="text-[11px] font-black tracking-[0.22em]">ENGAGE</div>
-                                                            <div className="text-[9px] tracking-[0.16em] text-gray-500">Commit force against hostiles</div>
-                                                        </div>
-                                                    </div>
-                                                </Button>
-                                                <Button
-                                                    onClick={() => {
-                                                        if (isActing) return;
-                                                        setActionIntent("SECURE");
-                                                        setMoveDirection(null);
-                                                    }}
-                                                    disabled={!canSecure || !player.MapNode.isExplored || isActing}
-                                                    className={`h-10 border px-2 transition-all ${
-                                                        actionIntent === "SECURE"
-                                                            ? "bg-yellow-400/20 text-yellow-400 border-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.2)]"
-                                                            : "bg-black/50 text-gray-400 border-white/10 hover:border-yellow-400/50 hover:text-yellow-400"
-                                                    } ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}
-                                                >
-                                                    <div className="flex h-full w-full flex-col items-start justify-between">
-                                                        <div className="flex items-center gap-1 text-[8px] uppercase tracking-[0.24em] text-yellow-200/80">
-                                                            <Shield className="h-3.5 w-3.5" />
-                                                            Stabilize
-                                                        </div>
-                                                        <div className="text-left">
-                                                            <div className="text-[11px] font-black tracking-[0.22em]">SECURE</div>
-                                                            <div className="text-[9px] tracking-[0.16em] text-gray-500">Lock the room against collapse</div>
-                                                        </div>
-                                                    </div>
-                                                </Button>
                                             </div>
                                         </div>
-                                    </div>
                                     </div>
 
 
@@ -2437,7 +2352,7 @@ export default function GameInterface() {
                                         </div>
 
                                         {/* THE COMPASS (Central Bubble) */}
-                                        <div className="relative z-20 mt-1 flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border-[5px] border-slate-600 bg-black/80 shadow-[inset_0_0_20px_rgba(0,0,0,1)]">
+                                        <div className="relative z-20 mt-1 flex h-[70px] w-[70px] items-center justify-center overflow-hidden rounded-full border-[5px] border-slate-600 bg-black/80 shadow-[inset_0_0_20px_rgba(0,0,0,1)]">
                                             {/* Compass Dial */}
                                             <div
                                                 className="absolute inset-0 transition-transform duration-700 ease-out"
@@ -2447,8 +2362,8 @@ export default function GameInterface() {
                                                 <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-2 bg-white/10" />
                                                 <div className="absolute left-1 top-1/2 -translate-y-1/2 w-2 h-1 bg-white/10" />
                                                 <div className="absolute right-1 top-1/2 -translate-y-1/2 w-2 h-1 bg-white/10" />
-                                                <div className="absolute top-3.5 left-1/2 -translate-x-1/2 text-[10px] font-bold text-neon-cyan">N</div>
                                             </div>
+                                            <div className="absolute top-2 left-1/2 z-20 -translate-x-1/2 text-[10px] font-black uppercase tracking-[0.18em] text-neon-cyan">N</div>
 
                                             {/* Action Timer Overlay */}
                                             {hasActionTimer && inActionPhase && (
@@ -2477,12 +2392,12 @@ export default function GameInterface() {
                                             )}
 
                                             {/* Static Center Marker */}
-                                            <div className="h-2.5 w-2.5 rounded-full bg-red-500 shadow-[0_0_10px_#f00] z-30" />
+                                            <div className="z-30 h-1.5 w-1.5 rounded-full bg-red-500 shadow-[0_0_6px_#f00]" />
                                             {/* Glass Glare */}
                                             <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-white/10 to-transparent rounded-t-full pointer-events-none" />
                                         </div>
 
-                                        {/* Navigation & Action Lock (Pushed down slightly) */}
+                                        {/* Navigation & Action Lock */}
                                         <div className="z-10 mt-auto flex w-full max-w-[232px] items-end justify-center gap-1.5 rounded-3xl border border-slate-600 bg-slate-800 p-1.5 pb-1 pt-4 shadow-xl">
                                             <div className="flex w-full max-w-[144px] flex-col items-center gap-1 rounded-2xl border border-slate-500 bg-black/85 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
 
@@ -2583,6 +2498,89 @@ export default function GameInterface() {
                                                 </Button>
                                             </div>
                                         </div>
+
+                                        <div className="w-full max-w-[232px]">
+                                            <div className="mb-1 flex items-center justify-between border-b border-white/5 pb-0.5">
+                                                <div className="text-[9px] uppercase tracking-[0.24em] text-gray-500">Tactical Actions</div>
+                                                <div className="text-[8px] uppercase tracking-[0.22em] text-gray-600">
+                                                    Recon / Combat / Stabilize
+                                                </div>
+                                            </div>
+                                            <div className="grid grid-cols-3 gap-1">
+                                                <Button
+                                                    onClick={() => {
+                                                        if (isActing) return;
+                                                        setActionIntent("SCAN");
+                                                        setMoveDirection(null);
+                                                    }}
+                                                    disabled={!canScan || isActing}
+                                                    className={`h-11 border px-2 transition-all ${
+                                                        actionIntent === "SCAN"
+                                                            ? "bg-green-500/20 text-green-400 border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.2)]"
+                                                            : "bg-black/50 text-gray-400 border-white/10 hover:border-green-500/50 hover:text-green-500"
+                                                    } ${!player.MapNode.isExplored ? "animate-pulse border-green-500 text-green-500" : ""}`}
+                                                >
+                                                    <div className="flex h-full w-full flex-col items-start justify-between">
+                                                        <div className="flex items-center gap-1 text-[7px] uppercase tracking-[0.22em] text-green-300/80">
+                                                            <Zap className="h-3 w-3" />
+                                                            Recon
+                                                        </div>
+                                                        <div className="text-left">
+                                                            <div className="text-[10px] font-black tracking-[0.2em]">SCAN</div>
+                                                            <div className="text-[8px] tracking-[0.12em] text-gray-500">Reveal intel</div>
+                                                        </div>
+                                                    </div>
+                                                </Button>
+                                                <Button
+                                                    onClick={() => {
+                                                        if (isActing) return;
+                                                        setActionIntent("ATTACK");
+                                                        setMoveDirection(null);
+                                                    }}
+                                                    disabled={!canAttack || !player.MapNode.isExplored || isActing}
+                                                    className={`h-11 border px-2 transition-all ${
+                                                        actionIntent === "ATTACK"
+                                                            ? "bg-red-500/20 text-red-400 border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.2)]"
+                                                            : "bg-black/50 text-gray-400 border-white/10 hover:border-red-500/50 hover:text-red-500"
+                                                    } ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}
+                                                >
+                                                    <div className="flex h-full w-full flex-col items-start justify-between">
+                                                        <div className="flex items-center gap-1 text-[7px] uppercase tracking-[0.22em] text-red-300/80">
+                                                            <Crosshair className="h-3 w-3" />
+                                                            Combat
+                                                        </div>
+                                                        <div className="text-left">
+                                                            <div className="text-[10px] font-black tracking-[0.2em]">ENGAGE</div>
+                                                            <div className="text-[8px] tracking-[0.12em] text-gray-500">Commit force</div>
+                                                        </div>
+                                                    </div>
+                                                </Button>
+                                                <Button
+                                                    onClick={() => {
+                                                        if (isActing) return;
+                                                        setActionIntent("SECURE");
+                                                        setMoveDirection(null);
+                                                    }}
+                                                    disabled={!canSecure || !player.MapNode.isExplored || isActing}
+                                                    className={`h-11 border px-2 transition-all ${
+                                                        actionIntent === "SECURE"
+                                                            ? "bg-yellow-400/20 text-yellow-400 border-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.2)]"
+                                                            : "bg-black/50 text-gray-400 border-white/10 hover:border-yellow-400/50 hover:text-yellow-400"
+                                                    } ${!player.MapNode.isExplored ? "opacity-30 cursor-not-allowed" : ""}`}
+                                                >
+                                                    <div className="flex h-full w-full flex-col items-start justify-between">
+                                                        <div className="flex items-center gap-1 text-[7px] uppercase tracking-[0.22em] text-yellow-200/80">
+                                                            <Shield className="h-3 w-3" />
+                                                            Stabilize
+                                                        </div>
+                                                        <div className="text-left">
+                                                            <div className="text-[10px] font-black tracking-[0.2em]">SECURE</div>
+                                                            <div className="text-[8px] tracking-[0.12em] text-gray-500">Lock room</div>
+                                                        </div>
+                                                    </div>
+                                                </Button>
+                                            </div>
+                                        </div>
                                     </div>
 
                                     {/* Right Panel: Systems & Emergency */}
@@ -2639,8 +2637,8 @@ export default function GameInterface() {
                             </div>
                         </div>
 
-                        <div className="relative z-30 -mt-7 h-[112px] w-full flex-none px-1 pb-1">
-                            <div ref={handViewportRef} className="h-[98px] w-full overflow-visible px-1 pb-1 pt-0.5">
+                        <div className="relative z-30 -mt-9 h-[100px] w-full flex-none px-1 pb-1">
+                            <div ref={handViewportRef} className="h-[86px] w-full overflow-visible px-1 pb-1 pt-0.5">
                                 <div
                                     className="flex w-full items-end justify-center perspective-[1000px]"
                                     style={handLayout.gap > 0 ? { gap: `${handLayout.gap}px` } : undefined}
@@ -2649,14 +2647,14 @@ export default function GameInterface() {
                                         {visibleHandEntries.length > 0 ? visibleHandEntries.map(({ card, index }) => {
                                             const centerOffset = index - ((visibleHandEntries.length - 1) / 2);
                                             const fanDepth = Math.abs(centerOffset);
-                                            const fanRotate = centerOffset * 3.4;
-                                            const fanLift = Math.min(10, Math.round(fanDepth * 2.2));
+                                            const fanRotate = centerOffset * 2.2;
+                                            const fanLift = Math.min(6, Math.round(fanDepth * 1.2));
                                             const baseZ = 120 + Math.round((visibleHandEntries.length * 2) - fanDepth * 8);
 
                                             return (
                                                 <motion.div
                                                     key={card.id || index}
-                                                    initial={{ y: 34 + fanLift, opacity: 0, scale: 0.92, rotate: fanRotate * 0.45 }}
+                                                    initial={{ y: 22 + fanLift, opacity: 0, scale: 0.94, rotate: fanRotate * 0.45 }}
                                                     animate={{
                                                         y: fanLift + (selectedCardIndices.includes(index) ? -handLayout.selectionLift : 0),
                                                         opacity: 1,
@@ -2664,13 +2662,13 @@ export default function GameInterface() {
                                                         rotate: fanRotate
                                                     }}
                                                     whileHover={{
-                                                        y: fanLift + (selectedCardIndices.includes(index) ? -handLayout.selectionLift : 0) - 8,
-                                                        scale: selectedCardIndices.includes(index) ? 1.06 : 1.05,
+                                                        y: fanLift + (selectedCardIndices.includes(index) ? -handLayout.selectionLift : 0) - 5,
+                                                        scale: selectedCardIndices.includes(index) ? 1.05 : 1.04,
                                                         rotate: fanRotate * 0.4,
                                                         zIndex: 640 + index
                                                     }}
                                                     exit={{
-                                                        y: 26 + fanLift,
+                                                        y: 18 + fanLift,
                                                         opacity: 0,
                                                         scale: 0.8,
                                                         rotate: fanRotate * 0.35,
