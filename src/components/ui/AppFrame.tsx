@@ -95,6 +95,7 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
     const effectiveIcon = chromeOverride?.icon ?? (RouteIcon ? <RouteIcon className={`${isCompactViewport ? "h-3 w-3" : "h-3.5 w-3.5"} shrink-0 text-neon-cyan`} /> : null);
     const titleMaxWidthClassName = chromeOverride?.titleMaxWidthClassName ?? "max-w-[52vw]";
     const statusItems = chromeOverride?.statusItems;
+    const rightItems = chromeOverride?.rightItems;
     const showBridgeTimeChip = showBridgeTime && bridgeTimeLabel && !isCompactViewport && !chromeOverride?.hideBridgeTime;
 
     const closeCompactPanel = () => {
@@ -211,6 +212,7 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
                                         )}
 
                                         <div className="relative z-[2] flex min-w-0 items-center justify-end gap-2">
+                                            {rightItems}
                                             {showBridgeTimeChip && (
                                                 <div className="rounded-full border border-cyan-500/20 bg-black/82 px-3 py-2 text-[9px] font-bold uppercase tracking-[0.22em] text-cyan-200 shadow-[0_10px_28px_rgba(0,0,0,0.4)]">
                                                     {bridgeTimeLabel}

@@ -575,7 +575,7 @@ export default function GameInterface() {
             };
         }
 
-        const availableWidth = Math.max(handViewportWidth - 20, preset.width);
+        const availableWidth = Math.max(handViewportWidth - 12, preset.width);
         let cardWidth: number = preset.width;
         let gap: number = 10;
         const fitWidth = (targetWidth: number) => {
@@ -589,7 +589,7 @@ export default function GameInterface() {
             }
 
             const fittedGap = Math.floor((availableWidth - count * cardWidth) / Math.max(count - 1, 1));
-            const maxOverlap = Math.round(cardWidth * 0.62);
+            const maxOverlap = Math.round(cardWidth * 0.78);
             gap = fittedGap >= 4
                 ? Math.min(10, fittedGap)
                 : Math.max(-maxOverlap, fittedGap);
@@ -620,8 +620,8 @@ export default function GameInterface() {
             cardWidth,
             cardHeight,
             gap,
-            wrapperHeight: cardHeight + Math.max(24, Math.round(cardHeight * 0.12)),
-            selectionLift: Math.min(9, Math.max(5, Math.round(cardHeight * 0.05))),
+            wrapperHeight: cardHeight + Math.max(16, Math.round(cardHeight * 0.08)),
+            selectionLift: Math.min(7, Math.max(4, Math.round(cardHeight * 0.04))),
             shouldPan
         };
     }, [visibleHandEntries.length, handViewportHeight, handViewportWidth]);
@@ -1548,6 +1548,41 @@ export default function GameInterface() {
         transitDirectionLabel,
         transitStatus?.remainingSteps
     ]);
+    const gameChromeRightItems = useMemo(() => {
+        if (scanFeedback) {
+            return (
+                <div className={`rounded-full border px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.2em] ${
+                    scanFeedback.success
+                        ? "border-green-400/40 bg-black/80 text-green-300"
+                        : "border-red-500/40 bg-black/85 text-red-300"
+                }`}>
+                    {scanFeedback.success ? "Mission Feed Live" : "Scan Fail"} · PWR {scanFeedback.nodePower}
+                </div>
+            );
+        }
+
+        if (actionFeedback) {
+            return (
+                <div className={`rounded-full border px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.2em] ${
+                    actionFeedback.status === "success"
+                        ? "border-neon-cyan/50 bg-black/80 text-neon-cyan"
+                        : "border-red-500/45 bg-black/85 text-red-300"
+                }`}>
+                    {actionFeedback.label}
+                </div>
+            );
+        }
+
+        return (
+            <div className={`rounded-full border px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.2em] ${
+                isRoomScanned
+                    ? "border-neon-cyan/30 bg-black/78 text-neon-cyan"
+                    : "border-white/10 bg-black/65 text-gray-400"
+            }`}>
+                {isRoomScanned ? "Mission Feed Live" : "Awaiting Room Scan"}
+            </div>
+        );
+    }, [actionFeedback, isRoomScanned, scanFeedback]);
     const gameChromeOverride = useMemo(() => ({
         title: roomChromeMeta.title,
         icon: (
@@ -1556,8 +1591,9 @@ export default function GameInterface() {
             </span>
         ),
         statusItems: gameChromeStatusItems,
+        rightItems: gameChromeRightItems,
         titleMaxWidthClassName: "max-w-[36vw]",
-    }), [gameChromeStatusItems, roomChromeMeta]);
+    }), [gameChromeRightItems, gameChromeStatusItems, roomChromeMeta]);
 
     useEffect(() => {
         setAppChromeOverride(gameChromeOverride);
@@ -2116,30 +2152,7 @@ export default function GameInterface() {
                     <div className="glass-panel border border-white/20 animate-fade-in relative overflow-hidden w-full flex-1 min-h-0 flex flex-col items-center bg-black/40 p-2 backdrop-blur-md shadow-2xl">
 
                         {/* 1. TOP: MISSION STATUS */}
-                        <div className="relative mb-0.5 flex min-h-[28px] w-full flex-none items-center justify-between gap-2 rounded-2xl border border-white/5 bg-black/20 px-2 py-1 shadow-inner">
-                            <div className="flex flex-wrap items-center gap-2">
-                                {scanFeedback ? (
-                                    <div className={`rounded-full border px-3 py-1 text-[9px] font-black uppercase tracking-[0.24em] ${
-                                        scanFeedback.success
-                                            ? "border-green-400/40 bg-black/75 text-green-300"
-                                            : "border-red-500/40 bg-black/80 text-red-300"
-                                    }`}>
-                                        {scanFeedback.success ? "SCAN CLEAR" : "SCAN FAIL"} · PWR {scanFeedback.nodePower}
-                                    </div>
-                                ) : actionFeedback ? (
-                                    <div className={`rounded-full border px-3 py-1 text-[9px] font-black uppercase tracking-[0.24em] ${
-                                        actionFeedback.status === "success"
-                                            ? "border-neon-cyan/50 bg-black/75 text-neon-cyan"
-                                            : "border-red-500/50 bg-black/80 text-red-300"
-                                    }`}>
-                                        {actionFeedback.label}
-                                    </div>
-                                ) : (
-                                    <div className="rounded-full border border-white/10 bg-black/35 px-3 py-1 text-[9px] font-bold uppercase tracking-[0.2em] text-gray-500">
-                                        {isRoomScanned ? "Mission Feed Live" : "Awaiting Room Scan"}
-                                    </div>
-                                )}
-                            </div>
+                        <div className="relative mb-0.5 flex min-h-[24px] w-full flex-none items-center justify-end gap-2 rounded-2xl border border-white/5 bg-black/20 px-2 py-1 shadow-inner">
                             <div className="flex flex-wrap items-center justify-end gap-2">
                                 {(hasEnemies || isBossRoom) && (
                                     <div className="rounded-full border border-red-500/35 bg-red-500/10 px-3 py-1 text-[9px] font-bold uppercase tracking-[0.22em] text-red-300">
@@ -2626,8 +2639,8 @@ export default function GameInterface() {
                             </div>
                         </div>
 
-                        <div className="relative z-20 mt-1 h-[138px] w-full flex-none px-1">
-                            <div ref={handViewportRef} className="h-[122px] w-full overflow-visible px-1 pb-1 pt-0.5">
+                        <div className="relative z-30 -mt-7 h-[112px] w-full flex-none px-1 pb-1">
+                            <div ref={handViewportRef} className="h-[98px] w-full overflow-visible px-1 pb-1 pt-0.5">
                                 <div
                                     className="flex w-full items-end justify-center perspective-[1000px]"
                                     style={handLayout.gap > 0 ? { gap: `${handLayout.gap}px` } : undefined}
@@ -2636,14 +2649,14 @@ export default function GameInterface() {
                                         {visibleHandEntries.length > 0 ? visibleHandEntries.map(({ card, index }) => {
                                             const centerOffset = index - ((visibleHandEntries.length - 1) / 2);
                                             const fanDepth = Math.abs(centerOffset);
-                                            const fanRotate = centerOffset * 4.8;
-                                            const fanLift = Math.min(22, Math.round(fanDepth * 4));
+                                            const fanRotate = centerOffset * 3.4;
+                                            const fanLift = Math.min(10, Math.round(fanDepth * 2.2));
                                             const baseZ = 120 + Math.round((visibleHandEntries.length * 2) - fanDepth * 8);
 
                                             return (
                                                 <motion.div
                                                     key={card.id || index}
-                                                    initial={{ y: 60 + fanLift, opacity: 0, scale: 0.9, rotate: fanRotate * 0.45 }}
+                                                    initial={{ y: 34 + fanLift, opacity: 0, scale: 0.92, rotate: fanRotate * 0.45 }}
                                                     animate={{
                                                         y: fanLift + (selectedCardIndices.includes(index) ? -handLayout.selectionLift : 0),
                                                         opacity: 1,
@@ -2651,13 +2664,13 @@ export default function GameInterface() {
                                                         rotate: fanRotate
                                                     }}
                                                     whileHover={{
-                                                        y: fanLift + (selectedCardIndices.includes(index) ? -handLayout.selectionLift : 0) - 14,
-                                                        scale: selectedCardIndices.includes(index) ? 1.08 : 1.07,
-                                                        rotate: fanRotate * 0.35,
+                                                        y: fanLift + (selectedCardIndices.includes(index) ? -handLayout.selectionLift : 0) - 8,
+                                                        scale: selectedCardIndices.includes(index) ? 1.06 : 1.05,
+                                                        rotate: fanRotate * 0.4,
                                                         zIndex: 640 + index
                                                     }}
                                                     exit={{
-                                                        y: 40 + fanLift,
+                                                        y: 26 + fanLift,
                                                         opacity: 0,
                                                         scale: 0.8,
                                                         rotate: fanRotate * 0.35,

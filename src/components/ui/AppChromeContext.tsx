@@ -6,6 +6,7 @@ export type AppChromeOverride = {
     title?: string;
     icon?: ReactNode;
     statusItems?: ReactNode;
+    rightItems?: ReactNode;
     hideBridgeTime?: boolean;
     titleMaxWidthClassName?: string;
 };
