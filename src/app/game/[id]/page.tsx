@@ -475,6 +475,17 @@ export default function GameInterface() {
             ? "LOCKED"
             : "CURRENT";
     const inspectedMapIsBoss = Boolean(inspectedMapNode && (inspectedMapNode.type === "BOSS" || inspectedMapNode.id === game?.objectiveNodeId));
+    const inspectedMapNodeLabel = inspectedMapNode
+        ? (inspectedMapNode.type === "CORRIDOR" ? "HALL" : inspectedMapNode.type)
+        : "ROOM";
+    const inspectedMapStateLabel = inspectedMapNode
+        ? (inspectedMapNode.scanned ? "SCANNED" : inspectedMapNode.isExplored ? "EXPLORED" : "UNSEEN")
+        : "UNSEEN";
+    const inspectedMapLinkSummary = !inspectedMapRevealState
+        ? "SCAN"
+        : inspectedMapConnectionLabels.length > 0
+            ? inspectedMapConnectionLabels.join(" / ")
+            : "SEALED";
     const minDeck = availableDecks[0] ?? 0;
     const maxDeck = availableDecks[availableDecks.length - 1] ?? 0;
     const airlockNode = useMemo(
@@ -603,7 +614,7 @@ export default function GameInterface() {
             resolveGap();
         }
 
-        const shouldPan = count * cardWidth + (count - 1) * gap > availableWidth + Math.round(cardWidth * 0.08);
+        const shouldPan = false;
 
         return {
             cardWidth,
@@ -1950,106 +1961,6 @@ export default function GameInterface() {
                     {player?.MapNode && (
                         <div className="glass-panel p-1 border border-white/20 flex-1 min-h-0 flex flex-col animate-in slide-in-from-left duration-500 shadow-lg relative">
                             <div className="shrink-0 border-b border-white/10 bg-black/35 px-2 py-1">
-                                {inspectedMapNode && (
-                                    <div className="mb-1 rounded-lg border border-white/10 bg-black/55 px-2 py-1">
-                                        <div className="flex items-center justify-between gap-3">
-                                            <div className="flex flex-wrap items-center justify-end gap-2">
-                                                <div className="text-[9px] uppercase tracking-[0.35em] text-gray-500">Map Readout</div>
-                                                <div className={`rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.22em] ${
-                                                    inspectedMapStatus === "CURRENT"
-                                                        ? "border-neon-cyan/40 text-neon-cyan"
-                                                        : inspectedMapStatus === "LOCKED"
-                                                            ? "border-white/20 text-white"
-                                                            : "border-yellow-500/40 text-yellow-400"
-                                                }`}>
-                                                    {inspectedMapStatus}
-                                                </div>
-                                                {inspectedMapIsBoss && (
-                                                    <div className="rounded-full border border-red-500/50 bg-red-500/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.22em] text-red-300">
-                                                        Boss
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <div className={`flex items-center gap-2 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.22em] ${inspectedMapScanDone ? "border-green-500/40 bg-green-500/10 text-green-300" : "border-red-500/40 bg-red-500/10 text-red-300"}`}>
-                                                    <span className={`h-1.5 w-1.5 rounded-full ${inspectedMapScanDone ? "bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.95)]" : "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.95)]"}`} />
-                                                    Scan {inspectedMapScanDone ? "Done" : "Pending"}
-                                                </div>
-                                                <div className={`flex items-center gap-2 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.22em] ${inspectedMapSecureDone ? "border-green-500/40 bg-green-500/10 text-green-300" : "border-red-500/40 bg-red-500/10 text-red-300"}`}>
-                                                    <span className={`h-1.5 w-1.5 rounded-full ${inspectedMapSecureDone ? "bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.95)]" : "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.95)]"}`} />
-                                                    Secure {inspectedMapSecureDone ? "Done" : "Pending"}
-                                                </div>
-                                                <div className="text-[9px] uppercase tracking-[0.24em] text-gray-500">
-                                                    Hover inspect · click lock
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="mt-1.5 grid grid-cols-2 gap-x-2 gap-y-0.5 text-[9px]">
-                                            <div className="flex items-center justify-between gap-2">
-                                                <span className="text-gray-500">Node</span>
-                                                <span className={`font-bold uppercase ${
-                                                    inspectedMapNode.type === "CORRIDOR"
-                                                        ? "text-slate-300"
-                                                        : inspectedMapSuitMeta?.color || "text-white"
-                                                }`}>
-                                                    {inspectedMapNode.type === "CORRIDOR" ? "HALL" : inspectedMapNode.type}
-                                                </span>
-                                            </div>
-                                            <div className="flex items-center justify-between gap-2">
-                                                <span className="text-gray-500">Deck</span>
-                                                <span className="font-mono text-white">{inspectedMapNode.z}</span>
-                                            </div>
-                                            <div className="flex items-center justify-between gap-2">
-                                                <span className="text-gray-500">Sector</span>
-                                                <span className="font-mono text-white">{inspectedMapNode.x}-{inspectedMapNode.y}-{inspectedMapNode.z}</span>
-                                            </div>
-                                            <div className="flex items-center justify-between gap-2">
-                                                <span className="text-gray-500">State</span>
-                                                <span className="font-bold text-white">
-                                                    {inspectedMapNode.scanned ? "SCANNED" : inspectedMapNode.isExplored ? "EXPLORED" : "UNSEEN"}
-                                                </span>
-                                            </div>
-                                            <div className="flex items-center justify-between gap-2">
-                                                <span className="text-gray-500">Threat</span>
-                                                <span className={`font-bold ${!inspectedMapRevealState ? "text-gray-500" : inspectedMapEnemies.length > 0 ? "text-red-400" : "text-gray-400"}`}>
-                                                    {inspectedMapRevealState ? inspectedMapEnemies.length : "?"}
-                                                </span>
-                                            </div>
-                                            <div className="flex items-center justify-between gap-2">
-                                                <span className="text-gray-500">Loot</span>
-                                                <span className={`font-bold ${!inspectedMapRevealState ? "text-gray-500" : inspectedMapLoot.length > 0 ? "text-yellow-400" : "text-gray-400"}`}>
-                                                    {inspectedMapRevealState ? inspectedMapLoot.length : "?"}
-                                                </span>
-                                            </div>
-                                            {inspectedMapNode.type !== "CORRIDOR" && inspectedMapRevealState && (
-                                                <>
-                                                    <div className="flex items-center justify-between gap-2">
-                                                        <span className="text-gray-500">Suit</span>
-                                                        <span className={`font-bold ${inspectedMapSuitMeta?.color || "text-white"}`}>
-                                                            {inspectedMapSuitMeta ? inspectedMapSuitMeta.icon : inspectedMapNode.roomSuit || "UNKNOWN"}
-                                                        </span>
-                                                    </div>
-                                                    <div className="flex items-center justify-between gap-2">
-                                                        <span className="text-gray-500">Power</span>
-                                                        <span className="font-bold text-white">{inspectedMapNode.roomPower ?? "?"}</span>
-                                                    </div>
-                                                </>
-                                            )}
-                                        </div>
-                                        <div className="mt-1.5 flex flex-wrap gap-1">
-                                            <span className="text-[9px] uppercase tracking-[0.28em] text-gray-500">Links</span>
-                                            {!inspectedMapRevealState ? (
-                                                <span className="text-[9px] uppercase tracking-wide text-gray-500">Scan to reveal</span>
-                                            ) : inspectedMapConnectionLabels.length > 0 ? inspectedMapConnectionLabels.map((connection: string) => (
-                                                <span key={connection} className="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-gray-200">
-                                                    {connection}
-                                                </span>
-                                            )) : (
-                                                <span className="text-[9px] uppercase tracking-wide text-gray-500">Sealed</span>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
                                 <div className="flex items-center justify-between gap-3">
                                     <div>
                                         <div className="text-[10px] uppercase tracking-widest text-gray-500">Sector Map</div>
@@ -2145,6 +2056,49 @@ export default function GameInterface() {
                                         Viewing deck {activeDeck} • inspector on deck {inspectedMapNode.z}
                                     </div>
                                 )}
+                                {inspectedMapNode && (
+                                    <div className="rounded border border-white/10 bg-black/55 px-2 py-1.5">
+                                        <div className="mb-1 flex items-center justify-between gap-2">
+                                            <div className="text-[9px] uppercase tracking-[0.32em] text-gray-500">Map Readout</div>
+                                            <div className="flex items-center gap-1">
+                                                <div className={`rounded-full border px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.2em] ${
+                                                    inspectedMapStatus === "CURRENT"
+                                                        ? "border-neon-cyan/40 text-neon-cyan"
+                                                        : inspectedMapStatus === "LOCKED"
+                                                            ? "border-white/20 text-white"
+                                                            : "border-yellow-500/40 text-yellow-400"
+                                                }`}>
+                                                    {inspectedMapStatus}
+                                                </div>
+                                                {inspectedMapIsBoss && (
+                                                    <div className="rounded-full border border-red-500/40 bg-red-500/10 px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.2em] text-red-300">
+                                                        Boss
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[9px]">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <span className="text-gray-500">Node</span>
+                                                <span className={`font-bold uppercase ${inspectedMapNode.type === "CORRIDOR" ? "text-slate-300" : inspectedMapSuitMeta?.color || "text-white"}`}>
+                                                    {inspectedMapNodeLabel}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center justify-between gap-2">
+                                                <span className="text-gray-500">Sector</span>
+                                                <span className="font-mono text-white">{inspectedMapNode.x}-{inspectedMapNode.y}-{inspectedMapNode.z}</span>
+                                            </div>
+                                            <div className="flex items-center justify-between gap-2">
+                                                <span className="text-gray-500">State</span>
+                                                <span className="font-bold text-white">{inspectedMapStateLabel}</span>
+                                            </div>
+                                            <div className="flex items-center justify-between gap-2">
+                                                <span className="text-gray-500">Links</span>
+                                                <span className="truncate text-right font-bold uppercase text-gray-200">{inspectedMapLinkSummary}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
@@ -2182,7 +2136,7 @@ export default function GameInterface() {
                                     </div>
                                 ) : (
                                     <div className="rounded-full border border-white/10 bg-black/35 px-3 py-1 text-[9px] font-bold uppercase tracking-[0.2em] text-gray-500">
-                                        {isRoomScanned ? "Scanner Ready" : "Unscanned Sector"}
+                                        {isRoomScanned ? "Mission Feed Live" : "Awaiting Room Scan"}
                                     </div>
                                 )}
                             </div>
@@ -2196,79 +2150,6 @@ export default function GameInterface() {
                                     {visibleHandEntries.length}/{handEntries.length}
                                 </div>
                             </div>
-                        </div>
-
-                        {/* 2. TOP CARD RAIL */}
-                        <div className="relative z-20 h-[146px] w-full flex-none px-1">
-                            <div ref={handViewportRef} className="hud-scrollbar custom-scrollbar h-[102px] w-full overflow-x-auto overflow-y-hidden px-1 pb-1.5 pt-0.5 [touch-action:pan-x]">
-                                <div
-                                    className={`flex items-end perspective-[1000px] ${handLayout.shouldPan ? "w-max min-w-full justify-start pr-4" : "w-full justify-center"}`}
-                                    style={handLayout.gap > 0 ? { gap: `${handLayout.gap}px` } : undefined}
-                                >
-                                    <AnimatePresence initial={false}>
-                                        {visibleHandEntries.length > 0 ? visibleHandEntries.map(({ card, index }) => {
-                                            const centerOffset = index - ((visibleHandEntries.length - 1) / 2);
-                                            const fanDepth = Math.abs(centerOffset);
-                                            const fanRotate = handLayout.shouldPan ? 0 : centerOffset * 4.4;
-                                            const fanLift = handLayout.shouldPan ? 0 : Math.min(18, Math.round(fanDepth * 4));
-                                            const baseZ = handLayout.shouldPan ? index + 1 : 120 + Math.round((visibleHandEntries.length * 2) - fanDepth * 8);
-
-                                            return (
-                                                <motion.div
-                                                    key={card.id || index}
-                                                    initial={{ y: 60 + fanLift, opacity: 0, scale: 0.9, rotate: fanRotate * 0.45 }}
-                                                    animate={{
-                                                        y: fanLift + (selectedCardIndices.includes(index) ? -handLayout.selectionLift : 0),
-                                                        opacity: 1,
-                                                        scale: selectedCardIndices.includes(index) ? 1.03 : 1,
-                                                        rotate: fanRotate
-                                                    }}
-                                                    whileHover={{
-                                                        y: fanLift + (selectedCardIndices.includes(index) ? -handLayout.selectionLift : 0) - (inActionPhase ? 8 : 5),
-                                                        scale: selectedCardIndices.includes(index) ? 1.05 : 1.03
-                                                    }}
-                                                    exit={{
-                                                        y: 40 + fanLift,
-                                                        opacity: 0,
-                                                        scale: 0.8,
-                                                        rotate: fanRotate * 0.35,
-                                                        transition: { duration: 0.3, ease: "easeOut" }
-                                                    }}
-                                                    transition={{
-                                                        y: { duration: 0.4, ease: [0.34, 1.56, 0.64, 1] },
-                                                        opacity: { duration: 0.3 },
-                                                        scale: { duration: 0.3 },
-                                                        rotate: { duration: 0.35 }
-                                                    }}
-                                                    onClick={() => toggleCardSelection(index)}
-                                                    className="group relative flex cursor-pointer select-none items-end justify-center active:scale-95 active:brightness-90"
-                                                    style={{
-                                                        width: `${handLayout.cardWidth}px`,
-                                                        minWidth: `${handLayout.cardWidth}px`,
-                                                        height: `${handLayout.wrapperHeight}px`,
-                                                        marginLeft: index > 0 && handLayout.gap < 0 ? `${handLayout.gap}px` : undefined,
-                                                        zIndex: selectedCardIndices.includes(index) ? 420 + index : baseZ,
-                                                        transformOrigin: "center bottom"
-                                                    }}
-                                                >
-                                                    <NavCard
-                                                        card={card}
-                                                        selected={selectedCardIndices.includes(index)}
-                                                        size="lg"
-                                                        dimensions={{ width: handLayout.cardWidth, height: handLayout.cardHeight }}
-                                                        roomEffect={roomInfo?.scanned ? getRoomEffectForCard(card, roomInfo?.suit, true) : undefined}
-                                                    />
-                                                </motion.div>
-                                            );
-                                        }) : (
-                                            <div className="text-xs text-center text-gray-500 border border-white/5 bg-white/5 p-4 rounded uppercase tracking-widest w-full max-w-sm">
-                                                {handEntries.length > 0 ? "No cards match that filter" : "No Signal Detected"}
-                                            </div>
-                                        )}
-                                    </AnimatePresence>
-                                </div>
-                            </div>
-
                         </div>
 
                         {/* 3. BOTTOM: CONTROL CONSOLE (Retro Dashboard w/ Central Compass) */}
@@ -2364,7 +2245,7 @@ export default function GameInterface() {
                                                 <div className="mb-1 flex items-center justify-between border-b border-white/5 pb-1">
                                                     <div className="text-[10px] uppercase tracking-widest text-gray-500">Room Scan</div>
                                                     <div className="text-[8px] uppercase tracking-[0.24em] text-gray-600">
-                                                        {roomInfo?.scanned ? "Visual telemetry online" : "Awaiting recon"}
+                                                        {roomInfo?.scanned ? "Scanner ready" : "Awaiting recon"}
                                                     </div>
                                                 </div>
                                                 <div className="flex flex-1 min-h-0 items-center justify-center rounded-2xl border border-white/10 bg-black/50 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
@@ -2745,6 +2626,79 @@ export default function GameInterface() {
                             </div>
                         </div>
 
+                        <div className="relative z-20 mt-1 h-[138px] w-full flex-none px-1">
+                            <div ref={handViewportRef} className="h-[122px] w-full overflow-visible px-1 pb-1 pt-0.5">
+                                <div
+                                    className="flex w-full items-end justify-center perspective-[1000px]"
+                                    style={handLayout.gap > 0 ? { gap: `${handLayout.gap}px` } : undefined}
+                                >
+                                    <AnimatePresence initial={false}>
+                                        {visibleHandEntries.length > 0 ? visibleHandEntries.map(({ card, index }) => {
+                                            const centerOffset = index - ((visibleHandEntries.length - 1) / 2);
+                                            const fanDepth = Math.abs(centerOffset);
+                                            const fanRotate = centerOffset * 4.8;
+                                            const fanLift = Math.min(22, Math.round(fanDepth * 4));
+                                            const baseZ = 120 + Math.round((visibleHandEntries.length * 2) - fanDepth * 8);
+
+                                            return (
+                                                <motion.div
+                                                    key={card.id || index}
+                                                    initial={{ y: 60 + fanLift, opacity: 0, scale: 0.9, rotate: fanRotate * 0.45 }}
+                                                    animate={{
+                                                        y: fanLift + (selectedCardIndices.includes(index) ? -handLayout.selectionLift : 0),
+                                                        opacity: 1,
+                                                        scale: selectedCardIndices.includes(index) ? 1.03 : 1,
+                                                        rotate: fanRotate
+                                                    }}
+                                                    whileHover={{
+                                                        y: fanLift + (selectedCardIndices.includes(index) ? -handLayout.selectionLift : 0) - 14,
+                                                        scale: selectedCardIndices.includes(index) ? 1.08 : 1.07,
+                                                        rotate: fanRotate * 0.35,
+                                                        zIndex: 640 + index
+                                                    }}
+                                                    exit={{
+                                                        y: 40 + fanLift,
+                                                        opacity: 0,
+                                                        scale: 0.8,
+                                                        rotate: fanRotate * 0.35,
+                                                        transition: { duration: 0.3, ease: "easeOut" }
+                                                    }}
+                                                    transition={{
+                                                        y: { duration: 0.4, ease: [0.34, 1.56, 0.64, 1] },
+                                                        opacity: { duration: 0.3 },
+                                                        scale: { duration: 0.3 },
+                                                        rotate: { duration: 0.35 }
+                                                    }}
+                                                    onClick={() => toggleCardSelection(index)}
+                                                    className="group relative flex cursor-pointer select-none items-end justify-center active:scale-95 active:brightness-90"
+                                                    style={{
+                                                        width: `${handLayout.cardWidth}px`,
+                                                        minWidth: `${handLayout.cardWidth}px`,
+                                                        height: `${handLayout.wrapperHeight}px`,
+                                                        marginLeft: index > 0 && handLayout.gap < 0 ? `${handLayout.gap}px` : undefined,
+                                                        zIndex: selectedCardIndices.includes(index) ? 520 + index : baseZ,
+                                                        transformOrigin: "center bottom"
+                                                    }}
+                                                >
+                                                    <NavCard
+                                                        card={card}
+                                                        selected={selectedCardIndices.includes(index)}
+                                                        size="lg"
+                                                        dimensions={{ width: handLayout.cardWidth, height: handLayout.cardHeight }}
+                                                        roomEffect={roomInfo?.scanned ? getRoomEffectForCard(card, roomInfo?.suit, true) : undefined}
+                                                    />
+                                                </motion.div>
+                                            );
+                                        }) : (
+                                            <div className="text-xs text-center text-gray-500 border border-white/5 bg-white/5 p-4 rounded uppercase tracking-widest w-full max-w-sm">
+                                                {handEntries.length > 0 ? "No cards match that filter" : "No Signal Detected"}
+                                            </div>
+                                        )}
+                                    </AnimatePresence>
+                                </div>
+                            </div>
+                        </div>
+
                         {/* Inventory Overlay (Kept logic, just ensured z-index) */}
                         {showInventory && (
                             <>
@@ -2952,20 +2906,20 @@ function NavCard({
         <div className={`
             relative border-2 flex flex-col items-center justify-between overflow-hidden transition-all duration-300 active:scale-95
             ${theme.color} ${bgColor}
-            ${selected ? "z-20 brightness-110" : "group-hover:brightness-110"}
+            ${selected ? "z-20 brightness-110 shadow-[0_0_18px_rgba(255,255,255,0.12)]" : "group-hover:brightness-125 group-hover:shadow-[0_0_24px_rgba(255,255,255,0.2)]"}
         `}
             style={{ width: `${width}px`, height: `${height}px`, padding: `${padding}px`, borderRadius: `${borderRadius}px` }}
         >
             {/* Holographic Scanline Overlay */}
             <div className="absolute inset-0 bg-[url('/scanlines.png')] opacity-20 pointer-events-none" />
             <div
-                className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-200 group-hover:opacity-10"
+                className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-150 group-hover:opacity-20"
                 style={{
                     background: "radial-gradient(circle at 50% 40%, currentColor 0%, transparent 72%)"
                 }}
             />
             <div
-                className="pointer-events-none absolute opacity-0 transition-opacity duration-200 group-hover:opacity-25"
+                className="pointer-events-none absolute opacity-0 transition-opacity duration-150 group-hover:opacity-40"
                 style={{
                     inset: `${hoverFrameInset}px`,
                     borderRadius: `${Math.max(10, borderRadius - hoverFrameInset)}px`,
