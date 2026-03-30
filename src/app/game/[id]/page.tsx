@@ -557,7 +557,7 @@ export default function GameInterface() {
             return {
                 cardWidth: preset.width,
                 cardHeight,
-                gap: 12,
+                gap: 10,
                 wrapperHeight: cardHeight + Math.max(28, Math.round(cardHeight * 0.14)),
                 selectionLift: Math.min(9, Math.max(5, Math.round(cardHeight * 0.05))),
                 shouldPan: false
@@ -566,12 +566,22 @@ export default function GameInterface() {
 
         const availableWidth = Math.max(handViewportWidth - 20, preset.width);
         let cardWidth: number = preset.width;
-        let gap: number = 12;
+        let gap: number = 10;
         const fitWidth = (targetWidth: number) => {
             cardWidth = Math.max(MIN_HAND_CARD_WIDTH, Math.floor(targetWidth));
-            gap = count > 1
-                ? Math.max(6, Math.min(12, Math.floor((availableWidth - count * cardWidth) / Math.max(count - 1, 1))))
-                : 0;
+        };
+
+        const resolveGap = () => {
+            if (count <= 1) {
+                gap = 0;
+                return;
+            }
+
+            const fittedGap = Math.floor((availableWidth - count * cardWidth) / Math.max(count - 1, 1));
+            const maxOverlap = Math.round(cardWidth * 0.48);
+            gap = fittedGap >= 4
+                ? Math.min(10, fittedGap)
+                : Math.max(-maxOverlap, fittedGap);
         };
 
         if (count * cardWidth + (count - 1) * gap > availableWidth) {
@@ -585,9 +595,12 @@ export default function GameInterface() {
             cardHeight = Math.min(maxCardHeight, getScaledCardHeight(cardWidth, preset));
         }
 
-        if (count * cardWidth + (count - 1) * gap > availableWidth) {
-            fitWidth((availableWidth - (count - 1) * 4) / count);
+        resolveGap();
+
+        if (count * cardWidth + (count - 1) * gap > availableWidth && gap >= 0) {
+            fitWidth((availableWidth - (count - 1) * 2) / count);
             cardHeight = Math.min(maxCardHeight, getScaledCardHeight(cardWidth, preset));
+            resolveGap();
         }
 
         const shouldPan = count * cardWidth + (count - 1) * gap > availableWidth;
@@ -1461,6 +1474,9 @@ export default function GameInterface() {
     const canMoveDown = canMoveDir("DOWN");
     const missionMinutes = Math.floor(missionTimeLeft / 60);
     const missionSeconds = missionTimeLeft % 60;
+    const roomSectorLabel = `${visualPlayerNode?.x ?? 0}-${visualPlayerNode?.y ?? 0}-${visualPlayerNode?.z ?? 0}`;
+    const roomStateLabel = roomInfo?.scanned ? "SCANNED" : "UNSCANNED";
+    const roomLinksLabel = scannedExitLabels.length > 0 ? scannedExitLabels.join(" / ") : "SEALED";
     const gameChromeStatusItems = useMemo(() => (
         <>
             <div className={`rounded-full border px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.2em] ${
@@ -1473,17 +1489,26 @@ export default function GameInterface() {
                 T-MINUS {game?.deadline ? `${missionMinutes}:${missionSeconds.toString().padStart(2, "0")}` : "--:--"}
             </div>
             <div className="rounded-full border border-white/10 bg-black/70 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.2em] text-white">
-                PWR {roomInfo?.scanned ? roomInfo.power : "?"}
+                SEC {roomSectorLabel}
             </div>
             <div className={`rounded-full border px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.2em] ${
-                hasEnemies || isBossRoom
-                    ? "border-red-500/35 bg-red-500/10 text-red-300"
-                    : "border-green-500/35 bg-green-500/10 text-green-300"
+                roomInfo?.scanned
+                    ? "border-green-500/35 bg-green-500/10 text-green-300"
+                    : "border-yellow-500/35 bg-yellow-500/10 text-yellow-300"
             }`}>
-                {threatLabel}
+                STATE {roomStateLabel}
             </div>
             <div className="max-w-[180px] truncate rounded-full border border-cyan-500/20 bg-black/70 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.18em] text-cyan-200">
-                EXITS {exitSummaryLabel}
+                LINKS {roomLinksLabel}
+            </div>
+            <div className={`rounded-full border px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.18em] ${
+                airlockDistance === 0
+                    ? "border-green-500/35 bg-green-500/10 text-green-300"
+                    : airlockDistance === null
+                        ? "border-white/10 bg-black/55 text-gray-500"
+                        : "border-cyan-500/25 bg-black/70 text-cyan-200"
+            }`}>
+                AIRLOCK {airlockDistanceLabel}
             </div>
             {showHallwayCountdown && (
                 <div className="rounded-full border border-neon-cyan/30 bg-cyan-500/10 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.18em] text-neon-cyan">
@@ -1492,17 +1517,17 @@ export default function GameInterface() {
             )}
         </>
     ), [
-        exitSummaryLabel,
         game?.deadline,
-        hasEnemies,
-        isBossRoom,
         missionMinutes,
         missionSeconds,
         missionTimeLeft,
-        roomInfo?.power,
         roomInfo?.scanned,
+        roomSectorLabel,
+        roomStateLabel,
+        roomLinksLabel,
+        airlockDistance,
+        airlockDistanceLabel,
         showHallwayCountdown,
-        threatLabel,
         transitDirectionLabel,
         transitStatus?.remainingSteps
     ]);
@@ -2133,7 +2158,7 @@ export default function GameInterface() {
                     <div className="glass-panel border border-white/20 animate-fade-in relative overflow-hidden w-full flex-1 min-h-0 flex flex-col items-center bg-black/40 p-2 backdrop-blur-md shadow-2xl">
 
                         {/* 1. TOP: MISSION STATUS */}
-                        <div className="relative mb-0.5 flex min-h-[34px] w-full flex-none items-center justify-between gap-2 rounded-2xl border border-white/5 bg-black/20 px-2.5 py-1.5 shadow-inner">
+                        <div className="relative mb-0.5 flex min-h-[28px] w-full flex-none items-center justify-between gap-2 rounded-2xl border border-white/5 bg-black/20 px-2 py-1 shadow-inner">
                             <div className="flex flex-wrap items-center gap-2">
                                 {scanFeedback ? (
                                     <div className={`rounded-full border px-3 py-1 text-[9px] font-black uppercase tracking-[0.24em] ${
@@ -2178,7 +2203,10 @@ export default function GameInterface() {
                         {/* 2. TOP CARD RAIL */}
                         <div className="relative z-20 h-[146px] w-full flex-none px-1">
                             <div ref={handViewportRef} className="hud-scrollbar custom-scrollbar h-[102px] w-full overflow-x-auto overflow-y-hidden px-1 pb-1.5 pt-0.5 [touch-action:pan-x]">
-                                <div className={`flex items-end perspective-[1000px] ${handLayout.shouldPan ? "w-max min-w-full justify-start pr-4" : "w-full justify-center"}`} style={{ gap: `${handLayout.gap}px` }}>
+                                <div
+                                    className={`flex items-end perspective-[1000px] ${handLayout.shouldPan ? "w-max min-w-full justify-start pr-4" : "w-full justify-center"}`}
+                                    style={handLayout.gap > 0 ? { gap: `${handLayout.gap}px` } : undefined}
+                                >
                                     <AnimatePresence initial={false}>
                                         {visibleHandEntries.length > 0 ? visibleHandEntries.map(({ card, index }) => (
                                             <motion.div
@@ -2213,7 +2241,9 @@ export default function GameInterface() {
                                                 style={{
                                                     width: `${handLayout.cardWidth}px`,
                                                     minWidth: `${handLayout.cardWidth}px`,
-                                                    height: `${handLayout.wrapperHeight}px`
+                                                    height: `${handLayout.wrapperHeight}px`,
+                                                    marginLeft: index > 0 && handLayout.gap < 0 ? `${handLayout.gap}px` : undefined,
+                                                    zIndex: selectedCardIndices.includes(index) ? 200 + index : index + 1
                                                 }}
                                             >
                                                 <NavCard
@@ -2324,55 +2354,38 @@ export default function GameInterface() {
                                     {/* Left Panel: Room Scan + Primary Actions */}
                                     <div className="order-1 flex h-full w-full flex-col gap-1 rounded-xl border border-white/5 bg-black/40 p-1.5">
 
-                                        <div className="grid grid-cols-[118px_1fr] gap-1.5 rounded-xl border border-white/10 bg-black/35 p-1.5">
-                                            <div className="aspect-square w-full rounded-2xl border border-white/10 bg-black/50 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-                                                <RoomScanner
-                                                    key={`console-${visualPlayerNode?.id || "node"}-${facing}`}
-                                                    type={visualPlayerNode?.type || player?.MapNode?.type || "UNKNOWN"}
-                                                    isExplored={Boolean(visualPlayerNode?.isExplored)}
-                                                    integrity={game.integrity}
-                                                    suit={isRoomScanned ? roomInfo?.suit : undefined}
-                                                    suitColor={isRoomScanned ? roomSuitMeta?.color : undefined}
-                                                    connections={scannedConnections}
-                                                    windows={windows}
-                                                    scanned={isRoomScanned}
-                                                    facing={facing}
-                                                    relativeNorth={["FORWARD", "RIGHT", "BACK", "LEFT"][(4 - ["NORTH", "EAST", "SOUTH", "WEST"].indexOf(facing || "NORTH")) % 4]}
-                                                    hallwayIntel={[]}
-                                                    movementDirection={showHallwayCountdown ? transitDirectionLabel : null}
-                                                    movementActive={showHallwayCountdown}
-                                                />
-                                            </div>
-                                            <div className="grid grid-cols-2 gap-1 text-[8px]">
-                                                <div className="rounded-lg border border-white/5 bg-black/35 px-2 py-1">
-                                                    <div className="text-[8px] uppercase tracking-[0.24em] text-gray-500">Sector</div>
-                                                    <div className="mt-0.5 font-mono text-white">
-                                                        {visualPlayerNode?.x ?? 0}-{visualPlayerNode?.y ?? 0}-{visualPlayerNode?.z ?? 0}
-                                                    </div>
-                                                </div>
-                                                <div className="rounded-lg border border-white/5 bg-black/35 px-2 py-1">
-                                                    <div className="text-[8px] uppercase tracking-[0.24em] text-gray-500">State</div>
-                                                    <div className={`mt-0.5 font-bold uppercase ${roomInfo?.scanned ? "text-green-400" : "text-yellow-300"}`}>
-                                                        {roomInfo?.scanned ? "SCANNED" : "UNSCANNED"}
-                                                    </div>
-                                                </div>
-                                                <div className="rounded-lg border border-white/5 bg-black/35 px-2 py-1">
-                                                    <div className="text-[8px] uppercase tracking-[0.24em] text-gray-500">Links</div>
-                                                    <div className="mt-0.5 font-bold uppercase text-cyan-200">
-                                                        {scannedExitLabels.length > 0 ? scannedExitLabels.join(" / ") : "SEALED"}
-                                                    </div>
-                                                </div>
-                                                <div className="rounded-lg border border-white/5 bg-black/35 px-2 py-1">
-                                                    <div className="text-[8px] uppercase tracking-[0.24em] text-gray-500">Airlock</div>
-                                                    <div className={`mt-0.5 font-bold uppercase ${airlockDistance === 0 ? "text-green-400" : airlockDistance === null ? "text-gray-500" : "text-cyan-300"}`}>
-                                                        {airlockDistanceLabel}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-
                                         <div className="flex flex-1 min-h-0 flex-col gap-1.5">
-                                            <div className="flex items-center justify-between border-b border-white/5 pb-0.5">
+                                            <div className="flex flex-1 min-h-0 flex-col rounded-xl border border-white/10 bg-black/35 p-1.5">
+                                                <div className="mb-1 flex items-center justify-between border-b border-white/5 pb-1">
+                                                    <div className="text-[10px] uppercase tracking-widest text-gray-500">Room Scan</div>
+                                                    <div className="text-[8px] uppercase tracking-[0.24em] text-gray-600">
+                                                        {roomInfo?.scanned ? "Visual telemetry online" : "Awaiting recon"}
+                                                    </div>
+                                                </div>
+                                                <div className="flex flex-1 min-h-0 items-center justify-center rounded-2xl border border-white/10 bg-black/50 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                                                    <div className="aspect-square h-full max-h-[220px] w-full max-w-[220px]">
+                                                        <RoomScanner
+                                                            key={`console-${visualPlayerNode?.id || "node"}-${facing}`}
+                                                            type={visualPlayerNode?.type || player?.MapNode?.type || "UNKNOWN"}
+                                                            isExplored={Boolean(visualPlayerNode?.isExplored)}
+                                                            integrity={game.integrity}
+                                                            suit={isRoomScanned ? roomInfo?.suit : undefined}
+                                                            suitColor={isRoomScanned ? roomSuitMeta?.color : undefined}
+                                                            connections={scannedConnections}
+                                                            windows={windows}
+                                                            scanned={isRoomScanned}
+                                                            facing={facing}
+                                                            relativeNorth={["FORWARD", "RIGHT", "BACK", "LEFT"][(4 - ["NORTH", "EAST", "SOUTH", "WEST"].indexOf(facing || "NORTH")) % 4]}
+                                                            hallwayIntel={[]}
+                                                            movementDirection={showHallwayCountdown ? transitDirectionLabel : null}
+                                                            movementActive={showHallwayCountdown}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="mt-auto flex flex-col gap-1.5">
+                                                <div className="flex items-center justify-between border-b border-white/5 pb-0.5">
                                                 <div className="text-[10px] uppercase tracking-widest text-gray-500">Tactical Actions</div>
                                                 <div className="text-[9px] uppercase tracking-[0.24em] text-gray-600">
                                                     Recon / Combat / Stabilize
@@ -2453,6 +2466,7 @@ export default function GameInterface() {
                                                 </Button>
                                             </div>
                                         </div>
+                                    </div>
                                     </div>
 
 
