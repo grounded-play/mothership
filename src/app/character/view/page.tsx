@@ -57,17 +57,17 @@ export default async function CharacterViewPage() {
 
             <div className="mx-auto flex h-full min-h-0 w-full max-w-[1320px] flex-col">
                 <AutoFitViewport contentKey={`character-view-${character.id}`}>
-                    <div className="flex min-h-[640px] min-w-[1180px] w-full flex-col">
+                    <div className="flex h-[640px] min-w-[1180px] w-full flex-col">
                         <header className="mb-4 flex shrink-0 justify-end border-b border-white/10 pb-3">
                             <div className="flex items-center gap-4">
                                 <CurrencyDisplay credits={character.credits} voidTokens={character.voidTokens} scrap={scrapCount} paste={pasteCount} />
                             </div>
                         </header>
 
-                        <div className="grid grid-cols-12 gap-5">
+                        <div className="grid min-h-0 flex-1 grid-cols-12 gap-5">
 
                             {/* Left Column: Profile Card */}
-                            <div className="col-span-4 space-y-3">
+                            <div className="col-span-4 grid min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-3">
                                 <CharacterProfile character={character} />
 
                                 {/* Stats Panel (Moved here for better layout) */}
@@ -99,11 +99,11 @@ export default async function CharacterViewPage() {
                                         </div>
                                     </div>
                                 </div>
-                                <div className="glass-panel rounded-xl border-t-2 border-neon-cyan p-4">
+                                <div className="glass-panel flex min-h-0 flex-col rounded-xl border-t-2 border-neon-cyan p-4">
                                     <h2 className="mb-3 flex items-center text-sm font-bold uppercase tracking-wider text-neon-cyan">
                                         <Shield className="mr-2 h-4 w-4" /> Service Record
                                     </h2>
-                                    <div className="space-y-2 text-xs text-gray-300">
+                                    <div className="flex flex-1 flex-col justify-center space-y-3 text-xs text-gray-300">
                                         <div className="flex justify-between">
                                             <span className="text-gray-400">Runs Completed</span>
                                             <span className="font-mono text-white">{character.runsCompleted}</span>
@@ -125,8 +125,8 @@ export default async function CharacterViewPage() {
                             </div>
 
                             {/* Right Column: Inventory & Loadout */}
-                            <div className="col-span-8 space-y-3">
-                                <div className="glass-panel relative flex min-h-[420px] flex-col rounded-xl border-t-2 border-neon-cyan p-4">
+                            <div className="col-span-8 min-h-0">
+                                <div className="glass-panel relative flex h-full min-h-0 flex-col rounded-xl border-t-2 border-neon-cyan p-4">
                                     <h2 className="mb-4 flex items-center text-sm font-bold uppercase tracking-wider text-neon-cyan">
                                         <Box className="mr-2 h-4 w-4" /> Cargo Manifest
                                     </h2>
