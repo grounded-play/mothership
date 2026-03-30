@@ -58,6 +58,7 @@ const HAND_VIEWPORT_SAFE_VERTICAL_PADDING = 64;
 const HAND_VIEWPORT_FALLBACK_HEIGHT = 220;
 const HALLWAY_STEP_INTERVAL_MS = 1080;
 const ROOM_STEP_INTERVAL_MS = 720;
+const DEFAULT_HAND_CAPACITY = 11;
 
 const getScaledCardHeight = (width: number, preset: { width: number; height: number } = CARD_SIZE_PRESETS.lg) => {
     return Math.max(MIN_HAND_CARD_HEIGHT, Math.round((width / preset.width) * preset.height));
@@ -239,6 +240,7 @@ export default function GameInterface() {
         detectedEnemies?: number;
     } | null>(null);
     const [actionFeedback, setActionFeedback] = useState<{ status: "success" | "error"; label: string } | null>(null); // V23 Action Feedback
+    const [roomPanelFeedback, setRoomPanelFeedback] = useState<{ status: "success" | "error"; label: string } | null>(null);
     const [isActionLoading, setIsActionLoading] = useState(false); // V23 Card Action Loading State
     const [recentMovement, setRecentMovement] = useState<any>(null);
     const [hallwayTraversal, setHallwayTraversal] = useState<TraversalPreview | null>(null);
@@ -256,6 +258,7 @@ export default function GameInterface() {
     const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const actionFeedbackTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const scanFeedbackTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const roomPanelFeedbackTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const failureHandledRef = useRef(false);
     const { game, player } = gameState ?? { game: null, player: null };
 
@@ -358,20 +361,6 @@ export default function GameInterface() {
         if (!isNodeScanComplete(visualPlayerNode)) return [];
         return connections.map((connection: string) => toCardinalDirection(connection));
     }, [connections, visualPlayerNode]);
-    const exitSummaryLabel = useMemo(() => {
-        if (scannedExitLabels.length === 0) {
-            return visualPlayerNode?.type === "START"
-                ? "AIRLOCK"
-                : roomInfo?.scanned
-                    ? "SEALED"
-                    : "SCAN";
-        }
-
-        const primary = scannedExitLabels.slice(0, 2).join(" / ");
-        return scannedExitLabels.length > 2
-            ? `${primary} +${scannedExitLabels.length - 2}`
-            : primary;
-    }, [roomInfo?.scanned, scannedExitLabels, visualPlayerNode?.type]);
     const threatLabel = hasEnemies
         ? `HOSTILES ${roomEnemies.length}`
         : visualPlayerNode?.type === "BOSS"
@@ -443,9 +432,7 @@ export default function GameInterface() {
     );
     const hoveredMapNode: any = hoveredMapNodeId ? mapNodeById.get(hoveredMapNodeId) ?? null : null;
     const selectedMapNode: any = selectedMapNodeId ? mapNodeById.get(selectedMapNodeId) ?? null : null;
-    const inspectedMapNode: any = hoveredMapNode ?? selectedMapNode ?? visualPlayerNode ?? null;
-    const inspectedMapScanDone = isNodeScanComplete(inspectedMapNode);
-    const inspectedMapSecureDone = isNodeSecureComplete(inspectedMapNode);
+    const inspectedMapNode: any = hoveredMapNode ?? selectedMapNode ?? null;
     const inspectedMapSuitMeta = inspectedMapNode?.roomSuit ? suitMeta[inspectedMapNode.roomSuit as keyof typeof suitMeta] : null;
     const inspectedMapConnections = useMemo(
         () => inspectedMapNode ? parseJSON(inspectedMapNode.connections || "[]", []) : [],
@@ -462,19 +449,11 @@ export default function GameInterface() {
         () => inspectedMapRevealState ? inspectedMapConnections.map((connection: string) => toCardinalDirection(connection)) : [],
         [inspectedMapConnections, inspectedMapRevealState]
     );
-    const inspectedMapEnemies = useMemo(
-        () => inspectedMapNode ? parseJSON(inspectedMapNode.enemies || "[]", []) : [],
-        [inspectedMapNode?.enemies]
-    );
-    const inspectedMapLoot = useMemo(
-        () => inspectedMapNode ? parseJSON(inspectedMapNode.loot || "[]", []) : [],
-        [inspectedMapNode?.loot]
-    );
     const inspectedMapStatus = hoveredMapNode
         ? "HOVER"
         : selectedMapNode
             ? "LOCKED"
-            : "CURRENT";
+            : null;
     const inspectedMapIsBoss = Boolean(inspectedMapNode && (inspectedMapNode.type === "BOSS" || inspectedMapNode.id === game?.objectiveNodeId));
     const inspectedMapNodeLabel = inspectedMapNode
         ? (inspectedMapNode.type === "CORRIDOR" ? "HALL" : inspectedMapNode.type)
@@ -546,6 +525,7 @@ export default function GameInterface() {
             ? "AT AIRLOCK"
             : `${airlockDistance} sectors`;
     const playerHand = (player?.hand as any[]) || [];
+    const handCapacity = Number((player as any)?.handCapacity ?? (player as any)?.maxHand ?? DEFAULT_HAND_CAPACITY) || DEFAULT_HAND_CAPACITY;
     const handEntries = useMemo(
         () => playerHand.map((card: any, index: number) => ({ card, index })),
         [playerHand]
@@ -838,14 +818,17 @@ export default function GameInterface() {
             if (scanFeedbackTimeoutRef.current) {
                 clearTimeout(scanFeedbackTimeoutRef.current);
             }
+            if (roomPanelFeedbackTimeoutRef.current) {
+                clearTimeout(roomPanelFeedbackTimeoutRef.current);
+            }
         };
     }, []);
 
     useEffect(() => {
-        if (!mapNodes.length) return;
-        if (selectedMapNodeId && mapNodeById.has(selectedMapNodeId)) return;
-        setSelectedMapNodeId(visualPlayerNode?.id ?? mapNodes[0]?.id ?? null);
-    }, [mapNodeById, mapNodes, visualPlayerNode?.id, selectedMapNodeId]);
+        if (!selectedMapNodeId) return;
+        if (mapNodeById.has(selectedMapNodeId)) return;
+        setSelectedMapNodeId(null);
+    }, [mapNodeById, selectedMapNodeId]);
 
     useEffect(() => {
         if (!availableDecks.length) return;
@@ -1128,8 +1111,21 @@ export default function GameInterface() {
                             clearTimeout(scanFeedbackTimeoutRef.current);
                         }
                         scanFeedbackTimeoutRef.current = setTimeout(() => setScanFeedback(null), 2200);
+                        triggerRoomPanelFeedback(
+                            Boolean(data.success) ? "success" : "error",
+                            Boolean(data.success)
+                                ? `SCAN SUCCESS · PWR ${Number(data.nodePower || 0)} · DEPTH ${Number(data.scanDepth || 0)}`
+                                : `SCAN FAILED · PWR ${Number(data.nodePower || 0)}`
+                        );
                         soundManager.scanResolve(Boolean(data.success), Number(data.nodePower || 0));
                     } else {
+                        const resolutionType = String(data.type || "ACTION").toUpperCase();
+                        const resolutionLabel = resolutionType === "ATTACK"
+                            ? (Boolean(data.success) ? "ENGAGE SUCCESS" : "ENGAGE FAILED")
+                            : resolutionType === "SECURE"
+                                ? (Boolean(data.success) ? "SECURE SUCCESS" : "SECURE FAILED")
+                                : `${resolutionType} ${Boolean(data.success) ? "SUCCESS" : "FAILED"}`;
+                        triggerRoomPanelFeedback(Boolean(data.success) ? "success" : "error", resolutionLabel);
                         setResolutionData(data);
                     }
                     lastResolutionTsRef.current = latest.ts;
@@ -1312,6 +1308,15 @@ export default function GameInterface() {
         actionFeedbackTimeoutRef.current = setTimeout(() => setActionFeedback(null), status === "success" ? 900 : 1200);
     };
 
+    const triggerRoomPanelFeedback = (status: "success" | "error", label: string, durationMs = 2200) => {
+        if (roomPanelFeedbackTimeoutRef.current) {
+            clearTimeout(roomPanelFeedbackTimeoutRef.current);
+        }
+
+        setRoomPanelFeedback({ status, label });
+        roomPanelFeedbackTimeoutRef.current = setTimeout(() => setRoomPanelFeedback(null), durationMs);
+    };
+
     const handleMapNodeHover = (nodeId: string | null) => {
         setHoveredMapNodeId(nodeId);
     };
@@ -1382,7 +1387,6 @@ export default function GameInterface() {
     const isBossRoom = visualPlayerNode?.type === "BOSS";
     const isVictory = game?.phase === "VICTORY" || game?.roundPhase === "VICTORY";
     const activeDeck = mapZ ?? (visualPlayerNode?.z ?? 0);
-    const distanceTraveled = player?.distanceTraveled ?? 0;
     const moveDirectionLabels = {
         FORWARD: toCardinalDirection(toAbsoluteDirection("FORWARD", facing)),
         LEFT: toCardinalDirection(toAbsoluteDirection("LEFT", facing)),
@@ -1399,6 +1403,15 @@ export default function GameInterface() {
             {hiddenSelectedCount} selected card{hiddenSelectedCount === 1 ? "" : "s"} hidden by filter
         </div>
     ) : null;
+    const roomPanelStatusFeedback = roomPanelFeedback
+        ?? (scanFeedback
+            ? {
+                status: scanFeedback.success ? "success" as const : "error" as const,
+                label: scanFeedback.success
+                    ? `SCAN SUCCESS · PWR ${scanFeedback.nodePower} · DEPTH ${scanFeedback.scanDepth || 0}`
+                    : `SCAN FAILED · PWR ${scanFeedback.nodePower}`
+            }
+            : actionFeedback);
     const mapDeckLabel = showFullMaze
         ? `CENTER DECK ${typeof fullMapFocusDeck === "number" ? fullMapFocusDeck : maxDeck}`
         : `DECK ${activeDeck}`;
@@ -1566,49 +1579,17 @@ export default function GameInterface() {
             </button>
         );
 
-        if (scanFeedback) {
-            return (
-                <div className="flex items-center gap-2">
-                    {exitButton}
-                    <div className={`rounded-full border px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.2em] ${
-                        scanFeedback.success
-                            ? "border-green-400/40 bg-black/80 text-green-300"
-                            : "border-red-500/40 bg-black/85 text-red-300"
-                    }`}>
-                        {scanFeedback.success ? "Mission Feed Live" : "Scan Fail"} · PWR {scanFeedback.nodePower}
-                    </div>
-                </div>
-            );
-        }
-
-        if (actionFeedback) {
-            return (
-                <div className="flex items-center gap-2">
-                    {exitButton}
-                    <div className={`rounded-full border px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.2em] ${
-                        actionFeedback.status === "success"
-                            ? "border-neon-cyan/50 bg-black/80 text-neon-cyan"
-                            : "border-red-500/45 bg-black/85 text-red-300"
-                    }`}>
-                        {actionFeedback.label}
-                    </div>
-                </div>
-            );
-        }
-
         return (
             <div className="flex items-center gap-2">
                 {exitButton}
-                <div className={`rounded-full border px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.2em] ${
-                    isRoomScanned
-                        ? "border-neon-cyan/30 bg-black/78 text-neon-cyan"
-                        : "border-white/10 bg-black/65 text-gray-400"
-                }`}>
-                    {isRoomScanned ? "Mission Feed Live" : "Awaiting Room Scan"}
-                </div>
+                {isRoomScanned && (
+                    <div className="rounded-full border border-neon-cyan/30 bg-black/78 px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.2em] text-neon-cyan">
+                        Mission Feed Live
+                    </div>
+                )}
             </div>
         );
-    }, [actionFeedback, emergencyExitIntent, emergencyExitLabel, isActing, isAirlock, isRoomScanned, scanFeedback, setExitIntent]);
+    }, [emergencyExitIntent, emergencyExitLabel, isActing, isAirlock, isRoomScanned, setExitIntent]);
     const gameChromeOverride = useMemo(() => ({
         title: roomChromeMeta.title,
         icon: (
@@ -2151,16 +2132,6 @@ export default function GameInterface() {
                                     <span className="text-gray-500">Security</span>
                                     <span className="font-bold text-white">{roomInfo.security ?? 0}</span>
                                 </div>
-                                <div className="flex items-center justify-between gap-2">
-                                    <span className="text-gray-500">Distance</span>
-                                    <span className="font-bold text-white">{distanceTraveled} sectors</span>
-                                </div>
-                                <div className="flex items-center justify-between gap-2">
-                                    <span className="text-gray-500">Airlock</span>
-                                    <span className={`font-bold ${airlockDistance === 0 ? "text-green-400" : airlockDistance === null ? "text-gray-500" : "text-cyan-300"}`}>
-                                        {airlockDistanceLabel}
-                                    </span>
-                                </div>
                                 {player?.MapNode?.type === "BOSS" && (
                                     <div className="col-span-2 flex items-center justify-between gap-2">
                                         <span className="text-gray-500">Core Integrity</span>
@@ -2168,23 +2139,6 @@ export default function GameInterface() {
                                     </div>
                                 )}
                             </div>
-                            <div className="mt-1.5 flex flex-wrap items-center gap-1">
-                                <span className="text-[9px] uppercase tracking-[0.24em] text-gray-500">Exits</span>
-                                {scannedExitLabels.length > 0 ? scannedExitLabels.map((label: string) => (
-                                    <span key={label} className="rounded border border-cyan-500/20 bg-cyan-500/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-cyan-200">
-                                        {label}
-                                    </span>
-                                )) : (
-                                    <span className="text-[9px] font-bold uppercase tracking-[0.16em] text-gray-500">
-                                        {visualPlayerNode?.type === "START" ? "AIRLOCK" : roomInfo.scanned ? "SEALED" : "SCAN REQUIRED"}
-                                    </span>
-                                )}
-                            </div>
-                            {showHallwayCountdown && (
-                                <div className="mt-1.5 rounded border border-neon-cyan/30 bg-cyan-500/10 px-2 py-1 text-[8px] font-bold uppercase tracking-[0.22em] text-neon-cyan">
-                                    Transit {transitDirectionLabel} · {transitStatus?.remainingSteps || 0} step{(transitStatus?.remainingSteps || 0) === 1 ? "" : "s"} left
-                                </div>
-                            )}
                         </div>
                     )}
 
@@ -2195,9 +2149,6 @@ export default function GameInterface() {
                                 <div className="flex items-center justify-between gap-3">
                                     <div>
                                         <div className="text-[10px] uppercase tracking-widest text-gray-500">Sector Map</div>
-                                        <div className="text-[9px] uppercase tracking-[0.24em] text-gray-600">
-                                            Rooms are chambers. Halls are corridor links.
-                                        </div>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <span className="rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.24em] text-white">
@@ -2296,35 +2247,32 @@ export default function GameInterface() {
                                         </span>
                                     </div>
                                 </div>
-                                {!showFullMaze && inspectedMapNode && (
-                                    <div className="text-[9px] text-gray-500 uppercase tracking-widest text-center pt-1">
-                                        Viewing deck {activeDeck} • inspector on deck {inspectedMapNode.z}
-                                    </div>
-                                )}
-                                {inspectedMapNode && (
-                                    <div className="rounded border border-white/10 bg-black/55 px-2 py-1.5">
-                                        <div className="mb-1 flex items-center justify-between gap-2">
-                                            <div className="text-[9px] uppercase tracking-[0.32em] text-gray-500">Map Readout</div>
+                                <div className="rounded border border-white/10 bg-black/55 px-2 py-1.5">
+                                    <div className="mb-1 flex items-center justify-between gap-2">
+                                        <div className="text-[9px] uppercase tracking-[0.32em] text-gray-500">Map Readout</div>
+                                        {inspectedMapNode && (
                                             <div className="flex items-center gap-1">
-                                                <div className={`rounded-full border px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.2em] ${
-                                                    inspectedMapStatus === "CURRENT"
-                                                        ? "border-neon-cyan/40 text-neon-cyan"
-                                                        : inspectedMapStatus === "LOCKED"
+                                                {inspectedMapStatus && (
+                                                    <div className={`rounded-full border px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.2em] ${
+                                                        inspectedMapStatus === "LOCKED"
                                                             ? "border-white/20 text-white"
                                                             : "border-yellow-500/40 text-yellow-400"
-                                                }`}>
-                                                    {inspectedMapStatus}
-                                                </div>
+                                                    }`}>
+                                                        {inspectedMapStatus}
+                                                    </div>
+                                                )}
                                                 {inspectedMapIsBoss && (
                                                     <div className="rounded-full border border-red-500/40 bg-red-500/10 px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.2em] text-red-300">
                                                         Boss
                                                     </div>
                                                 )}
                                             </div>
-                                        </div>
+                                        )}
+                                    </div>
+                                    {inspectedMapNode ? (
                                         <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[9px]">
                                             <div className="flex items-center justify-between gap-2">
-                                                <span className="text-gray-500">Node</span>
+                                                <span className="text-gray-500">Focus</span>
                                                 <span className={`font-bold uppercase ${inspectedMapNode.type === "CORRIDOR" ? "text-slate-300" : inspectedMapSuitMeta?.color || "text-white"}`}>
                                                     {inspectedMapNodeLabel}
                                                 </span>
@@ -2342,8 +2290,12 @@ export default function GameInterface() {
                                                 <span className="truncate text-right font-bold uppercase text-gray-200">{inspectedMapLinkSummary}</span>
                                             </div>
                                         </div>
-                                    </div>
-                                )}
+                                    ) : (
+                                        <div className="rounded border border-dashed border-white/10 bg-black/25 px-2 py-2 text-[9px] uppercase tracking-[0.18em] text-gray-500">
+                                            Hover or lock a sector for intel.
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     )}
@@ -2377,50 +2329,7 @@ export default function GameInterface() {
                             {/* The Console Chassis */}
                             <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-t-3xl border-t-4 border-slate-700 bg-slate-900/90 p-1.5 shadow-2xl">
                                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-neon-cyan to-transparent opacity-50" />
-                                <div className="mb-1 flex min-h-[28px] items-center justify-between gap-2">
-                                    <div className="min-h-[22px] flex-1" />
-                                    <div className="flex min-h-[22px] items-center justify-center text-center">
-                                        {handStatusBanner}
-                                    </div>
-                                    <div className="flex flex-1 flex-wrap items-center justify-end gap-1">
-                                        <div className="text-[8px] uppercase tracking-[0.28em] text-gray-500">Loadout</div>
-                                        {loadoutItems.length > 0 ? loadoutItems.map((item: any, idx: number) => {
-                                            const isSelected = selectedItemIds.includes(item.id) && !(item.type === "WEAPON" || item.slot === "WEAPON");
-
-                                            return (
-                                                <button
-                                                    key={`console-loadout-chip-${idx}`}
-                                                    type="button"
-                                                    onClick={() => handleLoadoutItemClick(item)}
-                                                    className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.18em] transition-all ${
-                                                        isSelected
-                                                            ? "border-neon-cyan bg-cyan-500/15 text-neon-cyan"
-                                                            : "border-white/10 bg-black/35 text-gray-200 hover:border-white/30 hover:text-white"
-                                                    }`}
-                                                >
-                                                    {item.suit && (
-                                                        <span className={`text-[8px] ${
-                                                            item.suit === "COMMAND" ? "text-green-400" : ""
-                                                        } ${
-                                                            item.suit === "PLASMA" ? "text-orange-400" : ""
-                                                        } ${
-                                                            item.suit === "BIOTECH" ? "text-red-400" : ""
-                                                        } ${
-                                                            item.suit === "VOID" ? "text-purple-400" : ""
-                                                        }`}>
-                                                            {item.suit.slice(0, 3)}
-                                                        </span>
-                                                    )}
-                                                    <span>{item.name}</span>
-                                                </button>
-                                            );
-                                        }) : (
-                                            <div className="rounded-full border border-white/10 bg-black/25 px-2 py-0.5 text-[8px] uppercase tracking-[0.2em] text-gray-500">
-                                                No Gear
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
+                                <div className="mb-1 min-h-[8px]" />
 
                                 {/* Console Grid */}
                                 <div className="grid flex-1 min-h-0 grid-cols-[1.16fr_224px_0.82fr] items-stretch gap-2">
@@ -2434,6 +2343,24 @@ export default function GameInterface() {
                                                     {roomInfo?.scanned ? "Scanner ready" : "Awaiting recon"}
                                                 </div>
                                             </div>
+                                            <AnimatePresence initial={false}>
+                                                {roomPanelStatusFeedback && (
+                                                    <motion.div
+                                                        key={roomPanelStatusFeedback.label}
+                                                        initial={{ opacity: 0, y: -6 }}
+                                                        animate={{ opacity: 1, y: 0 }}
+                                                        exit={{ opacity: 0, y: -8 }}
+                                                        transition={{ duration: 0.22 }}
+                                                        className={`mb-1 rounded-lg border px-2 py-1 text-[8px] font-black uppercase tracking-[0.2em] ${
+                                                            roomPanelStatusFeedback.status === "success"
+                                                                ? "border-green-400/35 bg-green-500/10 text-green-300"
+                                                                : "border-red-500/35 bg-red-500/10 text-red-300"
+                                                        }`}
+                                                    >
+                                                        {roomPanelStatusFeedback.label}
+                                                    </motion.div>
+                                                )}
+                                            </AnimatePresence>
                                             <div className="flex flex-1 min-h-0 items-center justify-center rounded-2xl border border-white/10 bg-black/50 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
                                                 <div className="aspect-square h-full max-h-[320px] w-full max-w-[320px]">
                                                     <RoomScanner
@@ -2923,7 +2850,7 @@ export default function GameInterface() {
                                         <div className="flex items-center gap-2">
                                             {handStatusBanner}
                                             <div className="rounded-full border border-white/10 bg-black/35 px-2.5 py-1 text-[10px] font-mono text-gray-400">
-                                                {visibleHandEntries.length}/{handEntries.length}
+                                                {handEntries.length}/{handCapacity}
                                             </div>
                                         </div>
                                     </div>

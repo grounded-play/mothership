@@ -320,11 +320,20 @@ export default function SectorGrid({
                                 const suitStyle = suitColors[suit] || { text: "text-gray-400", border: "border-gray-700" };
                                 const suitAbbr = suit ? (fullMap ? suit.slice(0, 1).toUpperCase() : suit.slice(0, 3).toUpperCase()) : "";
                                 const connectionDirections = normalizeConnections(node?.connections);
-                                const validConnectionDirections = connectionDirections.filter((direction: string) => {
-                                    const delta = DIRECTION_VECTORS[direction];
-                                    if (!delta) return false;
-                                    return Boolean(getNode(x + delta.x, y + delta.y, z + delta.z));
-                                });
+                                const revealConnections = Boolean(
+                                    node && (
+                                        node.type === "START"
+                                        || node.scanned
+                                        || (node.type === "CORRIDOR" && node.isExplored)
+                                    )
+                                );
+                                const validConnectionDirections = revealConnections
+                                    ? connectionDirections.filter((direction: string) => {
+                                        const delta = DIRECTION_VECTORS[direction];
+                                        if (!delta) return false;
+                                        return Boolean(getNode(x + delta.x, y + delta.y, z + delta.z));
+                                    })
+                                    : [];
                                 const zDiff = Math.abs(z - (currentPlayerMarker?.z ?? 0));
                                 const dist = Math.abs(x - centerX) + Math.abs(y - centerY) + zDiff;
                                 const isNeighbor = dist === 1;
@@ -463,7 +472,7 @@ export default function SectorGrid({
                                                 }}
                                             />
                                         )}
-                                        {showsStructuralOverlay && (
+                                        {showsStructuralOverlay && revealConnections && (
                                             <>
                                                 {(["FORWARD", "BACK", "LEFT", "RIGHT"] as const).map((direction) => {
                                                     const hasConnection = validConnectionDirections.includes(direction);
