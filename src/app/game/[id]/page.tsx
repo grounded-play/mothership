@@ -578,7 +578,7 @@ export default function GameInterface() {
             }
 
             const fittedGap = Math.floor((availableWidth - count * cardWidth) / Math.max(count - 1, 1));
-            const maxOverlap = Math.round(cardWidth * 0.48);
+            const maxOverlap = Math.round(cardWidth * 0.62);
             gap = fittedGap >= 4
                 ? Math.min(10, fittedGap)
                 : Math.max(-maxOverlap, fittedGap);
@@ -603,7 +603,7 @@ export default function GameInterface() {
             resolveGap();
         }
 
-        const shouldPan = count * cardWidth + (count - 1) * gap > availableWidth;
+        const shouldPan = count * cardWidth + (count - 1) * gap > availableWidth + Math.round(cardWidth * 0.08);
 
         return {
             cardWidth,
@@ -1386,10 +1386,6 @@ export default function GameInterface() {
         <div className="rounded-full border border-yellow-400/20 bg-yellow-400/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-yellow-300">
             {hiddenSelectedCount} selected card{hiddenSelectedCount === 1 ? "" : "s"} hidden by filter
         </div>
-    ) : inActionPhase && handEntries.length > 0 && selectedCardIndices.length === 0 ? (
-        <div className="rounded-full border border-neon-cyan/20 bg-black/35 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-neon-cyan/85 animate-pulse">
-            Tap cards above to select
-        </div>
     ) : null;
     const mapDeckLabel = showFullMaze
         ? `CENTER DECK ${typeof fullMapFocusDeck === "number" ? fullMapFocusDeck : maxDeck}`
@@ -1510,6 +1506,13 @@ export default function GameInterface() {
             }`}>
                 AIRLOCK {airlockDistanceLabel}
             </div>
+            {roomInfo?.scanned && roomInfo?.suit && (
+                <div className="rounded-full border border-white/10 bg-black/70 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.18em] text-white">
+                    <span className="text-gray-400">Effect</span>
+                    <span className={`ml-1.5 ${roomSuitMeta?.color || "text-neon-cyan"}`}>{roomInfo.suit} +1</span>
+                    {roomOpposingSuit && <span className="ml-1.5 text-red-300">{roomOpposingSuit} -1</span>}
+                </div>
+            )}
             {showHallwayCountdown && (
                 <div className="rounded-full border border-neon-cyan/30 bg-cyan-500/10 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.18em] text-neon-cyan">
                     {transitDirectionLabel} {transitStatus?.remainingSteps || 0}
@@ -1527,6 +1530,9 @@ export default function GameInterface() {
         roomLinksLabel,
         airlockDistance,
         airlockDistanceLabel,
+        roomInfo?.suit,
+        roomOpposingSuit,
+        roomSuitMeta?.color,
         showHallwayCountdown,
         transitDirectionLabel,
         transitStatus?.remainingSteps
@@ -2063,7 +2069,10 @@ export default function GameInterface() {
                             </div>
 
                             <div className="w-full flex-1 min-h-0 bg-black/50 border border-white/5 relative overflow-hidden rounded">
-                                <div className="w-full h-full">
+                                <div
+                                    className="flex h-full w-full items-center justify-center"
+                                    style={showFullMaze ? { transform: "scale(0.88)", transformOrigin: "center center" } : undefined}
+                                >
                                     {/* Removed outer rotation, passing rotation to SectorGrid */}
                                     <SectorGrid
                                         nodes={game.MapNode || []}
@@ -2124,18 +2133,13 @@ export default function GameInterface() {
                                     </div>
                                     <div className="flex items-end justify-between gap-2">
                                         <span className={`min-w-0 text-xs font-bold uppercase leading-tight ${showFullMaze ? "text-neon-cyan" : "text-white"}`}>
-                                            {showFullMaze ? "FULL SHIP VIEW" : `DECK ${activeDeck} VIEW`}
+                                            {showFullMaze ? "DECK MATRIX" : `DECK ${activeDeck} VIEW`}
                                         </span>
                                         <span className="shrink-0 text-[9px] font-mono text-gray-400 bg-gray-900 px-1 rounded">
                                             {showFullMaze ? `${game.MapNode?.length || 0} NODES` : `SEC ${visualPlayerNode?.x ?? 0}-${visualPlayerNode?.y ?? 0}-${visualPlayerNode?.z ?? 0}`}
                                         </span>
                                     </div>
                                 </div>
-                                {showFullMaze && (
-                                    <div className="text-[9px] text-gray-500 uppercase tracking-widest text-center pt-1">
-                                        Full WFC / Markov hull across all decks. Use arrows to center higher or lower decks.
-                                    </div>
-                                )}
                                 {!showFullMaze && inspectedMapNode && (
                                     <div className="text-[9px] text-gray-500 uppercase tracking-widest text-center pt-1">
                                         Viewing deck {activeDeck} • inspector on deck {inspectedMapNode.z}
@@ -2176,15 +2180,9 @@ export default function GameInterface() {
                                     }`}>
                                         {actionFeedback.label}
                                     </div>
-                                ) : roomInfo?.scanned && roomInfo?.suit ? (
-                                    <div className="rounded-full border border-white/10 bg-black/35 px-3 py-1 text-[9px] uppercase tracking-[0.22em]">
-                                        <span className="text-gray-500">Room Effect</span>
-                                        <span className={`ml-2 font-bold ${roomSuitMeta?.color || "text-neon-cyan"}`}>{roomInfo.suit} +1</span>
-                                        {roomOpposingSuit && <span className="ml-2 font-bold text-red-300">{roomOpposingSuit} -1</span>}
-                                    </div>
                                 ) : (
                                     <div className="rounded-full border border-white/10 bg-black/35 px-3 py-1 text-[9px] font-bold uppercase tracking-[0.2em] text-gray-500">
-                                        Unscanned Sector
+                                        {isRoomScanned ? "Scanner Ready" : "Unscanned Sector"}
                                     </div>
                                 )}
                             </div>
@@ -2208,131 +2206,66 @@ export default function GameInterface() {
                                     style={handLayout.gap > 0 ? { gap: `${handLayout.gap}px` } : undefined}
                                 >
                                     <AnimatePresence initial={false}>
-                                        {visibleHandEntries.length > 0 ? visibleHandEntries.map(({ card, index }) => (
-                                            <motion.div
-                                                key={card.id || index}
-                                                initial={{ y: 60, opacity: 0, scale: 0.9 }}
-                                                animate={{
-                                                    y: selectedCardIndices.includes(index) ? -handLayout.selectionLift : 0,
-                                                    opacity: 1,
-                                                    scale: selectedCardIndices.includes(index) ? 1.03 : 1
-                                                }}
-                                                exit={{
-                                                    y: 40,
-                                                    opacity: 0,
-                                                    scale: 0.8,
-                                                    transition: { duration: 0.3, ease: "easeOut" }
-                                                }}
-                                                transition={{
-                                                    y: { duration: 0.4, ease: [0.34, 1.56, 0.64, 1] },
-                                                    opacity: { duration: 0.3 },
-                                                    scale: { duration: 0.3 }
-                                                }}
-                                                onClick={() => toggleCardSelection(index)}
-                                                className={`
-                                                    group relative flex items-end justify-center cursor-pointer select-none active:scale-95 active:brightness-90
-                                                    ${selectedCardIndices.includes(index)
-                                                        ? "z-40 brightness-125"
-                                                        : inActionPhase
-                                                            ? "hover:-translate-y-2 z-10 active:scale-95"
-                                                            : "hover:-translate-y-1 z-10 active:scale-95"
-                                                    }
-                                                `}
-                                                style={{
-                                                    width: `${handLayout.cardWidth}px`,
-                                                    minWidth: `${handLayout.cardWidth}px`,
-                                                    height: `${handLayout.wrapperHeight}px`,
-                                                    marginLeft: index > 0 && handLayout.gap < 0 ? `${handLayout.gap}px` : undefined,
-                                                    zIndex: selectedCardIndices.includes(index) ? 200 + index : index + 1
-                                                }}
-                                            >
-                                                <NavCard
-                                                    card={card}
-                                                    selected={selectedCardIndices.includes(index)}
-                                                    size="lg"
-                                                    dimensions={{ width: handLayout.cardWidth, height: handLayout.cardHeight }}
-                                                    roomEffect={roomInfo?.scanned ? getRoomEffectForCard(card, roomInfo?.suit, true) : undefined}
-                                                />
-                                            </motion.div>
-                                        )) : (
+                                        {visibleHandEntries.length > 0 ? visibleHandEntries.map(({ card, index }) => {
+                                            const centerOffset = index - ((visibleHandEntries.length - 1) / 2);
+                                            const fanDepth = Math.abs(centerOffset);
+                                            const fanRotate = handLayout.shouldPan ? 0 : centerOffset * 4.4;
+                                            const fanLift = handLayout.shouldPan ? 0 : Math.min(18, Math.round(fanDepth * 4));
+                                            const baseZ = handLayout.shouldPan ? index + 1 : 120 + Math.round((visibleHandEntries.length * 2) - fanDepth * 8);
+
+                                            return (
+                                                <motion.div
+                                                    key={card.id || index}
+                                                    initial={{ y: 60 + fanLift, opacity: 0, scale: 0.9, rotate: fanRotate * 0.45 }}
+                                                    animate={{
+                                                        y: fanLift + (selectedCardIndices.includes(index) ? -handLayout.selectionLift : 0),
+                                                        opacity: 1,
+                                                        scale: selectedCardIndices.includes(index) ? 1.03 : 1,
+                                                        rotate: fanRotate
+                                                    }}
+                                                    whileHover={{
+                                                        y: fanLift + (selectedCardIndices.includes(index) ? -handLayout.selectionLift : 0) - (inActionPhase ? 8 : 5),
+                                                        scale: selectedCardIndices.includes(index) ? 1.05 : 1.03
+                                                    }}
+                                                    exit={{
+                                                        y: 40 + fanLift,
+                                                        opacity: 0,
+                                                        scale: 0.8,
+                                                        rotate: fanRotate * 0.35,
+                                                        transition: { duration: 0.3, ease: "easeOut" }
+                                                    }}
+                                                    transition={{
+                                                        y: { duration: 0.4, ease: [0.34, 1.56, 0.64, 1] },
+                                                        opacity: { duration: 0.3 },
+                                                        scale: { duration: 0.3 },
+                                                        rotate: { duration: 0.35 }
+                                                    }}
+                                                    onClick={() => toggleCardSelection(index)}
+                                                    className="group relative flex cursor-pointer select-none items-end justify-center active:scale-95 active:brightness-90"
+                                                    style={{
+                                                        width: `${handLayout.cardWidth}px`,
+                                                        minWidth: `${handLayout.cardWidth}px`,
+                                                        height: `${handLayout.wrapperHeight}px`,
+                                                        marginLeft: index > 0 && handLayout.gap < 0 ? `${handLayout.gap}px` : undefined,
+                                                        zIndex: selectedCardIndices.includes(index) ? 420 + index : baseZ,
+                                                        transformOrigin: "center bottom"
+                                                    }}
+                                                >
+                                                    <NavCard
+                                                        card={card}
+                                                        selected={selectedCardIndices.includes(index)}
+                                                        size="lg"
+                                                        dimensions={{ width: handLayout.cardWidth, height: handLayout.cardHeight }}
+                                                        roomEffect={roomInfo?.scanned ? getRoomEffectForCard(card, roomInfo?.suit, true) : undefined}
+                                                    />
+                                                </motion.div>
+                                            );
+                                        }) : (
                                             <div className="text-xs text-center text-gray-500 border border-white/5 bg-white/5 p-4 rounded uppercase tracking-widest w-full max-w-sm">
                                                 {handEntries.length > 0 ? "No cards match that filter" : "No Signal Detected"}
                                             </div>
                                         )}
                                     </AnimatePresence>
-                                </div>
-                            </div>
-
-                            <div className="mt-0.5 flex items-start justify-between gap-2">
-                                <div className="flex flex-wrap items-center gap-1">
-                                    <div className="text-[9px] text-gray-500 uppercase tracking-[0.3em]">Hand Filter</div>
-                                    {HAND_FILTER_ORDER.map((filter) => {
-                                        const isActive = cardFilter === filter;
-                                        const tone = filter === "ALL"
-                                            ? "border-white/20 text-white"
-                                            : filter === "COMMAND"
-                                                ? "border-green-500/40 text-green-400"
-                                                : filter === "VOID"
-                                                    ? "border-purple-500/40 text-purple-400"
-                                                    : filter === "BIOTECH"
-                                                        ? "border-red-500/40 text-red-400"
-                                                        : filter === "PLASMA"
-                                                            ? "border-orange-500/40 text-orange-400"
-                                                            : "border-white/30 text-gray-200";
-
-                                        return (
-                                            <button
-                                                key={filter}
-                                                type="button"
-                                                onClick={() => handleCardFilterChange(filter)}
-                                                className={`rounded-full border px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider transition-all ${
-                                                    isActive
-                                                        ? `${tone} bg-white/10 shadow-[0_0_10px_rgba(255,255,255,0.08)]`
-                                                        : "border-white/10 text-gray-500 hover:border-white/30 hover:text-white"
-                                                }`}
-                                            >
-                                                {filter}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                                <div className="flex flex-wrap items-center justify-end gap-1">
-                                    <div className="text-[9px] text-gray-500 uppercase tracking-[0.3em]">Loadout</div>
-                                    {loadoutItems.length > 0 ? loadoutItems.map((item: any, idx: number) => {
-                                        const isSelected = selectedItemIds.includes(item.id) && !(item.type === "WEAPON" || item.slot === "WEAPON");
-
-                                        return (
-                                            <button
-                                                key={`loadout-chip-${idx}`}
-                                                type="button"
-                                                onClick={() => handleLoadoutItemClick(item)}
-                                                className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.18em] transition-all ${
-                                                    isSelected
-                                                        ? "border-neon-cyan bg-cyan-500/15 text-neon-cyan"
-                                                        : "border-white/10 bg-black/35 text-gray-200 hover:border-white/30 hover:text-white"
-                                                }`}
-                                            >
-                                                {item.suit && (
-                                                    <span className={`text-[8px] ${
-                                                        item.suit === "COMMAND" ? "text-green-400" : ""
-                                                    } ${
-                                                        item.suit === "PLASMA" ? "text-orange-400" : ""
-                                                    } ${
-                                                        item.suit === "BIOTECH" ? "text-red-400" : ""
-                                                    } ${
-                                                        item.suit === "VOID" ? "text-purple-400" : ""
-                                                    }`}>
-                                                        {item.suit.slice(0, 3)}
-                                                    </span>
-                                                )}
-                                                <span>{item.name}</span>
-                                            </button>
-                                        );
-                                    }) : (
-                                        <div className="rounded-full border border-white/10 bg-black/25 px-2 py-0.5 text-[8px] uppercase tracking-[0.2em] text-gray-500">
-                                            No Gear
-                                        </div>
-                                    )}
                                 </div>
                             </div>
 
@@ -2344,8 +2277,80 @@ export default function GameInterface() {
                             {/* The Console Chassis */}
                             <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-t-3xl border-t-4 border-slate-700 bg-slate-900/90 p-1.5 shadow-2xl">
                                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-neon-cyan to-transparent opacity-50" />
-                                <div className="mb-0.5 flex min-h-[14px] items-center justify-center text-center">
-                                    {handStatusBanner}
+                                <div className="mb-1 flex min-h-[28px] items-center justify-between gap-2">
+                                    <div className="flex flex-1 flex-wrap items-center gap-1">
+                                        <div className="text-[8px] uppercase tracking-[0.28em] text-gray-500">Filter</div>
+                                        {HAND_FILTER_ORDER.map((filter) => {
+                                            const isActive = cardFilter === filter;
+                                            const tone = filter === "ALL"
+                                                ? "border-white/20 text-white"
+                                                : filter === "COMMAND"
+                                                    ? "border-green-500/40 text-green-400"
+                                                    : filter === "VOID"
+                                                        ? "border-purple-500/40 text-purple-400"
+                                                        : filter === "BIOTECH"
+                                                            ? "border-red-500/40 text-red-400"
+                                                            : filter === "PLASMA"
+                                                                ? "border-orange-500/40 text-orange-400"
+                                                                : "border-white/30 text-gray-200";
+
+                                            return (
+                                                <button
+                                                    key={`console-filter-${filter}`}
+                                                    type="button"
+                                                    onClick={() => handleCardFilterChange(filter)}
+                                                    className={`rounded-full border px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.18em] transition-all ${
+                                                        isActive
+                                                            ? `${tone} bg-white/10 shadow-[0_0_10px_rgba(255,255,255,0.08)]`
+                                                            : "border-white/10 text-gray-500 hover:border-white/30 hover:text-white"
+                                                    }`}
+                                                >
+                                                    {filter}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                    <div className="flex min-h-[22px] items-center justify-center text-center">
+                                        {handStatusBanner}
+                                    </div>
+                                    <div className="flex flex-1 flex-wrap items-center justify-end gap-1">
+                                        <div className="text-[8px] uppercase tracking-[0.28em] text-gray-500">Loadout</div>
+                                        {loadoutItems.length > 0 ? loadoutItems.map((item: any, idx: number) => {
+                                            const isSelected = selectedItemIds.includes(item.id) && !(item.type === "WEAPON" || item.slot === "WEAPON");
+
+                                            return (
+                                                <button
+                                                    key={`console-loadout-chip-${idx}`}
+                                                    type="button"
+                                                    onClick={() => handleLoadoutItemClick(item)}
+                                                    className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.18em] transition-all ${
+                                                        isSelected
+                                                            ? "border-neon-cyan bg-cyan-500/15 text-neon-cyan"
+                                                            : "border-white/10 bg-black/35 text-gray-200 hover:border-white/30 hover:text-white"
+                                                    }`}
+                                                >
+                                                    {item.suit && (
+                                                        <span className={`text-[8px] ${
+                                                            item.suit === "COMMAND" ? "text-green-400" : ""
+                                                        } ${
+                                                            item.suit === "PLASMA" ? "text-orange-400" : ""
+                                                        } ${
+                                                            item.suit === "BIOTECH" ? "text-red-400" : ""
+                                                        } ${
+                                                            item.suit === "VOID" ? "text-purple-400" : ""
+                                                        }`}>
+                                                            {item.suit.slice(0, 3)}
+                                                        </span>
+                                                    )}
+                                                    <span>{item.name}</span>
+                                                </button>
+                                            );
+                                        }) : (
+                                            <div className="rounded-full border border-white/10 bg-black/25 px-2 py-0.5 text-[8px] uppercase tracking-[0.2em] text-gray-500">
+                                                No Gear
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
 
                                 {/* Console Grid */}
@@ -2471,7 +2476,7 @@ export default function GameInterface() {
 
 
                                     {/* Center Panel: Navigation & Compass */}
-                                    <div className="relative order-2 flex h-full w-full flex-col items-center gap-1">
+                                    <div className="relative order-2 flex h-full w-full flex-col items-center gap-2">
                                         {player && (
                                             <div className="w-full max-w-[232px] rounded-2xl border border-white/10 bg-black/55 px-2 py-1 shadow-[0_10px_24px_rgba(0,0,0,0.32)] backdrop-blur-sm">
                                                 <div className="flex items-center gap-2">
@@ -2531,8 +2536,14 @@ export default function GameInterface() {
                                             </div>
                                         )}
 
+                                        <div className="flex items-center justify-center">
+                                            <div className="rounded-full border border-yellow-400/30 bg-yellow-400/10 px-3 py-1 text-[9px] font-black uppercase tracking-[0.24em] text-yellow-300 shadow-[0_0_14px_rgba(250,204,21,0.14)]">
+                                                Shared AP {game?.sharedAp ?? 0}/{game?.sharedApMax ?? 0}
+                                            </div>
+                                        </div>
+
                                         {/* THE COMPASS (Central Bubble) */}
-                                        <div className="relative z-20 mb-[-0.5rem] flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border-4 border-slate-600 bg-black/80 shadow-[inset_0_0_20px_rgba(0,0,0,1)]">
+                                        <div className="relative z-20 mt-1 flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border-[5px] border-slate-600 bg-black/80 shadow-[inset_0_0_20px_rgba(0,0,0,1)]">
                                             {/* Compass Dial */}
                                             <div
                                                 className="absolute inset-0 transition-transform duration-700 ease-out"
@@ -2542,7 +2553,7 @@ export default function GameInterface() {
                                                 <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-2 bg-white/10" />
                                                 <div className="absolute left-1 top-1/2 -translate-y-1/2 w-2 h-1 bg-white/10" />
                                                 <div className="absolute right-1 top-1/2 -translate-y-1/2 w-2 h-1 bg-white/10" />
-                                                <div className="absolute top-3 left-1/2 -translate-x-1/2 text-[9px] font-bold text-neon-cyan">N</div>
+                                                <div className="absolute top-3.5 left-1/2 -translate-x-1/2 text-[10px] font-bold text-neon-cyan">N</div>
                                             </div>
 
                                             {/* Action Timer Overlay */}
@@ -2572,7 +2583,7 @@ export default function GameInterface() {
                                             )}
 
                                             {/* Static Center Marker */}
-                                            <div className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_10px_#f00] z-30" />
+                                            <div className="h-2.5 w-2.5 rounded-full bg-red-500 shadow-[0_0_10px_#f00] z-30" />
                                             {/* Glass Glare */}
                                             <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-white/10 to-transparent rounded-t-full pointer-events-none" />
                                         </div>
@@ -2873,10 +2884,6 @@ export default function GameInterface() {
                                 </div>
                             </>
                         )}
-                        <div className="absolute bottom-1 right-2 text-[10px] text-neon-cyan font-bold tracking-widest z-30 opacity-50">
-                            AP {game?.sharedAp ?? 0}/{game?.sharedApMax ?? 0}
-                        </div>
-
                     </div>
 
                         </div>

@@ -77,10 +77,10 @@ function getCellSize(fullMap: boolean, width: number, height: number) {
     if (!fullMap) return 40;
 
     const longestSide = Math.max(width, height);
-    if (longestSide >= 11) return 18;
-    if (longestSide >= 9) return 22;
-    if (longestSide >= 7) return 26;
-    return 30;
+    if (longestSide >= 11) return 16;
+    if (longestSide >= 9) return 19;
+    if (longestSide >= 7) return 23;
+    return 27;
 }
 
 const DIRECTION_VECTORS: Record<string, { x: number; y: number; z: number }> = {
@@ -173,16 +173,16 @@ export default function SectorGrid({
     const squadDotSize = fullMap ? Math.max(4, Math.round(cellSize * 0.22)) : 12;
     const roomLabelSize = fullMap ? Math.max(5, Math.round(cellSize * 0.22)) : 6;
     const statSize = fullMap ? Math.max(5, Math.round(cellSize * 0.22)) : 8;
-    const viewLabel = fullMap ? "FULL SHIP" : `DECK ${typeof activeZ === "number" ? activeZ : currentPlayerMarker?.z ?? 0}`;
+    const viewLabel = fullMap ? "" : `DECK ${typeof activeZ === "number" ? activeZ : currentPlayerMarker?.z ?? 0}`;
     const fullMapCenterDeck = fullMap && typeof fullMapFocusZ === "number" && layers.includes(fullMapFocusZ)
         ? fullMapFocusZ
         : layers[Math.floor(layers.length / 2)] ?? 0;
     const focusIndex = layers.indexOf(fullMapCenterDeck);
     const middleIndex = Math.floor(layers.length / 2);
     const layerGridHeight = bounds.height * cellSize + Math.max(0, bounds.height - 1) * gap;
-    const layerPaddingY = 16;
-    const layerGapY = 16;
-    const deckStride = Math.max(112, layerGridHeight + layerPaddingY + layerGapY);
+    const layerPaddingY = fullMap ? 12 : 16;
+    const layerGapY = fullMap ? 10 : 16;
+    const deckStride = Math.max(fullMap ? 92 : 112, layerGridHeight + layerPaddingY + layerGapY);
     const fullMapYOffset = fullMap ? (middleIndex - focusIndex) * deckStride : 0;
     const tacticalRotation = fullMap ? 0 : rotation;
     const uprightStyle = tacticalRotation ? { transform: `rotate(${-tacticalRotation}deg)` } : undefined;
@@ -198,7 +198,7 @@ export default function SectorGrid({
     const markerTravelDurationMs = Math.max(520, Math.round(Number(recentMovement?.durationMs ?? 560) * 0.94));
 
     return (
-        <div className="flex flex-col items-center justify-center gap-4 w-full h-full overflow-hidden relative bg-black">
+        <div className={`flex h-full w-full flex-col items-center justify-center overflow-hidden relative bg-black ${fullMap ? "gap-2" : "gap-4"}`}>
             <style jsx global>{`
                 @keyframes markerHop {
                     0% { transform: translateY(32%) scale(0.82); }
@@ -251,7 +251,7 @@ export default function SectorGrid({
                 }
             `}</style>
             <div
-                className="flex flex-col items-center justify-center gap-4 transition-transform duration-500 ease-out"
+                className={`flex flex-col items-center justify-center transition-transform duration-500 ease-out ${fullMap ? "gap-2" : "gap-4"}`}
                 style={fullMap ? { transform: `translateY(${fullMapYOffset}px)` } : undefined}
             >
                 {layers.map((z) => {
@@ -667,9 +667,11 @@ export default function SectorGrid({
             )})}
             </div>
 
-            <div className="absolute bottom-4 left-4 text-2xl font-black font-mono text-neon-cyan tracking-widest pointer-events-none z-50 drop-shadow-[0_0_10px_rgba(34,211,238,0.8)]">
-                {viewLabel}
-            </div>
+            {viewLabel && (
+                <div className="absolute bottom-4 left-4 text-2xl font-black font-mono text-neon-cyan tracking-widest pointer-events-none z-50 drop-shadow-[0_0_10px_rgba(34,211,238,0.8)]">
+                    {viewLabel}
+                </div>
+            )}
         </div>
     );
 }
