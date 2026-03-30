@@ -97,14 +97,14 @@ export default function RosterInterface({ initialCharacters, currentCharacterId 
     const selectedStats = parseStats(selectedCharacter?.stats);
 
     return (
-        <div className="mx-auto h-full min-h-0 w-full max-w-7xl">
-            <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)_300px] gap-8">
-                <div className="flex min-h-0 flex-col gap-8">
+        <div className="mx-auto h-full min-h-0 w-full max-w-[1200px]">
+            <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)_280px] gap-6">
+                <div className="flex min-h-0 flex-col gap-6">
                     {/* Control Panel */}
-                    <div className="glass-panel flex shrink-0 items-center justify-between gap-6 rounded-xl border border-white/10 p-6">
+                    <div className="glass-panel flex shrink-0 items-center justify-between gap-5 rounded-xl border border-white/10 p-5">
 
                         {/* Search */}
-                        <div className="relative w-96">
+                        <div className="relative w-[320px]">
                             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 w-5 h-5" />
                             <input
                                 type="text"
@@ -116,7 +116,7 @@ export default function RosterInterface({ initialCharacters, currentCharacterId 
                         </div>
 
                         {/* Filters */}
-                        <div className="flex flex-wrap items-center gap-4">
+                        <div className="flex flex-wrap items-center gap-3">
                             <div className="flex bg-black/40 rounded-lg p-1 border border-white/10">
                                 <button
                                     onClick={() => setSelectedClass(null)}
@@ -140,7 +140,7 @@ export default function RosterInterface({ initialCharacters, currentCharacterId 
 
                     {/* Grid Container with Scroll */}
                     <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar pr-2">
-                        <div className="grid grid-cols-4 gap-6">
+                        <div className="grid grid-cols-4 gap-5">
                             <AnimatePresence>
                                 {filteredCharacters.map((char) => (
                                     <motion.div
@@ -248,7 +248,7 @@ export default function RosterInterface({ initialCharacters, currentCharacterId 
                     </div>
                 </div>
 
-                <aside className="glass-panel flex h-full min-h-0 flex-col rounded-xl border border-white/10 p-6">
+                <aside className="glass-panel flex h-full min-h-0 flex-col rounded-xl border border-white/10 p-5">
                     <div className="flex-none">
                         <div className="text-[10px] text-gray-500 uppercase tracking-widest">Season Rankings</div>
                         <div className="text-xl font-bold text-white mt-1 mb-4">{seasonLabel}</div>

@@ -3,7 +3,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Users } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import RosterInterface from "@/components/roster/RosterInterface";
 import AutoFitViewport from "@/components/layout/AutoFitViewport";
 
@@ -55,17 +55,10 @@ export default async function RosterPage() {
                 </Link>
             </div>
 
-            <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col">
+            <div className="mx-auto flex h-full min-h-0 w-full max-w-[1320px] flex-col">
                 <AutoFitViewport contentKey={`roster-${characters.length}`}>
-                    <div className="flex h-[700px] min-w-[1280px] w-full flex-col">
-                        <header className="mb-6 flex shrink-0 items-center justify-between border-b border-white/5 pb-4 sm:mb-8">
-                            <div className="flex items-center gap-2">
-                                <Users className="w-5 h-5 text-neon-magenta" />
-                                <span className="uppercase tracking-widest text-lg font-bold text-white">Active Roster</span>
-                            </div>
-                        </header>
-
-                        <div className="mt-4 min-h-0 flex-1 sm:mt-8">
+                    <div className="flex h-[680px] min-w-[1200px] w-full flex-col">
+                        <div className="min-h-0 flex-1">
                             <RosterInterface
                                 initialCharacters={characters}
                                 currentCharacterId={viewer.characters[0]?.id ?? null}

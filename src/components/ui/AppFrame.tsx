@@ -1,7 +1,21 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Radio, Volume2, X } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import {
+    Crosshair,
+    Grid2x2,
+    Radio,
+    Rocket,
+    Settings2,
+    Shield,
+    ShoppingBag,
+    User,
+    Users,
+    Volume2,
+    X,
+    Zap,
+} from "lucide-react";
 import PersistentAudioController from "@/components/audio/PersistentAudioController";
 import { AmyGuideProvider } from "@/components/guide/AmyGuideContext";
 import MiniPlayer from "@/components/audio/MiniPlayer";
@@ -18,19 +32,24 @@ const GAME_ROUTE_RE = /^\/game\/[^/]+$/;
 const SUMMARY_ROUTE_RE = /^\/game\/[^/]+\/summary$/;
 const LOBBY_ROUTE_RE = /^\/lobby\/[^/]+$/;
 
-function getRouteTitle(pathname: string | null) {
+type RouteMeta = {
+    title: string;
+    icon: LucideIcon;
+};
+
+function getRouteMeta(pathname: string | null): RouteMeta | null {
     if (!pathname || pathname === "/" || pathname.startsWith("/api/")) return null;
-    if (pathname === "/menu") return "Main Menu";
-    if (pathname === "/roster") return "Active Roster";
-    if (pathname === "/marketplace") return "Galactic Market";
-    if (pathname === "/printer") return "Matter Fabricator";
-    if (pathname === "/settings") return "System Configuration";
-    if (pathname === "/character/view") return "Character Record";
-    if (pathname === "/character/create") return "Character Creator";
-    if (pathname === "/lobby/browse") return "Mission Control";
-    if (LOBBY_ROUTE_RE.test(pathname)) return "Launch Bay";
-    if (SUMMARY_ROUTE_RE.test(pathname)) return "Post-Mission Analysis";
-    if (GAME_ROUTE_RE.test(pathname)) return "Mission Deck";
+    if (pathname === "/menu") return { title: "Main Menu", icon: Grid2x2 };
+    if (pathname === "/roster") return { title: "Active Roster", icon: Users };
+    if (pathname === "/marketplace") return { title: "Galactic Market", icon: ShoppingBag };
+    if (pathname === "/printer") return { title: "Matter Fabricator", icon: Zap };
+    if (pathname === "/settings") return { title: "System Configuration", icon: Settings2 };
+    if (pathname === "/character/view") return { title: "Character Record", icon: User };
+    if (pathname === "/character/create") return { title: "Character Creator", icon: User };
+    if (pathname === "/lobby/browse") return { title: "Mission Control", icon: Crosshair };
+    if (LOBBY_ROUTE_RE.test(pathname)) return { title: "Launch Bay", icon: Rocket };
+    if (SUMMARY_ROUTE_RE.test(pathname)) return { title: "Post-Mission Analysis", icon: Shield };
+    if (GAME_ROUTE_RE.test(pathname)) return { title: "Mission Deck", icon: Crosshair };
     return null;
 }
 
@@ -54,7 +73,7 @@ function shouldShowBridgeTime(pathname: string | null) {
 export default function AppFrame({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const showDock = Boolean(pathname && pathname !== "/" && !pathname.startsWith("/api/"));
-    const routeTitle = getRouteTitle(pathname);
+    const routeMeta = getRouteMeta(pathname);
     const fitContent = isFittedRoute(pathname);
     const showBridgeTime = shouldShowBridgeTime(pathname);
     const [isCompactViewport, setIsCompactViewport] = useState(false);
@@ -67,6 +86,7 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
     const compactPanelRef = useRef<HTMLDivElement | null>(null);
     const routeKey = pathname ?? null;
     const compactPanel = compactPanelState.pathname === routeKey ? compactPanelState.panel : null;
+    const RouteIcon = routeMeta?.icon;
 
     const closeCompactPanel = () => {
         setCompactPanelState({ panel: null, pathname: routeKey });
@@ -163,13 +183,13 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
                         >
                             {showDock && (
                                 <div className="relative z-[40] flex items-center justify-end px-4 pt-3">
-                                    {routeTitle && (
-                                        <div className="pointer-events-none absolute left-1/2 top-2.5 z-0 flex max-w-[46vw] -translate-x-1/2 flex-col items-center text-center">
-                                            <div className="text-[8px] uppercase tracking-[0.34em] text-gray-600">
-                                                Mothership
-                                            </div>
+                                    {routeMeta && (
+                                        <div className="pointer-events-none absolute left-1/2 top-3 z-0 flex max-w-[52vw] -translate-x-1/2 items-center gap-2 text-center">
+                                            {RouteIcon && (
+                                                <RouteIcon className={`${isCompactViewport ? "h-3 w-3" : "h-3.5 w-3.5"} shrink-0 text-neon-cyan`} />
+                                            )}
                                             <div className={`${isCompactViewport ? "text-[10px]" : "text-[12px]"} truncate font-bold uppercase tracking-[0.3em] text-white`}>
-                                                {routeTitle}
+                                                {routeMeta.title}
                                             </div>
                                         </div>
                                     )}

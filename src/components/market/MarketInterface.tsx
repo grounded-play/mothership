@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { ArrowDownUp, Search, ShoppingBag, Filter, Coins, Hexagon, Plus, Dices, Box } from "lucide-react";
+import { ArrowDownUp, Search, Filter, Coins, Hexagon, Plus, Dices, Box } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 
@@ -328,15 +328,10 @@ export default function MarketInterface({ initialListings, userInventory, credit
                 }}
                 busy={isGenerating}
             />
-            <header className="flex shrink-0 items-start justify-between gap-4 border-b border-white/5 pb-4">
-                <div>
-                    <h1 className="mb-2 flex items-center text-4xl font-bold tracking-widest neon-text">
-                        <ShoppingBag className="mr-3 h-8 w-8 text-neon-cyan" /> GALACTIC MARKET
-                    </h1>
-                    <div className="flex gap-4 text-sm font-mono text-gray-400">
-                        <span className="flex items-center gap-2"><Coins className="w-4 h-4 text-yellow-400" /> {creditsDisplay}</span>
-                        <span className="flex items-center gap-2"><Hexagon className="w-4 h-4 text-neon-magenta" /> {voidTokens}</span>
-                    </div>
+            <header className="flex shrink-0 items-center justify-between gap-4 border-b border-white/5 pb-4">
+                <div className="flex items-center gap-4 text-sm font-mono text-gray-400">
+                    <span className="flex items-center gap-2"><Coins className="w-4 h-4 text-yellow-400" /> {creditsDisplay}</span>
+                    <span className="flex items-center gap-2"><Hexagon className="w-4 h-4 text-neon-magenta" /> {voidTokens}</span>
                 </div>
 
                 <div className="flex shrink-0 gap-2">
