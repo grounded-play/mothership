@@ -32,7 +32,7 @@ function ToggleCard({ label, description, enabled, onClick, compact = false }: T
                 enabled
                     ? "border-neon-cyan/50 bg-neon-cyan/10"
                     : "border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10"
-            } ${compact ? "p-3" : "p-4"}`}
+            } ${compact ? "p-3" : "p-3.5"}`}
         >
             <div className="flex items-start justify-between gap-3">
                 <div>
@@ -55,7 +55,7 @@ function ToggleCard({ label, description, enabled, onClick, compact = false }: T
 
 function SliderRow({ label, value, onChange, compact = false }: SliderRowProps) {
     return (
-        <div className={`rounded-lg border border-white/10 bg-white/5 ${compact ? "p-3" : "p-4"}`}>
+        <div className={`rounded-lg border border-white/10 bg-white/5 ${compact ? "p-3" : "p-3.5"}`}>
             <div className={`mb-2 flex items-center justify-between ${compact ? "text-xs" : "text-sm"}`}>
                 <span className="uppercase tracking-[0.2em] text-gray-300">{label}</span>
                 <span className="font-mono text-neon-cyan">{value}%</span>
@@ -89,7 +89,7 @@ export default function AudioSettingsPanel({ compact = false }: AudioSettingsPan
     };
 
     return (
-        <div className={compact ? "space-y-4" : "space-y-6"}>
+        <div className={compact ? "space-y-4" : "space-y-5"}>
             <div className="flex items-center gap-3">
                 {settings.sfxEnabled && settings.masterEnabled ? (
                     <Volume2 className={`text-neon-cyan ${compact ? "h-5 w-5" : "h-6 w-6"}`} />
@@ -106,7 +106,7 @@ export default function AudioSettingsPanel({ compact = false }: AudioSettingsPan
                 </div>
             </div>
 
-            <div className={`grid gap-3 ${compact ? "grid-cols-1" : "grid-cols-1 md:grid-cols-3"}`}>
+            <div className={`grid ${compact ? "grid-cols-1 gap-3" : "grid-cols-2 gap-2.5 xl:grid-cols-3"}`}>
                 <ToggleCard
                     compact={compact}
                     label="Master"
