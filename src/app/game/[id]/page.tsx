@@ -101,6 +101,7 @@ const worldDirectionVectors3D: Record<string, { x: number; y: number; z: number 
 };
 const suitOpposites: Record<string, string> = { COMMAND: "VOID", VOID: "COMMAND", BIOTECH: "PLASMA", PLASMA: "BIOTECH" };
 const normalizeSuit = (suit?: string | null) => (suit || "").toUpperCase();
+const getHandRankValue = (card: any) => Number(card?.rank ?? card?.power ?? 0);
 
 const toAbsoluteDirection = (relative: string, facing: Facing) => {
     return relativeToAbsolute[facing]?.[relative] || relative;
@@ -531,7 +532,19 @@ export default function GameInterface() {
         [playerHand]
     );
     const visibleHandEntries = useMemo(
-        () => handEntries.filter(({ card }) => cardFilter === "ALL" || card.suit === cardFilter),
+        () => {
+            const filtered = handEntries.filter(({ card }) => cardFilter === "ALL" || card.suit === cardFilter);
+
+            if (cardFilter !== "ALL") {
+                return filtered;
+            }
+
+            return [...filtered].sort((a, b) => {
+                const rankDelta = getHandRankValue(b.card) - getHandRankValue(a.card);
+                if (rankDelta !== 0) return rankDelta;
+                return a.index - b.index;
+            });
+        },
         [handEntries, cardFilter]
     );
     const hiddenSelectedCount = useMemo(
