@@ -357,44 +357,59 @@ export default function GameInterface() {
         })),
         [roomHallwayIntel]
     );
-    const scannedExitLabels = useMemo(() => {
-        if (!visualPlayerNode) return [];
-        if (!isNodeScanComplete(visualPlayerNode)) return [];
-        return connections.map((connection: string) => toCardinalDirection(connection));
-    }, [connections, visualPlayerNode]);
-    const threatLabel = hasEnemies
-        ? `HOSTILES ${roomEnemies.length}`
-        : visualPlayerNode?.type === "BOSS"
-            ? "CORE CONTACT"
-            : "CLEAR";
     const roomChromeMeta = useMemo(() => {
         const nodeType = String(visualPlayerNode?.type || "").toUpperCase();
+        const iconClassName = roomSuitMeta?.color || "text-neon-cyan";
         if (nodeType === "START") {
-            return { title: "Airlock", iconLabel: "AIR", colorClass: "text-neon-cyan" };
+            return {
+                title: "Airlock",
+                colorClass: "text-neon-cyan",
+                iconNode: <ArrowUp className="h-3 w-3" />
+            };
         }
         if (nodeType === "CORRIDOR") {
-            return { title: "Transit Corridor", iconLabel: "HALL", colorClass: "text-slate-300" };
+            return {
+                title: "Transit Corridor",
+                colorClass: "text-slate-300",
+                iconNode: <ArrowRight className="h-3 w-3" />
+            };
         }
         if (nodeType === "BOSS") {
             return {
                 title: roomInfo?.suit ? `${roomInfo.suit} Core` : "Core Chamber",
-                iconLabel: roomSuitMeta?.icon || "CORE",
-                colorClass: roomSuitMeta?.color || "text-red-400"
+                colorClass: roomSuitMeta?.color || "text-red-400",
+                iconNode: roomInfo?.suit === "COMMAND"
+                    ? <Crosshair className={`h-3 w-3 ${iconClassName}`} />
+                    : roomInfo?.suit === "BIOTECH"
+                        ? <Heart className={`h-3 w-3 ${iconClassName}`} />
+                        : roomInfo?.suit === "PLASMA"
+                            ? <Zap className={`h-3 w-3 ${iconClassName}`} />
+                            : roomInfo?.suit === "VOID"
+                                ? <Shield className={`h-3 w-3 ${iconClassName}`} />
+                                : <AlertTriangle className="h-3 w-3 text-red-400" />
             };
         }
         if (roomInfo?.scanned && roomInfo?.suit) {
             return {
                 title: `${roomInfo.suit} Chamber`,
-                iconLabel: roomSuitMeta?.icon || roomInfo.suit.slice(0, 4),
-                colorClass: roomSuitMeta?.color || "text-neon-cyan"
+                colorClass: roomSuitMeta?.color || "text-neon-cyan",
+                iconNode: roomInfo.suit === "COMMAND"
+                    ? <Crosshair className={`h-3 w-3 ${iconClassName}`} />
+                    : roomInfo.suit === "BIOTECH"
+                        ? <Heart className={`h-3 w-3 ${iconClassName}`} />
+                        : roomInfo.suit === "PLASMA"
+                            ? <Zap className={`h-3 w-3 ${iconClassName}`} />
+                            : roomInfo.suit === "VOID"
+                                ? <Shield className={`h-3 w-3 ${iconClassName}`} />
+                                : <AlertTriangle className="h-3 w-3 text-white" />
             };
         }
         return {
             title: nodeType ? `${nodeType} Node` : "Mission Deck",
-            iconLabel: nodeType ? nodeType.slice(0, 4) : "ROOM",
-            colorClass: "text-neon-cyan"
+            colorClass: "text-neon-cyan",
+            iconNode: <Crosshair className="h-3 w-3 text-neon-cyan" />
         };
-    }, [roomInfo?.scanned, roomInfo?.suit, roomSuitMeta?.color, roomSuitMeta?.icon, visualPlayerNode?.type]);
+    }, [roomInfo?.scanned, roomInfo?.suit, roomSuitMeta?.color, visualPlayerNode?.type]);
     const playerMarkers = useMemo(() => {
         const markers: { id: string; x: number; y: number; z: number; isCurrent?: boolean }[] = [];
         if (visualPlayerNode) {
@@ -463,7 +478,7 @@ export default function GameInterface() {
         ? (inspectedMapNode.scanned ? "SCANNED" : inspectedMapNode.isExplored ? "EXPLORED" : "UNSEEN")
         : "UNSEEN";
     const inspectedMapLinkSummary = !inspectedMapRevealState
-        ? "SCAN"
+        ? "UNKNOWN"
         : inspectedMapConnectionLabels.length > 0
             ? inspectedMapConnectionLabels.join(" / ")
             : "SEALED";
@@ -1398,6 +1413,7 @@ export default function GameInterface() {
     const facing = visualFacing;
     const mapRotationDeg = facing === "EAST" ? 270 : facing === "SOUTH" ? 180 : facing === "WEST" ? 90 : 0;
     const isRoomScanned = isNodeScanComplete(visualPlayerNode);
+    const isRoomSecured = isNodeSecureComplete(visualPlayerNode);
     const isBossRoom = visualPlayerNode?.type === "BOSS";
     const isVictory = game?.phase === "VICTORY" || game?.roundPhase === "VICTORY";
     const activeDeck = mapZ ?? (visualPlayerNode?.z ?? 0);
@@ -1426,6 +1442,11 @@ export default function GameInterface() {
                     : `SCAN FAILED · PWR ${scanFeedback.nodePower}`
             }
             : actionFeedback);
+    const roomScanStatusLabel = !isRoomScanned
+        ? "Awaiting Recon"
+        : isRoomSecured
+            ? "Ready To Move"
+            : "Scan Complete";
     const mapDeckLabel = showFullMaze
         ? `CENTER DECK ${typeof fullMapFocusDeck === "number" ? fullMapFocusDeck : maxDeck}`
         : `DECK ${activeDeck}`;
@@ -1511,7 +1532,6 @@ export default function GameInterface() {
     const missionSeconds = missionTimeLeft % 60;
     const roomSectorLabel = `${visualPlayerNode?.x ?? 0}-${visualPlayerNode?.y ?? 0}-${visualPlayerNode?.z ?? 0}`;
     const roomStateLabel = roomInfo?.scanned ? "SCANNED" : "UNSCANNED";
-    const roomLinksLabel = scannedExitLabels.length > 0 ? scannedExitLabels.join(" / ") : "SEALED";
     const gameChromeStatusItems = useMemo(() => (
         <>
             <div className={`rounded-full border px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.2em] ${
@@ -1533,9 +1553,6 @@ export default function GameInterface() {
             }`}>
                 STATE {roomStateLabel}
             </div>
-            <div className="max-w-[180px] truncate rounded-full border border-cyan-500/20 bg-black/70 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.18em] text-cyan-200">
-                LINKS {roomLinksLabel}
-            </div>
             <div className={`rounded-full border px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.18em] ${
                 airlockDistance === 0
                     ? "border-green-500/35 bg-green-500/10 text-green-300"
@@ -1545,13 +1562,6 @@ export default function GameInterface() {
             }`}>
                 AIRLOCK {airlockDistanceLabel}
             </div>
-            {roomInfo?.scanned && roomInfo?.suit && (
-                <div className="rounded-full border border-white/10 bg-black/70 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.18em] text-white">
-                    <span className="text-gray-400">Effect</span>
-                    <span className={`ml-1.5 ${roomSuitMeta?.color || "text-neon-cyan"}`}>{roomInfo.suit} +1</span>
-                    {roomOpposingSuit && <span className="ml-1.5 text-red-300">{roomOpposingSuit} -1</span>}
-                </div>
-            )}
             {showHallwayCountdown && (
                 <div className="rounded-full border border-neon-cyan/30 bg-cyan-500/10 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.18em] text-neon-cyan">
                     {transitDirectionLabel} {transitStatus?.remainingSteps || 0}
@@ -1566,12 +1576,8 @@ export default function GameInterface() {
         roomInfo?.scanned,
         roomSectorLabel,
         roomStateLabel,
-        roomLinksLabel,
         airlockDistance,
         airlockDistanceLabel,
-        roomInfo?.suit,
-        roomOpposingSuit,
-        roomSuitMeta?.color,
         showHallwayCountdown,
         transitDirectionLabel,
         transitStatus?.remainingSteps
@@ -1593,26 +1599,18 @@ export default function GameInterface() {
             </button>
         );
 
-        return (
-            <div className="flex items-center gap-2">
-                {exitButton}
-                {isRoomScanned && (
-                    <div className="rounded-full border border-neon-cyan/30 bg-black/78 px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.2em] text-neon-cyan">
-                        Mission Feed Live
-                    </div>
-                )}
-            </div>
-        );
-    }, [emergencyExitIntent, emergencyExitLabel, isActing, isAirlock, isRoomScanned, setExitIntent]);
+        return <div className="flex items-center gap-2">{exitButton}</div>;
+    }, [emergencyExitIntent, emergencyExitLabel, isActing, isAirlock, setExitIntent]);
     const gameChromeOverride = useMemo(() => ({
         title: roomChromeMeta.title,
         icon: (
             <span className={`inline-flex min-w-[2.2rem] items-center justify-center rounded-full border border-white/10 bg-black/70 px-2 py-1 text-[8px] font-black uppercase tracking-[0.18em] ${roomChromeMeta.colorClass}`}>
-                {roomChromeMeta.iconLabel}
+                {roomChromeMeta.iconNode}
             </span>
         ),
         statusItems: gameChromeStatusItems,
         rightItems: gameChromeRightItems,
+        hideBridgeTime: true,
         titleMaxWidthClassName: "max-w-[36vw]",
     }), [gameChromeRightItems, gameChromeStatusItems, roomChromeMeta]);
 
@@ -1625,7 +1623,7 @@ export default function GameInterface() {
     if (!gameState) return <div className="min-h-full flex items-center justify-center text-red-500">Game Not Found</div>;
 
     const canScan = inActionPhase && !isAirlock && !isRoomScanned;
-    const canSecure = inActionPhase && !isAirlock && isRoomScanned;
+    const canSecure = inActionPhase && !isAirlock && isRoomScanned && !isRoomSecured;
     const canAttack = inActionPhase && !isAirlock && (hasEnemies || isBossRoom);
     const canAutoMove = inActionPhase && isAirlock && actionIntent === "MOVE";
     const canMoveSelected = moveDirection === "FORWARD" ? canMoveForward
@@ -1798,6 +1796,17 @@ export default function GameInterface() {
                 selected,
                 badgeLabel: "SCAN",
                 helper: "Scan before secure",
+                wrapperClass: "bg-black/35 text-gray-500 border-white/10 opacity-70 cursor-not-allowed",
+                badgeClass: "border-white/10 bg-black/40 text-gray-500",
+                kickerClass: accent.kicker,
+            };
+        }
+        if (isRoomSecured) {
+            return {
+                disabled: true,
+                selected,
+                badgeLabel: "DONE",
+                helper: "Ready to move",
                 wrapperClass: "bg-black/35 text-gray-500 border-white/10 opacity-70 cursor-not-allowed",
                 badgeClass: "border-white/10 bg-black/40 text-gray-500",
                 kickerClass: accent.kicker,
@@ -2287,17 +2296,6 @@ export default function GameInterface() {
                     {/* Main Interaction Area */}
                     <div className="glass-panel border border-white/20 animate-fade-in relative overflow-visible w-full flex-1 min-h-0 flex flex-col items-center bg-black/40 p-2 backdrop-blur-md shadow-2xl">
 
-                        {/* 1. TOP: MISSION STATUS */}
-                        <div className="relative mb-0.5 flex min-h-[24px] w-full flex-none items-center justify-end gap-2 rounded-2xl border border-white/5 bg-black/20 px-2 py-1 shadow-inner">
-                            <div className="flex flex-wrap items-center justify-end gap-2">
-                                {(hasEnemies || isBossRoom) && (
-                                    <div className="rounded-full border border-red-500/35 bg-red-500/10 px-3 py-1 text-[9px] font-bold uppercase tracking-[0.22em] text-red-300">
-                                        {isBossRoom ? "Boss Contact" : `Hostiles ${roomEnemies.length}`}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
                         {/* 3. BOTTOM: CONTROL CONSOLE (Retro Dashboard w/ Central Compass) */}
                         <div className="mx-auto flex-1 min-h-0 w-full max-w-[1016px] pt-0 pb-0">
 
@@ -2312,10 +2310,19 @@ export default function GameInterface() {
                                     {/* Left Panel: Room Scan + Primary Actions */}
                                     <div className="order-1 flex h-full w-full flex-col gap-1 rounded-xl border border-white/5 bg-black/40 p-1.5">
                                         <div className="flex flex-1 min-h-0 flex-col rounded-xl border border-white/10 bg-black/35 p-1.5">
-                                            <div className="mb-1 flex items-center justify-between border-b border-white/5 pb-1">
+                                            <div className="mb-1 flex items-center justify-between gap-2 border-b border-white/5 pb-1">
                                                 <div className="text-[10px] uppercase tracking-widest text-gray-500">Room Scan</div>
-                                                <div className="text-[8px] uppercase tracking-[0.24em] text-gray-600">
-                                                    {roomInfo?.scanned ? "Scanner ready" : "Awaiting recon"}
+                                                <div className="flex items-center justify-end gap-1.5">
+                                                    {roomInfo?.scanned && roomInfo?.suit && (
+                                                        <div className="rounded-full border border-white/10 bg-black/70 px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.18em] text-white">
+                                                            <span className="text-gray-400">Effect</span>
+                                                            <span className={`ml-1.5 ${roomSuitMeta?.color || "text-neon-cyan"}`}>{roomInfo.suit} +1</span>
+                                                            {roomOpposingSuit && <span className="ml-1.5 text-red-300">{roomOpposingSuit} -1</span>}
+                                                        </div>
+                                                    )}
+                                                    <div className="text-[8px] uppercase tracking-[0.24em] text-gray-600">
+                                                        {roomScanStatusLabel}
+                                                    </div>
                                                 </div>
                                             </div>
                                             <AnimatePresence initial={false}>
@@ -2716,27 +2723,13 @@ export default function GameInterface() {
                                 </div>
 
                                 <div className="mt-1 flex-none rounded-b-3xl border border-white/6 bg-black/25 px-2 pb-1.5 pt-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-                                    <div className="flex min-h-[38px] flex-wrap items-start justify-between gap-2 rounded-2xl border border-white/8 bg-black/40 px-2 py-1.5">
-                                        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
-                                            <div className="text-[8px] uppercase tracking-[0.28em] text-gray-500">Room Intel</div>
-                                            <div className="rounded-full border border-white/10 bg-black/35 px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.16em] text-gray-200">
-                                                PWR {roomInfo?.scanned ? roomInfo?.power : "?"}
-                                            </div>
-                                            <div className={`rounded-full border border-white/10 bg-black/35 px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.16em] ${roomInfo?.scanned ? (roomSuitMeta?.color || "text-neon-cyan") : "text-gray-500"}`}>
-                                                {roomInfo?.scanned ? `${roomSuitMeta?.icon || ""} ${roomInfo?.suit}` : "SUIT ?"}
-                                            </div>
-                                            <div className="rounded-full border border-white/10 bg-black/35 px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.16em] text-gray-200">
-                                                INT {roomInfo?.scanned ? `${roomInfo?.integrity}%` : "?"}
-                                            </div>
-                                            <div className="rounded-full border border-white/10 bg-black/35 px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.16em] text-gray-200">
-                                                SEC {roomInfo?.security ?? 0}
-                                            </div>
-                                            <div className={`rounded-full border px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.16em] ${hasEnemies || isBossRoom ? "border-red-500/30 bg-red-500/10 text-red-300" : "border-green-500/30 bg-green-500/10 text-green-300"}`}>
-                                                {threatLabel}
-                                            </div>
+                                    <div className="flex min-h-[28px] items-center justify-between gap-2 px-1 pb-1">
+                                        <div className="min-w-0 flex-1">
+                                            {handStatusBanner ?? (
+                                                <div className="text-[8px] uppercase tracking-[0.28em] text-gray-500">Hand Bay</div>
+                                            )}
                                         </div>
                                         <div className="flex flex-wrap items-center justify-end gap-1.5">
-                                            {handStatusBanner}
                                             {HAND_FILTER_ORDER.map((filter) => {
                                                 const isActive = cardFilter === filter;
                                                 const tone = filter === "ALL"
@@ -2772,8 +2765,8 @@ export default function GameInterface() {
                                         </div>
                                     </div>
 
-                                    <div className="mt-1.5 relative rounded-2xl border border-white/6 bg-black/20 px-1.5 pt-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-                                        <div ref={handViewportRef} className="h-[112px] w-full overflow-hidden px-1 pt-1">
+                                    <div className="relative rounded-2xl border border-white/6 bg-black/20 px-1.5 pt-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                                        <div ref={handViewportRef} className="h-[148px] w-full overflow-hidden px-1 pt-1">
                                             <div
                                                 className="flex w-full items-end justify-center perspective-[1000px]"
                                                 style={handLayout.gap > 0 ? { gap: `${handLayout.gap}px` } : undefined}
